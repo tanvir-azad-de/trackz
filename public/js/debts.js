@@ -17,7 +17,7 @@ function renderDebts() {
             ? debt.payments.map((p) => `
                 <div class="list-row payment-row">
                     <div>
-                        <small>${escapeHtml(p.date)}</small>
+                        <small>${escapeHtml(formatDate(p.date))}</small>
                         ${p.notes ? `<small class="muted"> · ${escapeHtml(p.notes)}</small>` : ""}
                     </div>
                     <div class="payment-actions">

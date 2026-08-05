@@ -24,7 +24,7 @@ function ensureDashboardRangeDefaults() {
 function updateDashboardRangeCaptions() {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
-    const caption = from && to ? `${from} → ${to}` : "Selected range";
+    const caption = from && to ? `${formatDate(from)} → ${formatDate(to)}` : "Selected range";
     getElement("stat-income-caption").textContent = caption;
     getElement("stat-expense-caption").textContent = caption;
 }
@@ -165,7 +165,7 @@ function renderDashboard() {
                     <div class="list-row">
                         <div>
                             <strong>${escapeHtml(transactionCategoryLabel(transaction))}</strong>
-                            <small>${escapeHtml(transaction.date)} · ${escapeHtml(transactionDescription(transaction))}</small>
+                            <small>${escapeHtml(formatDate(transaction.date))} · ${escapeHtml(transactionDescription(transaction))}</small>
                         </div>
                         <strong class="${getTransactionSignedAmount(transaction) >= 0 ? "amount-positive" : "amount-negative"}">
                             ${getTransactionSignedAmount(transaction) >= 0 ? "+" : "-"}${formatMoney(transaction.amount, transaction.currency)}

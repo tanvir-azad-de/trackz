@@ -15,6 +15,7 @@ function renderAccounts() {
                     <td class="align-right">${formatMoney(account.currentBalance, account.currency)}</td>
                     <td class="align-right">${typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—"}</td>
                     <td class="align-right">${account.transactionCount}</td>
+                    <td><button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button></td>
                 </tr>
             `
         )
@@ -67,7 +68,31 @@ async function saveAccount() {
     showStatus("account-feedback", "Account saved.");
 }
 
+async function deleteAccount(accountName) {
+    const decodedName = decodeURIComponent(accountName || "");
+    const confirmed = window.confirm(`Are you sure you want to delete account \"${decodedName}\"?`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    const response = await fetch(`/api/accounts/${accountName}`, {
+        method: "DELETE"
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        showStatus("account-feedback", result.message || "Could not delete account.", "error");
+        return;
+    }
+
+    await loadData();
+    showStatus("account-feedback", "Account deleted.");
+}
+
 window.renderAccounts = renderAccounts;
 window.resetAccountForm = resetAccountForm;
 window.toggleAccountForm = toggleAccountForm;
 window.saveAccount = saveAccount;
+window.deleteAccount = deleteAccount;

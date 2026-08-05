@@ -91,7 +91,7 @@ function renderTransactions() {
 
             return `
                 <tr>
-                    <td>${escapeHtml(transaction.date)}</td>
+                    <td>${escapeHtml(formatDate(transaction.date))}</td>
                     <td>${escapeHtml(transactionDescription(transaction))}</td>
                     <td><span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span></td>
                     <td>${escapeHtml(transactionCategoryLabel(transaction))}</td>

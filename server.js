@@ -164,7 +164,25 @@ function getCurrencies() {
     return readJSON("currencies.json");
 }
 
-function getTransactionImpact(transaction, accountName) {
+function convertAmountBetweenCurrencies(amount, fromCurrency, toCurrency, rates) {
+    if (fromCurrency === toCurrency) {
+        return amount;
+    }
+
+    const fromRate = getRate(fromCurrency, rates);
+    const toRate = getRate(toCurrency, rates);
+
+    if (fromRate === null || toRate === null || toRate === 0) {
+        return amount;
+    }
+
+    const amountInEUR = amount * fromRate;
+    return amountInEUR / toRate;
+}
+
+function getTransactionImpact(transaction, accountName, context = {}) {
+    const { accountCurrencyByName = new Map(), rates = {} } = context;
+
     if (transaction.type === "Income" && transaction.account === accountName) {
         return transaction.amount;
     }
@@ -179,7 +197,13 @@ function getTransactionImpact(transaction, accountName) {
         }
 
         if (transaction.destinationAccount === accountName) {
-            return transaction.amount;
+            const destinationCurrency = accountCurrencyByName.get(accountName);
+            return convertAmountBetweenCurrencies(
+                transaction.amount,
+                transaction.currency,
+                destinationCurrency,
+                rates
+            );
         }
     }
 
@@ -190,6 +214,7 @@ function computeAccountSummaries() {
     const accounts = getAccounts();
     const transactions = getTransactions();
     const rates = getRates();
+    const accountCurrencyByName = new Map(accounts.map((account) => [account.name, account.currency]));
 
     return accounts.map((account) => {
         const matchingTransactions = transactions.filter(
@@ -199,7 +224,8 @@ function computeAccountSummaries() {
         );
 
         const currentBalance = matchingTransactions.reduce(
-            (sum, transaction) => sum + getTransactionImpact(transaction, account.name),
+            (sum, transaction) =>
+                sum + getTransactionImpact(transaction, account.name, { accountCurrencyByName, rates }),
             account.openingBalance
         );
 
@@ -561,6 +587,36 @@ app.post("/api/accounts", (req, res) => {
     } catch (error) {
         sendError(res, 400, error.message);
     }
+});
+
+app.delete("/api/accounts/:name", (req, res) => {
+    const accountName = String(req.params.name || "").trim();
+
+    if (!accountName) {
+        return sendError(res, 400, "Account name is required.");
+    }
+
+    const accounts = getAccounts();
+    const accountExists = accounts.some((account) => account.name === accountName);
+
+    if (!accountExists) {
+        return sendError(res, 404, "Account not found.");
+    }
+
+    const hasLinkedTransactions = getTransactions().some(
+        (transaction) =>
+            transaction.account === accountName ||
+            transaction.destinationAccount === accountName
+    );
+
+    if (hasLinkedTransactions) {
+        return sendError(res, 400, "Cannot delete account with linked transactions.");
+    }
+
+    const nextAccounts = accounts.filter((account) => account.name !== accountName);
+    writeJSON("accounts.json", nextAccounts);
+
+    return res.json({ success: true });
 });
 
 /*
