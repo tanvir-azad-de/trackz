@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>trackz</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <span class="sidebar-logo">⚡</span>
+                <span class="sidebar-title">trackz</span>
+            </div>
+            <nav class="nav">
+                <button class="nav-button active" data-page="dashboard" onclick="page('dashboard')">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Dashboard
+                </button>
+                <button class="nav-button" data-page="transactions" onclick="page('transactions')">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+                    Transactions
+                </button>
+                <button class="nav-button" data-page="accounts" onclick="page('accounts')">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                    Accounts
+                </button>
+                <button class="nav-button" data-page="categories" onclick="page('categories')">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg>
+                    Categories
+                </button>
+                <button class="nav-button" data-page="debts" onclick="page('debts')">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    Debts
+                </button>
+            </nav>
+        </aside>
+
+        <main>
+            <section id="dashboard">
+                <div class="page-header">
+                    <div>
+                        <p class="eyebrow">Overview</p>
+                        <h1>Dashboard</h1>
+                    </div>
+                    <div class="dashboard-range-controls">
+                        <label>
+                            <span>From</span>
+                            <input id="dashboard-from" type="date" onchange="onDashboardRangeChange()">
+                        </label>
+                        <label>
+                            <span>To</span>
+                            <input id="dashboard-to" type="date" onchange="onDashboardRangeChange()">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <article class="card stat-card">
+                        <span class="stat-label">Liquid money</span>
+                        <strong id="stat-balance">€0.00</strong>
+                        <small>All accounts except SCB Credit Card</small>
+                    </article>
+                    <article class="card stat-card">
+                        <span class="stat-label">Income this month</span>
+                        <strong id="stat-income">€0.00</strong>
+                        <small id="stat-income-caption">Current month</small>
+                    </article>
+                    <article class="card stat-card">
+                        <span class="stat-label">Expenses this month</span>
+                        <strong id="stat-expense">€0.00</strong>
+                        <small id="stat-expense-caption">Current month</small>
+                    </article>
+                </div>
+
+                <div class="dashboard-grid">
+                    <article class="card">
+                        <div class="panel-head">
+                            <h3>Accounts</h3>
+                        </div>
+                        <div id="account-overview" class="list-stack"></div>
+                    </article>
+
+                    <article class="card">
+                        <div class="panel-head">
+                            <h3>Top expenses</h3>
+                        </div>
+                        <div id="expense-breakdown" class="list-stack"></div>
+                    </article>
+
+                    <article class="card">
+                        <div class="panel-head">
+                            <h3>Debt overview</h3>
+                        </div>
+                        <div id="debt-overview"></div>
+                    </article>
+
+                    <article class="card wide-card">
+                        <div class="panel-head">
+                            <h3>Recent activity</h3>
+                        </div>
+                        <div id="recent-activity" class="list-stack"></div>
+                    </article>
+                </div>
+            </section>
+
+            <section id="transactions" hidden>
+                <div class="page-header">
+                    <div>
+                        <p class="eyebrow">Money flow</p>
+                        <h1>Transactions</h1>
+                    </div>
+                    <button class="primary-button" onclick="toggleForm()">+ Create New</button>
+                </div>
+
+                <div id="transaction-feedback" class="status" hidden></div>
+
+                <div id="form" class="card form-panel transaction-form-panel" hidden>
+                    <div class="form-intro">
+                        <div>
+                            <p class="eyebrow">Quick Entry</p>
+                            <h3>New transaction</h3>
+                        </div>
+                        <p class="form-intro-copy">Pick the source account first, then categorize the movement with an optional subcategory or linked debt.</p>
+                    </div>
+
+                    <div class="form-grid transaction-grid">
+                        <label class="field-span-2">
+                            <span>Date</span>
+                            <input id="date" type="date">
+                        </label>
+
+                        <label class="field-span-2">
+                            <span>Account</span>
+                            <select id="account"></select>
+                        </label>
+
+                        <label class="field-span-2">
+                            <span>Type</span>
+                            <select id="type" onchange="updateTransactionType()">
+                                <option>Income</option>
+                                <option>Expense</option>
+                                <option>Transfer</option>
+                            </select>
+                        </label>
+
+                        <label class="field-span-1">
+                            <span>Amount</span>
+                            <input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount">
+                        </label>
+
+                        <label class="field-span-1">
+                            <span>Currency</span>
+                            <div id="currency-display" class="readonly-value highlighted-readonly">—</div>
+                        </label>
+
+                         <label class="field-span-1" id="destination-account-group" hidden>
+                            <span>Destination account</span>
+                            <select id="destination-account"></select>
+                        </label>
+
+                        <label class="field-span-1">
+                            <span>Main category</span>
+                            <select id="category" onchange="populateTransactionSubcategories()"></select>
+                        </label>
+
+                        <label class="field-span-1" id="subcategory-group">
+                            <span>Subcategory (optional)</span>
+                            <select id="subcategory"></select>
+                            <small class="field-note">Refines the selected main category.</small>
+                        </label>
+
+                        <label class="field-span-1" id="debt-group" hidden>
+                            <span>Link to debt (optional)</span>
+                            <select id="transaction-debt">
+                                <option value="">— None —</option>
+                            </select>
+                            <small class="field-note">Use this when the transaction is part of a debt repayment or collection.</small>
+                        </label>
+
+                        <label class="field-span-1">
+                            <span>Notes</span>
+                            <input id="notes" placeholder="Optional notes">
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="primary-button" onclick="saveTransaction()">Save transaction</button>
+                        <button class="ghost-button" onclick="toggleForm(false)">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="card filter-panel">
+                    <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
+                    <select id="type-filter" onchange="renderTransactions()">
+                        <option value="">All types</option>
+                        <option value="Income">Income</option>
+                        <option value="Expense">Expense</option>
+                        <option value="Transfer">Transfer</option>
+                    </select>
+                    <select id="account-filter" onchange="renderTransactions()">
+                        <option value="">All accounts</option>
+                    </select>
+                    <label class="filter-date-label">
+                        <span>From</span>
+                        <input id="tx-from" type="date" onchange="renderTransactions()">
+                    </label>
+                    <label class="filter-date-label">
+                        <span>To</span>
+                        <input id="tx-to" type="date" onchange="renderTransactions()">
+                    </label>
+                </div>
+
+                <div class="table-card card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Account</th>
+                                <th>Type</th>
+                                <th>Category</th>
+                                <th class="align-right">Amount</th>
+                                <!-- <th class="align-right">Currency</th> -->
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="list"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="accounts" hidden>
+                <div class="page-header">
+                    <div>
+                        <p class="eyebrow">Structure</p>
+                        <h1>Accounts</h1>
+                    </div>
+                    <button class="primary-button" onclick="toggleAccountForm()">+ Create New</button>
+                </div>
+
+                <div id="account-feedback" class="status" hidden></div>
+
+                <div id="account-form" class="card form-panel" hidden>
+                    <div class="form-grid compact-grid">
+                        <label>
+                            <span>Account name</span>
+                            <input id="account-name" placeholder="Account name">
+                        </label>
+
+                        <label>
+                            <span>Currency</span>
+                            <select id="account-currency"></select>
+                        </label>
+
+                        <label>
+                            <span>Opening Balance</span>
+                            <input type="number" id="opening-balance"></input>
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="primary-button" onclick="saveAccount()">Save account</button>
+                        <button class="ghost-button" onclick="toggleAccountForm(false)">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="table-card card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th class="align-right">Currency</th>
+                                <th class="align-right">Current Balance</th>
+                                <th class="align-right">EUR Equivalent</th>
+                                <th class="align-right">Transactions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="account-list"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="categories" hidden>
+                <div class="page-header">
+                    <div>
+                        <p class="eyebrow">Structure</p>
+                        <h1>Categories</h1>
+                    </div>
+                </div>
+
+                <div id="category-feedback" class="status" hidden></div>
+
+                <div class="card form-panel">
+                    <div class="form-grid compact-grid">
+                        <label>
+                            <span>New category</span>
+                            <input id="category-name" placeholder="e.g. Subscriptions">
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button class="primary-button" onclick="saveCategory()">Save category</button>
+                    </div>
+                </div>
+
+                <div class="card form-panel">
+                    <div class="form-grid compact-grid">
+                        <label>
+                            <span>Category</span>
+                            <select id="subcategory-category"></select>
+                        </label>
+                        <label>
+                            <span>New subcategory</span>
+                            <input id="subcategory-name" placeholder="e.g. Netflix">
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button class="primary-button" onclick="saveSubcategory()">Save subcategory</button>
+                    </div>
+                </div>
+
+                <div class="table-card card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Subcategory</th>
+                            </tr>
+                        </thead>
+                        <tbody id="category-list"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="debts" hidden>
+                <div class="page-header">
+                    <div>
+                        <p class="eyebrow">Obligations</p>
+                        <h1>Debts</h1>
+                    </div>
+                    <button class="primary-button" onclick="toggleDebtForm()">+ Add Debt</button>
+                </div>
+
+                <div id="debt-feedback" class="status" hidden></div>
+
+                <div id="debt-form" class="card form-panel" hidden>
+                    <div class="form-grid compact-grid">
+                        <label>
+                            <span>Person</span>
+                            <input id="debt-person" placeholder="Name">
+                        </label>
+
+                        <label>
+                            <span>Direction</span>
+                            <select id="debt-direction">
+                                <option value="owed_to_me">They owe me</option>
+                                <option value="i_owe">I owe them</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Amount</span>
+                            <input id="debt-amount" type="number" min="0.01" step="0.01" placeholder="Amount">
+                        </label>
+
+                        <label>
+                            <span>Currency</span>
+                            <select id="debt-currency"></select>
+                        </label>
+
+                        <label class="wide-field">
+                            <span>Notes</span>
+                            <input id="debt-notes" placeholder="Optional notes">
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="primary-button" onclick="saveDebt()">Save debt</button>
+                        <button class="ghost-button" onclick="toggleDebtForm(false)">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="debts-grid">
+                    <div>
+                        <h3 class="debts-section-title">They owe me</h3>
+                        <div id="debts-owed-to-me" class="debt-list"></div>
+                    </div>
+                    <div>
+                        <h3 class="debts-section-title">I owe them</h3>
+                        <div id="debts-i-owe" class="debt-list"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/state.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/transactions.js"></script>
+    <script src="js/accounts.js"></script>
+    <script src="js/categories.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/debts.js"></script>
+    <script src="js/app-shell.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
