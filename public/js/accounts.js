@@ -2,7 +2,7 @@ function renderAccounts() {
     const tbody = getElement("account-list");
 
     if (!window.state.accounts.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No accounts yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">No accounts yet.</td></tr>';
         return;
     }
 
@@ -15,7 +15,7 @@ function renderAccounts() {
                     <td class="align-right">${formatMoney(account.currentBalance, account.currency)}</td>
                     <td class="align-right">${typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—"}</td>
                     <td class="align-right">${account.transactionCount}</td>
-                    <td><button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button></td>
+                    <td class="align-right"><button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button></td>
                 </tr>
             `
         )

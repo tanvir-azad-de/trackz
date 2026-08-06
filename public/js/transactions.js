@@ -95,9 +95,9 @@ function renderTransactions() {
                     <td>${escapeHtml(transactionDescription(transaction))}</td>
                     <td><span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span></td>
                     <td>${escapeHtml(transactionCategoryLabel(transaction))}</td>
-                    <td class="align-right ${amountClass}">${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}</td>
                     <td>${escapeHtml(notesText)}</td>
-                    <td><button class="table-button" onclick="deleteTransaction('${transaction.id}')">Delete</button></td>
+                    <td class="align-right ${amountClass}">${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}</td>
+                    <td class="align-right"><button class="table-button" onclick="deleteTransaction('${transaction.id}')">Delete</button></td>
                 </tr>
             `;
         })
@@ -106,7 +106,7 @@ function renderTransactions() {
 
 function syncCurrencyWithAccount() {
     const selectedAccount = window.state.accounts.find((account) => account.name === getElement("account").value);
-    getElement("currency-display").textContent = selectedAccount ? selectedAccount.currency : "—";
+    getElement("currency-display").textContent = selectedAccount ? "Amount (" + selectedAccount.currency + ")" : "—";
 }
 
 function updateTransactionType() {

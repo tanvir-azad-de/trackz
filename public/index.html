@@ -40,11 +40,12 @@
         <main>
             <section id="dashboard">
                 <div class="page-header">
-                    <div>
-                        <p class="eyebrow">Overview</p>
-                        <h1>Dashboard</h1>
-                    </div>
-                    <div class="dashboard-range-controls">
+                    <div class="page-header-main">
+                        <div>
+                            <p class="eyebrow">Overview</p>
+                            <h1>Dashboard</h1>
+                        </div>
+                       <div class="dashboard-range-controls">
                         <label>
                             <span>From</span>
                             <input id="dashboard-from" type="date" onchange="onDashboardRangeChange()">
@@ -54,6 +55,8 @@
                             <input id="dashboard-to" type="date" onchange="onDashboardRangeChange()">
                         </label>
                     </div>
+                    </div>
+                    
                 </div>
 
                 <div class="stats-grid">
@@ -107,11 +110,35 @@
 
             <section id="transactions" hidden>
                 <div class="page-header">
-                    <div>
-                        <p class="eyebrow">Money flow</p>
-                        <h1>Transactions</h1>
+                    <div class="page-header-main">
+                        <div>
+                            <p class="eyebrow">Money flow</p>
+                            <h1>Transactions</h1>
+                        </div>
+                       <div class="dashboard-range-controls">
+                            <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
+                            <select id="type-filter" onchange="renderTransactions()">
+                                <option value="">All types</option>
+                                <option value="Income">Income</option>
+                                <option value="Expense">Expense</option>
+                                <option value="Transfer">Transfer</option>
+                            </select>
+                            <select id="account-filter" onchange="renderTransactions()">
+                                <option value="">All accounts</option>
+                            </select>
+                            <label class="filter-date-label">
+                                <span>From</span>
+                                <input id="tx-from" type="date" onchange="renderTransactions()">
+                            </label>
+                            <label class="filter-date-label">
+                                <span>To</span>
+                                <input id="tx-to" type="date" onchange="renderTransactions()">
+                            </label>
+                        </div>
+                        <div class="page-header-actions">
+                            <button class="primary-button" onclick="onPageCreate()">+ Create New</button>
+                        </div>
                     </div>
-                    <button class="primary-button" onclick="toggleForm()">+ Create New</button>
                 </div>
 
                 <div id="transaction-feedback" class="status" hidden></div>
@@ -119,24 +146,22 @@
                 <div id="form" class="card form-panel transaction-form-panel" hidden>
                     <div class="form-intro">
                         <div>
-                            <p class="eyebrow">Quick Entry</p>
                             <h3>New transaction</h3>
                         </div>
-                        <p class="form-intro-copy">Pick the source account first, then categorize the movement with an optional subcategory or linked debt.</p>
                     </div>
 
-                    <div class="form-grid transaction-grid">
-                        <label class="field-span-2">
+                    <div class="form-grid">
+                        <label class="field-span-1">
                             <span>Date</span>
                             <input id="date" type="date">
                         </label>
 
-                        <label class="field-span-2">
+                        <label class="field-span-1">
                             <span>Account</span>
                             <select id="account"></select>
                         </label>
 
-                        <label class="field-span-2">
+                        <label class="field-span-1">
                             <span>Type</span>
                             <select id="type" onchange="updateTransactionType()">
                                 <option>Income</option>
@@ -146,13 +171,8 @@
                         </label>
 
                         <label class="field-span-1">
-                            <span>Amount</span>
+                            <span id="currency-display">—</span>
                             <input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount">
-                        </label>
-
-                        <label class="field-span-1">
-                            <span>Currency</span>
-                            <div id="currency-display" class="readonly-value highlighted-readonly">—</div>
                         </label>
 
                          <label class="field-span-1" id="destination-account-group" hidden>
@@ -168,7 +188,6 @@
                         <label class="field-span-1" id="subcategory-group">
                             <span>Subcategory (optional)</span>
                             <select id="subcategory"></select>
-                            <small class="field-note">Refines the selected main category.</small>
                         </label>
 
                         <label class="field-span-1" id="debt-group" hidden>
@@ -176,7 +195,6 @@
                             <select id="transaction-debt">
                                 <option value="">— None —</option>
                             </select>
-                            <small class="field-note">Use this when the transaction is part of a debt repayment or collection.</small>
                         </label>
 
                         <label class="field-span-1">
@@ -191,27 +209,6 @@
                     </div>
                 </div>
 
-                <div class="card filter-panel">
-                    <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
-                    <select id="type-filter" onchange="renderTransactions()">
-                        <option value="">All types</option>
-                        <option value="Income">Income</option>
-                        <option value="Expense">Expense</option>
-                        <option value="Transfer">Transfer</option>
-                    </select>
-                    <select id="account-filter" onchange="renderTransactions()">
-                        <option value="">All accounts</option>
-                    </select>
-                    <label class="filter-date-label">
-                        <span>From</span>
-                        <input id="tx-from" type="date" onchange="renderTransactions()">
-                    </label>
-                    <label class="filter-date-label">
-                        <span>To</span>
-                        <input id="tx-to" type="date" onchange="renderTransactions()">
-                    </label>
-                </div>
-
                 <div class="table-card card">
                     <table>
                         <thead>
@@ -220,10 +217,9 @@
                                 <th>Account</th>
                                 <th>Type</th>
                                 <th>Category</th>
-                                <th class="align-right">Amount</th>
-                                <!-- <th class="align-right">Currency</th> -->
                                 <th>Notes</th>
-                                <th>Actions</th>
+                                <th class="align-right">Amount</th>
+                                <th class="align-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="list"></tbody>
@@ -233,11 +229,16 @@
 
             <section id="accounts" hidden>
                 <div class="page-header">
-                    <div>
-                        <p class="eyebrow">Structure</p>
-                        <h1>Accounts</h1>
+                    <div class="page-header-main">
+                        <div>
+                            <p class="eyebrow">Structure</p>
+                            <h1>Accounts</h1>
+                        </div>
+                        <div class="page-header-actions">
+                            <button class="ghost-button" onclick="onPageSearch()">Search</button>
+                            <button class="primary-button" onclick="onPageCreate()">+ Create New</button>
+                        </div>
                     </div>
-                    <button class="primary-button" onclick="toggleAccountForm()">+ Create New</button>
                 </div>
 
                 <div id="account-feedback" class="status" hidden></div>
@@ -265,7 +266,7 @@
                         <button class="ghost-button" onclick="toggleAccountForm(false)">Cancel</button>
                     </div>
                 </div>
-
+                
                 <div class="table-card card">
                     <table>
                         <thead>
@@ -275,7 +276,7 @@
                                 <th class="align-right">Current Balance</th>
                                 <th class="align-right">EUR Equivalent</th>
                                 <th class="align-right">Transactions</th>
-                                <th>Actions</th>
+                                <th class="align-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="account-list"></tbody>
@@ -285,9 +286,15 @@
 
             <section id="categories" hidden>
                 <div class="page-header">
-                    <div>
-                        <p class="eyebrow">Structure</p>
-                        <h1>Categories</h1>
+                    <div class="page-header-main">
+                        <div>
+                            <p class="eyebrow">Structure</p>
+                            <h1>Categories</h1>
+                        </div>
+                        <div class="page-header-actions">
+                            <button class="ghost-button" onclick="onPageSearch()">Search</button>
+                            <button class="primary-button" onclick="onPageCreate()">+ Create New</button>
+                        </div>
                     </div>
                 </div>
 
@@ -336,11 +343,16 @@
 
             <section id="debts" hidden>
                 <div class="page-header">
-                    <div>
-                        <p class="eyebrow">Obligations</p>
-                        <h1>Debts</h1>
+                    <div class="page-header-main">
+                        <div>
+                            <p class="eyebrow">Obligations</p>
+                            <h1>Debts</h1>
+                        </div>
+                        <div class="page-header-actions">
+                            <button class="ghost-button" onclick="onPageSearch()">Search</button>
+                            <button class="primary-button" onclick="onPageCreate()">+ Add Debt</button>
+                        </div>
                     </div>
-                    <button class="primary-button" onclick="toggleDebtForm()">+ Add Debt</button>
                 </div>
 
                 <div id="debt-feedback" class="status" hidden></div>

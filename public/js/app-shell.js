@@ -8,6 +8,74 @@ function renderAll() {
 
 const PAGES = ["dashboard", "transactions", "accounts", "categories", "debts"];
 
+function onPageCreate() {
+    const pageName = window.state.currentPage || "dashboard";
+
+    if (pageName === "dashboard") {
+        page("transactions");
+        setTimeout(() => toggleForm(true), 0);
+        return;
+    }
+
+    if (pageName === "transactions") {
+        toggleForm(true);
+        return;
+    }
+
+    if (pageName === "accounts") {
+        toggleAccountForm(true);
+        return;
+    }
+
+    if (pageName === "categories") {
+        getElement("category-name")?.focus();
+        return;
+    }
+
+    if (pageName === "debts") {
+        toggleDebtForm(true);
+    }
+}
+
+function onPageSearch() {
+    const pageName = window.state.currentPage || "dashboard";
+
+    if (pageName === "dashboard") {
+        page("transactions");
+        setTimeout(() => {
+            const input = getElement("search-filter");
+            if (!input) return;
+            input.focus();
+            input.select?.();
+        }, 0);
+        return;
+    }
+
+    if (pageName === "transactions") {
+        const input = getElement("search-filter");
+        if (!input) return;
+        input.focus();
+        input.select?.();
+        return;
+    }
+
+    if (pageName === "accounts") {
+        toggleAccountForm(true);
+        getElement("account-name")?.focus();
+        return;
+    }
+
+    if (pageName === "categories") {
+        getElement("category-name")?.focus();
+        return;
+    }
+
+    if (pageName === "debts") {
+        toggleDebtForm(true);
+        getElement("debt-person")?.focus();
+    }
+}
+
 function _showPage(name) {
     if (!PAGES.includes(name)) name = "dashboard";
     window.state.currentPage = name;
@@ -83,3 +151,5 @@ window.renderAll = renderAll;
 window.page = page;
 window.loadData = loadData;
 window.initializeApp = initializeApp;
+window.onPageCreate = onPageCreate;
+window.onPageSearch = onPageSearch;
