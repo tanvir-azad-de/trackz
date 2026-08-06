@@ -25,8 +25,6 @@ function updateDashboardRangeCaptions() {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
     const caption = from && to ? `${formatDate(from)} → ${formatDate(to)}` : "Selected range";
-    getElement("stat-income-caption").textContent = caption;
-    getElement("stat-expense-caption").textContent = caption;
 }
 
 async function refreshDashboardSummaryForRange() {
@@ -74,107 +72,97 @@ function renderDashboard() {
         return;
     }
 
-    const statBalance = getElement("stat-balance");
-    const statIncome = getElement("stat-income");
-    const statExpense = getElement("stat-expense");
+    // --- Liquid Money card ---
+    const positiveAccounts = summary.accounts.filter(
+        (account) => typeof account.currentBalance === "number" && account.currentBalance > 0
+    );
+    const liquidMoney = positiveAccounts.reduce(
+        (sum, account) =>
+            sum + (typeof account.eurEquivalent === "number" ? account.eurEquivalent : 0),
+        0
+    );
+    getElement("stat-balance").textContent = formatMoney(liquidMoney, "EUR");
 
-    const applyTone = (element, value) => {
-        element.classList.remove("amount-positive", "amount-negative");
-        element.classList.add(value >= 0 ? "amount-positive" : "amount-negative");
-    };
-
-    const liquidMoney = summary.accounts
-        .filter((account) => !String(account.name || "").toLowerCase().includes("scb credit card"))
-        .reduce(
-            (sum, account) =>
-                sum + (typeof account.eurEquivalent === "number" ? Number(account.eurEquivalent) : 0),
-            0
-        );
-
-    statBalance.textContent = formatMoney(liquidMoney, "EUR");
-    statIncome.textContent = formatMoney(summary.totals.monthIncome, "EUR");
-    statExpense.textContent = formatMoney(summary.totals.monthExpense, "EUR");
-
-    applyTone(statBalance, liquidMoney);
-    applyTone(statIncome, summary.totals.monthIncome);
-    statExpense.classList.remove("amount-positive", "amount-negative");
-    statExpense.classList.add("amount-negative");
-
-    const accountOverview = getElement("account-overview");
-    accountOverview.innerHTML = summary.accounts.length
-        ? summary.accounts
+    getElement("account-overview").innerHTML = positiveAccounts.length
+        ? positiveAccounts
               .map(
                   (account) => `
                     <div class="list-row">
-                        <div>
-                            <strong>${escapeHtml(account.name)}</strong>
-                        </div>
-                        <strong class="${account.currentBalance >= 0 ? "amount-positive" : "amount-negative"}">${formatMoney(account.currentBalance, account.currency)}</strong>
-                    </div>
-                  `
+                        <strong>${escapeHtml(account.name)}</strong>
+                        <strong class="amount-positive">${formatMoney(account.currentBalance, account.currency)}</strong>
+                    </div>`
               )
               .join("")
-        : '<p class="empty-copy">Add an account to see balances here.</p>';
+        : '<p class="empty-copy">No accounts with positive balance.</p>';
 
-    const expenseBreakdown = getElement("expense-breakdown");
-    expenseBreakdown.innerHTML = summary.expenseByCategory.length
-        ? summary.expenseByCategory
-              .slice(0, 5)
+    // --- Income card: group scoped transactions by main category ---
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+
+    const scopedTransactions = (window.state.transactions || []).filter((t) => {
+        const d = String(t.date || "");
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+    });
+
+    const rates = {};
+    (summary.accounts || []).forEach(() => {}); // rates come from summary totals; use toEUR helper below
+
+    function toEUR(amount, currency) {
+        // re-use account eurEquivalent ratio if available, otherwise approximate
+        const sample = summary.accounts.find((a) => a.currency === currency);
+        if (!sample || typeof sample.eurEquivalent !== "number" || sample.currentBalance === 0) {
+            return amount; // fallback
+        }
+        return amount * (sample.eurEquivalent / sample.currentBalance);
+    }
+
+    function groupByCategory(transactions) {
+        const map = {};
+        transactions.forEach((t) => {
+            const key = t.category || "Uncategorized";
+            map[key] = (map[key] || 0) + toEUR(t.amount, t.currency);
+        });
+        return Object.entries(map)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount);
+    }
+
+    const incomeTransactions = scopedTransactions.filter((t) => t.type === "Income");
+    const expenseTransactions = scopedTransactions.filter((t) => t.type === "Expense");
+
+    const totalIncome = incomeTransactions.reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+    const totalExpense = expenseTransactions.reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+
+    getElement("stat-income").textContent = formatMoney(totalIncome, "EUR");
+    getElement("stat-expense").textContent = formatMoney(totalExpense, "EUR");
+
+    const incomeByCategory = groupByCategory(incomeTransactions);
+    getElement("income-breakdown").innerHTML = incomeByCategory.length
+        ? incomeByCategory
+              .map(
+                  (entry) => `
+                    <div class="list-row">
+                        <span>${escapeHtml(entry.name)}</span>
+                        <strong class="amount-positive">${formatMoney(entry.amount, "EUR")}</strong>
+                    </div>`
+              )
+              .join("")
+        : '<p class="empty-copy">No income in this range.</p>';
+
+    const expenseByCategory = groupByCategory(expenseTransactions);
+    getElement("expense-breakdown").innerHTML = expenseByCategory.length
+        ? expenseByCategory
               .map(
                   (entry) => `
                     <div class="list-row">
                         <span>${escapeHtml(entry.name)}</span>
                         <strong class="amount-negative">${formatMoney(entry.amount, "EUR")}</strong>
-                    </div>
-                  `
+                    </div>`
               )
               .join("")
-        : '<p class="empty-copy">No expense categories yet.</p>';
-
-    const debts = window.state.debts || [];
-    const owedToMe = debts
-        .filter((debt) => debt.direction === "owed_to_me")
-        .reduce((sum, debt) => sum + (Number.isFinite(debt.eurEquivalent) ? debt.eurEquivalent : 0), 0);
-    const iOwe = debts
-        .filter((debt) => debt.direction === "i_owe")
-        .reduce((sum, debt) => sum + (Number.isFinite(debt.eurEquivalent) ? debt.eurEquivalent : 0), 0);
-
-    const debtOverview = getElement("debt-overview");
-    debtOverview.innerHTML = `
-        <div class="al-chart-legend">
-            <div class="al-legend-row">
-                <span><span class="al-dot al-assets"></span>Owed to me</span>
-                <strong class="amount-positive">${formatMoney(owedToMe, "EUR")}</strong>
-            </div>
-            <div class="al-legend-row">
-                <span><span class="al-dot al-liabilities"></span>I owe</span>
-                <strong class="amount-negative">${formatMoney(iOwe, "EUR")}</strong>
-            </div>
-            <div class="al-legend-row al-net-row">
-                <span>Net debt position</span>
-                <strong class="${owedToMe - iOwe >= 0 ? "amount-positive" : "amount-negative"}">${formatMoney(owedToMe - iOwe, "EUR")}</strong>
-            </div>
-        </div>
-    `;
-
-    const recentActivity = getElement("recent-activity");
-    recentActivity.innerHTML = summary.recentTransactions.length
-        ? summary.recentTransactions
-              .map(
-                  (transaction) => `
-                    <div class="list-row">
-                        <div>
-                            <strong>${escapeHtml(transactionCategoryLabel(transaction))}</strong>
-                            <small>${escapeHtml(formatDate(transaction.date))} · ${escapeHtml(transactionDescription(transaction))}</small>
-                        </div>
-                        <strong class="${getTransactionSignedAmount(transaction) >= 0 ? "amount-positive" : "amount-negative"}">
-                            ${getTransactionSignedAmount(transaction) >= 0 ? "+" : "-"}${formatMoney(transaction.amount, transaction.currency)}
-                        </strong>
-                    </div>
-                  `
-              )
-              .join("")
-        : '<p class="empty-copy">No recent activity yet.</p>';
+        : '<p class="empty-copy">No expenses in this range.</p>';
 }
 
 window.initializeDashboardRange = initializeDashboardRange;

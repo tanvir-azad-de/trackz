@@ -59,51 +59,38 @@
                     
                 </div>
 
-                <div class="stats-grid">
-                    <article class="card stat-card">
-                        <span class="stat-label">Liquid money</span>
-                        <strong id="stat-balance">€0.00</strong>
-                        <small>All accounts except SCB Credit Card</small>
-                    </article>
-                    <article class="card stat-card">
-                        <span class="stat-label">Income this month</span>
-                        <strong id="stat-income">€0.00</strong>
-                        <small id="stat-income-caption">Current month</small>
-                    </article>
-                    <article class="card stat-card">
-                        <span class="stat-label">Expenses this month</span>
-                        <strong id="stat-expense">€0.00</strong>
-                        <small id="stat-expense-caption">Current month</small>
-                    </article>
-                </div>
-
                 <div class="dashboard-grid">
                     <article class="card">
                         <div class="panel-head">
-                            <h3>Accounts</h3>
+                            <div>
+                                <h3>Liquid Money</h3>
+                                <small class="muted">Accounts with positive balance</small>
+                            </div>
+                            <strong id="stat-balance" class="amount-positive">€0.00</strong>
                         </div>
                         <div id="account-overview" class="list-stack"></div>
                     </article>
 
                     <article class="card">
                         <div class="panel-head">
-                            <h3>Top expenses</h3>
+                            <div>
+                                <h3>Total Income</h3>
+                                <small class="muted">By category in range</small>
+                            </div>
+                            <strong id="stat-income" class="amount-positive">€0.00</strong>
                         </div>
-                        <div id="expense-breakdown" class="list-stack"></div>
+                        <div id="income-breakdown" class="list-stack"></div>
                     </article>
 
                     <article class="card">
                         <div class="panel-head">
-                            <h3>Debt overview</h3>
+                            <div>
+                                <h3>Total Expenses</h3>
+                                <small class="muted">By category in range</small>
+                            </div>
+                            <strong id="stat-expense" class="amount-negative">€0.00</strong>
                         </div>
-                        <div id="debt-overview"></div>
-                    </article>
-
-                    <article class="card wide-card">
-                        <div class="panel-head">
-                            <h3>Recent activity</h3>
-                        </div>
-                        <div id="recent-activity" class="list-stack"></div>
+                        <div id="expense-breakdown" class="list-stack"></div>
                     </article>
                 </div>
             </section>
