@@ -44,17 +44,23 @@
                         <div>
                             <h1>Dashboard</h1>
                         </div>
-                       <div class="dashboard-range-controls">
-                        <label>
-                            <input id="dashboard-from" type="date" onchange="onDashboardRangeChange()">
-                        </label>
-                        <span>→</span>
-                        <label>
-                            <input id="dashboard-to" type="date" onchange="onDashboardRangeChange()">
-                        </label>
-                    </div>
+                        <div class="page-header-actions">
+                            <button class="icon-button ghost-button" title="Date Range" onclick="toggleDashboardFilters()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            </button>
+                        </div>
                     </div>
                     
+                </div>
+
+                <div id="dashboard-filters-panel" class="card form-panel tx-filters" hidden>
+                    <label>
+                        <input id="dashboard-from" type="date" onchange="onDashboardRangeChange()">
+                    </label>
+                    <span class="date-arrow">→</span>
+                    <label>
+                        <input id="dashboard-to" type="date" onchange="onDashboardRangeChange()">
+                    </label>
                 </div>
 
                 <div class="dashboard-grid">
@@ -99,52 +105,53 @@
                         <div>
                             <h1>Transactions</h1>
                         </div>
-                       <div class="dashboard-range-controls">
-                            <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
-                            <select id="type-filter" onchange="renderTransactions()">
-                                <option value="">All types</option>
-                                <option value="Income">Income</option>
-                                <option value="Expense">Expense</option>
-                                <option value="Transfer">Transfer</option>
-                            </select>
-                            <select id="account-filter" onchange="renderTransactions()">
-                                <option value="">All accounts</option>
-                            </select>
-                            <label class="filter-date-label">
-                                <input id="tx-from" type="date" onchange="renderTransactions()">
-                            </label>
-                            <span>→</span>
-                            <label class="filter-date-label">
-                                <input id="tx-to" type="date" onchange="renderTransactions()">
-                            </label>
-                        </div>
                         <div class="page-header-actions">
-                            <button class="primary-button" onclick="onPageCreate()">+ Create New</button>
+                            <button class="icon-button ghost-button" title="Filters" onclick="toggleFilters()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            </button>
+                            <button class="icon-button primary-button" title="Create New" onclick="toggleForm(true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
 
+                <div id="filters-panel" class="card form-panel tx-filters" hidden>
+                    <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
+                    <select id="type-filter" onchange="renderTransactions()">
+                        <option value="">All types</option>
+                        <option value="Income">Income</option>
+                        <option value="Expense">Expense</option>
+                        <option value="Transfer">Transfer</option>
+                    </select>
+                    <select id="account-filter" onchange="renderTransactions()">
+                        <option value="">All accounts</option>
+                    </select>
+                    <label class="filter-date-label">
+                        <input id="tx-from" type="date" onchange="renderTransactions()">
+                    </label>
+                    <span class="date-arrow">→</span>
+                    <label class="filter-date-label">
+                        <input id="tx-to" type="date" onchange="renderTransactions()">
+                    </label>
+                </div>
+
                 <div id="transaction-feedback" class="status" hidden></div>
 
-                <div id="form" class="card form-panel transaction-form-panel" hidden>
-                    <div class="form-intro">
-                        <div>
-                            <h3>New transaction</h3>
-                        </div>
-                    </div>
+                <div id="form" class="card form-panel" hidden>
 
                     <div class="form-grid">
-                        <label class="field-span-1">
+                        <label>
                             <span>Date</span>
                             <input id="date" type="date">
                         </label>
 
-                        <label class="field-span-1">
+                        <label>
                             <span>Account</span>
                             <select id="account"></select>
                         </label>
 
-                        <label class="field-span-1">
+                        <label>
                             <span>Type</span>
                             <select id="type" onchange="updateTransactionType()">
                                 <option>Income</option>
@@ -153,34 +160,34 @@
                             </select>
                         </label>
 
-                        <label class="field-span-1">
+                        <label>
                             <span id="currency-display">—</span>
                             <input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount">
                         </label>
 
-                         <label class="field-span-1" id="destination-account-group" hidden>
+                         <label id="destination-account-group" hidden>
                             <span>Destination account</span>
                             <select id="destination-account"></select>
                         </label>
 
-                        <label class="field-span-1">
+                        <label>
                             <span>Main category</span>
                             <select id="category" onchange="populateTransactionSubcategories()"></select>
                         </label>
 
-                        <label class="field-span-1" id="subcategory-group">
-                            <span>Subcategory (optional)</span>
+                        <label id="subcategory-group">
+                            <span>Subcat. (opt)</span>
                             <select id="subcategory"></select>
                         </label>
 
-                        <label class="field-span-1" id="debt-group" hidden>
-                            <span>Link to debt (optional)</span>
+                        <label id="debt-group" hidden>
+                            <span>Debt (opt.)</span>
                             <select id="transaction-debt">
                                 <option value="">— None —</option>
                             </select>
                         </label>
 
-                        <label class="field-span-1">
+                        <label>
                             <span>Notes</span>
                             <input id="notes" placeholder="Optional notes">
                         </label>
@@ -217,8 +224,9 @@
                             <h1>Accounts</h1>
                         </div>
                         <div class="page-header-actions">
-                            <button class="ghost-button" onclick="onPageSearch()">Search</button>
-                            <button class="primary-button" onclick="onPageCreate()">+ Create New</button>
+                            <button class="icon-button primary-button" title="Create New" onclick="toggleAccountForm(true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -226,7 +234,7 @@
                 <div id="account-feedback" class="status" hidden></div>
 
                 <div id="account-form" class="card form-panel" hidden>
-                    <div class="form-grid compact-grid">
+                    <div class="form-grid">
                         <label>
                             <span>Account name</span>
                             <input id="account-name" placeholder="Account name">
@@ -239,7 +247,7 @@
 
                         <label>
                             <span>Opening Balance</span>
-                            <input type="number" id="opening-balance"></input>
+                            <input type="number" id="opening-balance" placeholder="Amount"></input>
                         </label>
                     </div>
 
@@ -273,16 +281,17 @@
                             <h1>Categories</h1>
                         </div>
                         <div class="page-header-actions">
-                            <button class="ghost-button" onclick="onPageSearch()">Search</button>
-                            <button class="primary-button" onclick="onPageCreate()">+ Create New</button>
+                            <button class="icon-button primary-button" title="Create New" onclick="toggleFormCategories(true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div id="category-feedback" class="status" hidden></div>
 
-                <div class="card form-panel">
-                    <div class="form-grid compact-grid">
+                <div id="category-form" class="card form-panel" hidden>
+                    <div class="form-grid">
                         <label>
                             <span>New category</span>
                             <input id="category-name" placeholder="e.g. Subscriptions">
@@ -290,11 +299,12 @@
                     </div>
                     <div class="form-actions">
                         <button class="primary-button" onclick="saveCategory()">Save category</button>
+                        <button class="ghost-button" onclick="toggleFormCategories(false)">Cancel</button>
                     </div>
                 </div>
 
-                <div class="card form-panel">
-                    <div class="form-grid compact-grid">
+                <div id="subcategory-form" class="card form-panel" hidden>
+                    <div class="form-grid">
                         <label>
                             <span>Category</span>
                             <select id="subcategory-category"></select>
@@ -306,6 +316,7 @@
                     </div>
                     <div class="form-actions">
                         <button class="primary-button" onclick="saveSubcategory()">Save subcategory</button>
+                        <button class="ghost-button" onclick="toggleFormCategories(false)">Cancel</button>
                     </div>
                 </div>
 
@@ -329,8 +340,9 @@
                             <h1>Debts</h1>
                         </div>
                         <div class="page-header-actions">
-                            <button class="ghost-button" onclick="onPageSearch()">Search</button>
-                            <button class="primary-button" onclick="onPageCreate()">+ Add Debt</button>
+                            <button class="icon-button primary-button" title="Add Debt" onclick="toggleDebtForm(true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -338,7 +350,7 @@
                 <div id="debt-feedback" class="status" hidden></div>
 
                 <div id="debt-form" class="card form-panel" hidden>
-                    <div class="form-grid compact-grid">
+                    <div class="form-grid">
                         <label>
                             <span>Person</span>
                             <input id="debt-person" placeholder="Name">
@@ -362,7 +374,7 @@
                             <select id="debt-currency"></select>
                         </label>
 
-                        <label class="wide-field">
+                        <label>
                             <span>Notes</span>
                             <input id="debt-notes" placeholder="Optional notes">
                         </label>

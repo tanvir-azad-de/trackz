@@ -16,6 +16,18 @@ function categoryRows() {
     return rows;
 }
 
+function toggleFormCategories(force) {
+    const show = typeof force === "boolean" ? force : getElement("category-form").hidden;
+    getElement("category-form").hidden = !show;
+    getElement("subcategory-form").hidden = !show;
+
+    if (show) {
+        hideStatus("category-feedback");
+        resetCategoryForms();
+        getElement("category-name").focus();
+    }
+}
+
 function renderCategories() {
     const tbody = getElement("category-list");
     const rows = categoryRows();
@@ -97,6 +109,7 @@ async function saveSubcategory() {
     showStatus("category-feedback", "Subcategory saved.");
 }
 
+window.toggleFormCategories = toggleFormCategories;
 window.categoryRows = categoryRows;
 window.renderCategories = renderCategories;
 window.resetCategoryForms = resetCategoryForms;

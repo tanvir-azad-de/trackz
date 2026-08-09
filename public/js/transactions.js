@@ -138,7 +138,7 @@ function populateDebtDropdown() {
     const options = ['<option value="">— None —</option>'];
     
     debts.forEach((debt) => {
-        const label = `${debt.person} (${debt.direction === "owed_to_me" ? "owes me" : "I owe"}) - ${debt.remaining || debt.originalAmount} ${debt.currency}`;
+        const label = `${debt.person} (${debt.direction === "owed_to_me" ? "owes me" : "I owe"})`;
         options.push(`<option value="${debt.id}">${escapeHtml(label)}</option>`);
     });
     
@@ -252,6 +252,13 @@ window.populateTransactionSubcategories = populateTransactionSubcategories;
 window.populateDebtDropdown = populateDebtDropdown;
 window.isDebtTypeAllowed = isDebtTypeAllowed;
 window.resetTransactionForm = resetTransactionForm;
+function toggleFilters() {
+    const panel = getElement("filters-panel");
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) getElement("search-filter").focus();
+}
+
 window.toggleForm = toggleForm;
+window.toggleFilters = toggleFilters;
 window.saveTransaction = saveTransaction;
 window.deleteTransaction = deleteTransaction;

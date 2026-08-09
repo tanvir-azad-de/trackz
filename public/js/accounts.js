@@ -6,18 +6,23 @@ function renderAccounts() {
         return;
     }
 
-    tbody.innerHTML = window.state.accounts
+    tbody.innerHTML = [...window.state.accounts]
+        .sort((a, b) => a.name.localeCompare(b.name))
         .map(
-            (account) => `
+            (account) => {
+                const balanceClass = account.currentBalance >= 0 ? "amount-positive" : "amount-negative";
+                const eurClass = account.eurEquivalent >= 0 ? "amount-positive" : "amount-negative";
+                return `
                 <tr>
                     <td>${escapeHtml(account.name)}</td>
                     <td class="align-right">${escapeHtml(account.currency)}</td>
-                    <td class="align-right">${formatMoney(account.currentBalance, account.currency)}</td>
-                    <td class="align-right">${typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—"}</td>
+                    <td class="align-right ${balanceClass}">${formatMoney(account.currentBalance, account.currency)}</td>
+                    <td class="align-right ${typeof account.eurEquivalent === "number" ? eurClass : ""}">${typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—"}</td>
                     <td class="align-right">${account.transactionCount}</td>
                     <td class="align-right"><button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button></td>
                 </tr>
-            `
+            `;
+            }
         )
         .join("");
 }

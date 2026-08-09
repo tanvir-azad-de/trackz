@@ -165,6 +165,12 @@ function renderDashboard() {
         : '<p class="empty-copy">No expenses in this range.</p>';
 }
 
+function toggleDashboardFilters() {
+    const panel = getElement("dashboard-filters-panel");
+    panel.hidden = !panel.hidden;
+}
+
 window.initializeDashboardRange = initializeDashboardRange;
 window.onDashboardRangeChange = onDashboardRangeChange;
 window.renderDashboard = renderDashboard;
+window.toggleDashboardFilters = toggleDashboardFilters;
