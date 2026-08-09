@@ -4,7 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const app = express();
-const PORT = 3000;
+const PORT = 47291;
 
 const DATA_DIR = path.join(__dirname, "data");
 const TRANSACTION_TYPES = new Set(["Income", "Expense", "Transfer"]);
