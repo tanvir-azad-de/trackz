@@ -18,12 +18,22 @@ function transactionDescription(transaction) {
     return transaction.account;
 }
 
-function transactionCategoryLabel(transaction) {
+function transactionCategoryLabel(transaction, notesText) {
     if (!transaction) {
         return "";
     }
 
-    return transaction.subcategory ? `${transaction.category} / ${transaction.subcategory}` : transaction.category;
+    let result = transaction.category;
+
+    if(transaction.subcategory){
+        result +=  ` / ${transaction.subcategory}`;
+    }
+
+    if(notesText){
+        result += ` / ${notesText}`;
+    }
+
+    return result;
 }
 
 function getSelectedCategory() {
@@ -87,15 +97,14 @@ function renderTransactions() {
             const amountClass = getTransactionSignedAmount(transaction) >= 0 ? "amount-positive" : "amount-negative";
             const amountPrefix = getTransactionSignedAmount(transaction) >= 0 ? "+" : "-";
             const debtName = debtNameById.get(transaction.debtId);
-            const notesText = [transaction.notes, debtName ? `Debt: ${debtName}` : ""].filter(Boolean).join(" · ") || "—";
+            const notesText = [transaction.notes, debtName ? `${debtName}` : ""].filter(Boolean).join(" / ") || "";
 
             return `
                 <tr>
                     <td>${escapeHtml(formatDate(transaction.date))}</td>
                     <td>${escapeHtml(transactionDescription(transaction))}</td>
                     <td><span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span></td>
-                    <td>${escapeHtml(transactionCategoryLabel(transaction))}</td>
-                    <td>${escapeHtml(notesText)}</td>
+                    <td>${escapeHtml(transactionCategoryLabel(transaction, notesText))}</td>
                     <td class="align-right ${amountClass}">${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}</td>
                     <td class="align-right"><button class="table-button" onclick="deleteTransaction('${transaction.id}')">Delete</button></td>
                 </tr>

@@ -42,16 +42,14 @@
                 <div class="page-header">
                     <div class="page-header-main">
                         <div>
-                            <p class="eyebrow">Overview</p>
                             <h1>Dashboard</h1>
                         </div>
                        <div class="dashboard-range-controls">
                         <label>
-                            <span>From</span>
                             <input id="dashboard-from" type="date" onchange="onDashboardRangeChange()">
                         </label>
+                        <span>→</span>
                         <label>
-                            <span>To</span>
                             <input id="dashboard-to" type="date" onchange="onDashboardRangeChange()">
                         </label>
                     </div>
@@ -99,7 +97,6 @@
                 <div class="page-header">
                     <div class="page-header-main">
                         <div>
-                            <p class="eyebrow">Money flow</p>
                             <h1>Transactions</h1>
                         </div>
                        <div class="dashboard-range-controls">
@@ -114,11 +111,10 @@
                                 <option value="">All accounts</option>
                             </select>
                             <label class="filter-date-label">
-                                <span>From</span>
                                 <input id="tx-from" type="date" onchange="renderTransactions()">
                             </label>
+                            <span>→</span>
                             <label class="filter-date-label">
-                                <span>To</span>
                                 <input id="tx-to" type="date" onchange="renderTransactions()">
                             </label>
                         </div>
@@ -204,7 +200,7 @@
                                 <th>Account</th>
                                 <th>Type</th>
                                 <th>Category</th>
-                                <th>Notes</th>
+                                <!-- <th>Notes</th> -->
                                 <th class="align-right">Amount</th>
                                 <th class="align-right">Actions</th>
                             </tr>
@@ -218,7 +214,6 @@
                 <div class="page-header">
                     <div class="page-header-main">
                         <div>
-                            <p class="eyebrow">Structure</p>
                             <h1>Accounts</h1>
                         </div>
                         <div class="page-header-actions">
@@ -275,7 +270,6 @@
                 <div class="page-header">
                     <div class="page-header-main">
                         <div>
-                            <p class="eyebrow">Structure</p>
                             <h1>Categories</h1>
                         </div>
                         <div class="page-header-actions">
@@ -332,7 +326,6 @@
                 <div class="page-header">
                     <div class="page-header-main">
                         <div>
-                            <p class="eyebrow">Obligations</p>
                             <h1>Debts</h1>
                         </div>
                         <div class="page-header-actions">
