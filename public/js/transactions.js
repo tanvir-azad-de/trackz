@@ -103,9 +103,9 @@ function renderTransactions() {
                 <tr>
                     <td>${escapeHtml(formatDate(transaction.date))}</td>
                     <td>${escapeHtml(transactionDescription(transaction))}</td>
+                    <td class="align-right ${amountClass}">${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}</td>
                     <td><span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span></td>
                     <td>${escapeHtml(transactionCategoryLabel(transaction, notesText))}</td>
-                    <td class="align-right ${amountClass}">${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}</td>
                     <td class="align-right"><button class="table-button" onclick="deleteTransaction('${transaction.id}')">Delete</button></td>
                 </tr>
             `;
