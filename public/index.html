@@ -55,7 +55,6 @@
                     <button class="ghost-button" style="font-size:.75rem;padding:4px 8px" onclick="driveSync.signOut()">Sign out</button>
                     <span id="app-version" class="muted" style="font-size:.7rem"></span>
                 </div>
-                <script>document.getElementById('app-version').textContent = window.TRACKZ_VERSION ? 'v' + window.TRACKZ_VERSION : '';</script>
             </div>
         </aside>
 
@@ -436,5 +435,6 @@
     <script src="js/debts.js"></script>
     <script src="js/app-shell.js"></script>
     <script src="app.js"></script>
+    <script>document.getElementById('app-version').textContent = 'v' + (window.TRACKZ_VERSION || 'unknown');</script>
 </body>
 </html>
