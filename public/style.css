@@ -1328,3 +1328,146 @@ th {
 .payment-form-inline select {
 	margin: 0;
 }
+/* ── Mobile (≤768px) ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+	.layout {
+		flex-direction: column;
+		min-height: 100vh;
+	}
+
+	/* Sidebar becomes a fixed bottom nav bar */
+	.sidebar {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		top: auto;
+		width: 100%;
+		height: auto;
+		flex-direction: row;
+		align-items: stretch;
+		padding: 0;
+		padding-bottom: env(safe-area-inset-bottom);
+		border-right: none;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		z-index: 100;
+		overflow: visible;
+		gap: 0;
+	}
+
+	.nav {
+		display: flex;
+		flex-direction: row;
+		flex: 1;
+		gap: 0;
+	}
+
+	.nav-button {
+		flex: 1;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		gap: 3px;
+		padding: 10px 4px 12px;
+		font-size: 9px;
+		border-radius: 0;
+		text-align: center;
+	}
+
+	.nav-button.active {
+		border-top: 2px solid #60a5fa;
+	}
+
+	.sidebar-footer {
+		display: none;
+	}
+
+	/* Main content clears the bottom nav */
+	main {
+		padding: 16px 12px calc(70px + env(safe-area-inset-bottom)) 12px;
+		flex: 1;
+	}
+
+	.page-header {
+		padding: 10px 14px;
+		border-radius: 14px;
+		margin-bottom: 12px;
+		position: sticky;
+		top: 8px;
+	}
+
+	.page-header h1 {
+		font-size: 1.1rem;
+	}
+
+	.form-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.payment-form-inline {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.card {
+		padding: 14px;
+		border-radius: 14px;
+	}
+
+	.dashboard-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.stats-grid {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.debts-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.debt-amounts {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.table-card {
+		min-height: auto;
+		border-radius: 14px;
+	}
+
+	.tx-filters {
+		gap: 6px;
+	}
+
+	.tx-filters > input,
+	.tx-filters > select {
+		flex: 1 1 120px;
+		min-width: 0;
+		font-size: 12px;
+		height: 34px;
+	}
+}
+
+/* ── Small phones (≤480px) ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+	.payment-form-inline {
+		grid-template-columns: 1fr;
+	}
+
+	.debt-amounts {
+		grid-template-columns: 1fr;
+	}
+
+	.stats-grid {
+		grid-template-columns: 1fr;
+	}
+
+	th, td {
+		padding: 6px 4px;
+		font-size: 11px;
+	}
+
+	.pill {
+		font-size: 7px;
+		padding: 4px 7px;
+	}
+}
