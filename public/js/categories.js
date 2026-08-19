@@ -59,22 +59,10 @@ function resetCategoryForms() {
 }
 
 async function saveCategory() {
-    const payload = {
-        name: getElement("category-name").value.trim()
-    };
-
-    const response = await fetch("/api/categories", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("category-feedback", result.message || "Could not save category.", "error");
+    try {
+        window.db.saveCategory(getElement("category-name").value.trim());
+    } catch (err) {
+        showStatus("category-feedback", err.message || "Could not save category.", "error");
         return;
     }
 
@@ -84,23 +72,13 @@ async function saveCategory() {
 }
 
 async function saveSubcategory() {
-    const payload = {
-        categoryName: getElement("subcategory-category").value,
-        subcategoryName: getElement("subcategory-name").value.trim()
-    };
-
-    const response = await fetch("/api/categories/subcategories", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("category-feedback", result.message || "Could not save subcategory.", "error");
+    try {
+        window.db.saveSubcategory(
+            getElement("subcategory-category").value,
+            getElement("subcategory-name").value.trim()
+        );
+    } catch (err) {
+        showStatus("category-feedback", err.message || "Could not save subcategory.", "error");
         return;
     }
 

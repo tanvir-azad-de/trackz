@@ -30,15 +30,15 @@ function page(name) {
 }
 
 async function loadData() {
-    const [transactions, accounts, categories, categoryTree, currencies, summary, debts] = await Promise.all([
-        fetch("/api/transactions").then((response) => response.json()),
-        fetch("/api/accounts").then((response) => response.json()),
-        fetch("/api/categories").then((response) => response.json()),
-        fetch("/api/categories/tree").then((response) => response.json()),
-        fetch("/api/currencies").then((response) => response.json()),
-        fetch("/api/summary").then((response) => response.json()),
-        fetch("/api/debts").then((response) => response.json())
-    ]);
+    const [transactions, accounts, categories, categoryTree, currencies, summary, debts] = [
+        window.db.getTransactions(),
+        window.db.getAccounts(),
+        window.db.getCategories(),
+        window.db.getCategoryTree(),
+        window.db.getCurrencies(),
+        window.db.getSummary(),
+        window.db.getDebts()
+    ];
 
     window.state.transactions = transactions;
     window.state.accounts = accounts;
@@ -71,7 +71,7 @@ function initializeApp() {
     const hashPage = location.hash.replace(/^#/, "");
     const initialPage = PAGES.includes(hashPage) ? hashPage : "dashboard";
     _showPage(initialPage);
-    loadData();
+    window.driveSync.init();
 }
 
 window.addEventListener("hashchange", () => {

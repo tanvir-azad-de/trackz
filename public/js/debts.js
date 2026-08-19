@@ -103,16 +103,10 @@ async function saveDebt() {
         notes: getElement("debt-notes").value.trim()
     };
 
-    const response = await fetch("/api/debts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("debt-feedback", result.message || "Could not save debt.", "error");
+    try {
+        window.db.saveDebt(payload);
+    } catch (err) {
+        showStatus("debt-feedback", err.message || "Could not save debt.", "error");
         return;
     }
 
@@ -122,9 +116,9 @@ async function saveDebt() {
 }
 
 async function deleteDebt(id) {
-    const response = await fetch(`/api/debts/${id}`, { method: "DELETE" });
-
-    if (!response.ok) {
+    try {
+        window.db.deleteDebt(id);
+    } catch (err) {
         showStatus("debt-feedback", "Could not delete debt.", "error");
         return;
     }
@@ -141,16 +135,10 @@ async function addPayment(debtId) {
         notes: getElement(`pnotes-${debtId}`).value.trim()
     };
 
-    const response = await fetch(`/api/debts/${debtId}/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("debt-feedback", result.message || "Could not add payment.", "error");
+    try {
+        window.db.addPayment(debtId, payload);
+    } catch (err) {
+        showStatus("debt-feedback", err.message || "Could not add payment.", "error");
         return;
     }
 
@@ -159,9 +147,9 @@ async function addPayment(debtId) {
 }
 
 async function deletePayment(debtId, paymentId) {
-    const response = await fetch(`/api/debts/${debtId}/payments/${paymentId}`, { method: "DELETE" });
-
-    if (!response.ok) {
+    try {
+        window.db.deletePayment(debtId, paymentId);
+    } catch (err) {
         showStatus("debt-feedback", "Could not delete payment.", "error");
         return;
     }

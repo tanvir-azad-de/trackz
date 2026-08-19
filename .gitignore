@@ -13,6 +13,9 @@ npm-debug.log*
 .env
 .env.*
 
+# Browser config (contains secrets, generated from .env)
+public/js/config.js
+
 # OS files
 .DS_Store
 Thumbs.db

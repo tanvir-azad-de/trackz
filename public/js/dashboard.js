@@ -43,14 +43,7 @@ async function refreshDashboardSummaryForRange() {
         return;
     }
 
-    const params = new URLSearchParams({ from, to });
-    const response = await fetch(`/api/summary?${params.toString()}`);
-
-    if (!response.ok) {
-        return;
-    }
-
-    window.state.dashboardSummary = await response.json();
+    window.state.dashboardSummary = window.db.getSummary({ from, to });
     updateDashboardRangeCaptions();
     renderDashboard();
 }

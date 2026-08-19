@@ -3,7 +3,6 @@ function getElement(id) {
 }
 
 function formatMoney(amount, currency = "EUR") {
-    console.log(amount, currency)
     const symbols = {
         EUR: "€",
         BDT: "৳",

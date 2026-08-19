@@ -53,18 +53,10 @@ async function saveAccount() {
         openingBalance: Number(getElement("opening-balance").value)
     };
 
-    const response = await fetch("/api/accounts", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("account-feedback", result.message || "Could not save account.", "error");
+    try {
+        window.db.saveAccount(payload);
+    } catch (err) {
+        showStatus("account-feedback", err.message || "Could not save account.", "error");
         return;
     }
 
@@ -81,14 +73,10 @@ async function deleteAccount(accountName) {
         return;
     }
 
-    const response = await fetch(`/api/accounts/${accountName}`, {
-        method: "DELETE"
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("account-feedback", result.message || "Could not delete account.", "error");
+    try {
+        window.db.deleteAccount(decodedName);
+    } catch (err) {
+        showStatus("account-feedback", err.message || "Could not delete account.", "error");
         return;
     }
 

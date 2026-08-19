@@ -201,18 +201,10 @@ async function saveTransaction() {
         debtId: debtId || undefined
     };
 
-    const response = await fetch("/api/transactions", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        showStatus("transaction-feedback", result.message || "Could not save transaction.", "error");
+    try {
+        window.db.saveTransaction(payload);
+    } catch (err) {
+        showStatus("transaction-feedback", err.message || "Could not save transaction.", "error");
         return;
     }
 
@@ -228,11 +220,9 @@ async function deleteTransaction(id) {
         return;
     }
 
-    const response = await fetch(`/api/transactions/${id}`, {
-        method: "DELETE"
-    });
-
-    if (!response.ok) {
+    try {
+        window.db.deleteTransaction(id);
+    } catch (err) {
         showStatus("transaction-feedback", "Could not delete transaction.", "error");
         return;
     }

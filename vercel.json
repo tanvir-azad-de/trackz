@@ -1,0 +1,5 @@
+{
+    "buildCommand": "echo \"window.TRACKZ_CONFIG={GOOGLE_CLIENT_ID:'${GOOGLE_CLIENT_ID}'};\" > public/js/config.js",
+    "outputDirectory": "public",
+    "installCommand": ""
+}
