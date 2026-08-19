@@ -1514,7 +1514,7 @@ select:focus {
 }
 
 /* ── Small phones (≤480px) ───────────────────────────────────────────────── */
-@media (max-width: 480px) {
+@media (max-width: 360px) {
 	.payment-form-inline {
 		grid-template-columns: 1fr;
 	}
