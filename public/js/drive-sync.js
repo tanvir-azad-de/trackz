@@ -26,10 +26,24 @@ function signIn() {
             client_id: GOOGLE_CLIENT_ID,
             scope: DRIVE_SCOPE,
             callback: (response) => {
-                if (response.error) {
-                    reject(new Error(response.error));
-                    return;
-                }
+                if (response.error) { reject(new Error(response.error)); return; }
+                _accessToken = response.access_token;
+                resolve(response);
+            }
+        });
+        client.requestAccessToken();
+    });
+}
+
+// Silent re-auth on page load — skips account chooser if already authorized
+function signInSilent() {
+    return new Promise((resolve, reject) => {
+        const client = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: DRIVE_SCOPE,
+            prompt: "",
+            callback: (response) => {
+                if (response.error) { reject(new Error(response.error)); return; }
                 _accessToken = response.access_token;
                 resolve(response);
             }
@@ -167,6 +181,24 @@ async function initDriveSync() {
         hideLoginScreen();
         window.db.init();
         return;
+    }
+
+    // Auto-restore session silently if the user has signed in before
+    if (localStorage.getItem("trackz_signed_in")) {
+        try {
+            await signInSilent();
+            const remote = await downloadData();
+            if (remote) window.db.importAll(remote);
+            window.db.init();
+            hideLoginScreen();
+            updateSyncStatus("Synced");
+            startSyncTimer();
+            if (window.loadData) await window.loadData();
+            return;
+        } catch {
+            // Silent restore failed — fall through to show login screen
+            localStorage.removeItem("trackz_signed_in");
+        }
     }
 
     showLoginScreen();
