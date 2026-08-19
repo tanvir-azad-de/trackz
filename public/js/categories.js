@@ -29,21 +29,23 @@ function toggleFormCategories(force) {
 }
 
 function renderCategories() {
-    const tbody = getElement("category-list");
+    const list = getElement("category-list");
     const rows = categoryRows();
 
     if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="2" class="empty-cell">No categories yet.</td></tr>';
+        list.innerHTML = '<div class="record-card empty-copy">No categories yet.</div>';
         return;
     }
 
-    tbody.innerHTML = rows
+    list.innerHTML = rows
         .map(
             (row) => `
-                <tr>
-                    <td>${escapeHtml(row.category)}</td>
-                    <td>${escapeHtml(row.subcategory)}</td>
-                </tr>
+                <article class="record-card category-card">
+                    <div class="record-main">
+                        <strong class="record-title">${escapeHtml(row.category)}</strong>
+                        <p class="record-subtext">${escapeHtml(row.subcategory)}</p>
+                    </div>
+                </article>
             `
         )
         .join("");

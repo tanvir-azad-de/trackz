@@ -84,30 +84,40 @@ function filteredTransactions() {
 
 function renderTransactions() {
     const rows = filteredTransactions();
-    const tbody = getElement("list");
+    const list = getElement("list");
     const debtNameById = new Map((window.state.debts || []).map((debt) => [debt.id, debt.person]));
 
     if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No transactions match the current filters.</td></tr>';
+        list.innerHTML = '<div class="record-card empty-copy">No transactions match the current filters.</div>';
         return;
     }
 
-    tbody.innerHTML = rows
+    list.innerHTML = rows
         .map((transaction) => {
             const amountClass = getTransactionSignedAmount(transaction) >= 0 ? "amount-positive" : "amount-negative";
             const amountPrefix = getTransactionSignedAmount(transaction) >= 0 ? "+" : "-";
             const debtName = debtNameById.get(transaction.debtId);
             const notesText = [transaction.notes, debtName ? `${debtName}` : ""].filter(Boolean).join(" / ") || "";
+            const categoryLabel = escapeHtml(transactionCategoryLabel(transaction, notesText));
+            const dateText = escapeHtml(formatDate(transaction.date));
+            const accountText = escapeHtml(transactionDescription(transaction));
+            const amountText = `${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}`;
 
             return `
-                <tr>
-                    <td>${escapeHtml(formatDate(transaction.date))}</td>
-                    <td>${escapeHtml(transactionDescription(transaction))}</td>
-                    <td class="align-right ${amountClass}">${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}</td>
-                    <td><span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span></td>
-                    <td>${escapeHtml(transactionCategoryLabel(transaction, notesText))}</td>
-                    <td class="align-right"><button class="table-button" onclick="deleteTransaction('${transaction.id}')">Delete</button></td>
-                </tr>
+                <article class="record-card transaction-card">
+                    <div class="record-main">
+                        <strong class="record-title">${accountText}</strong>
+                        <p class="record-subtext">${categoryLabel}</p>
+                        <div class="record-inline-meta">
+                            <span class="record-date">${dateText}</span>
+                            <span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span>
+                        </div>
+                    </div>
+                    <div class="record-side">
+                        <strong class="record-amount ${amountClass}">${amountText}</strong>
+                        <button class="table-button" onclick="deleteTransaction('${transaction.id}')">Delete</button>
+                    </div>
+                </article>
             `;
         })
         .join("");

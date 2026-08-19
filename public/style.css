@@ -364,14 +364,109 @@ small {
 
 .form-panel,
 .filter-panel,
-.table-card {
+.record-list-panel {
 	margin-bottom: 18px;
 }
 
-.table-card {
-	/* width: 100%; */
-	overflow: auto;
-	min-height: 70vh;
+.record-list-panel {
+	min-height: 56vh;
+}
+
+.records-grid {
+	display: grid;
+	gap: 12px;
+}
+
+.record-card {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 14px;
+	padding: 14px;
+	border-radius: 16px;
+	background: linear-gradient(165deg, #ffffff 0%, #f7fbff 100%);
+	border: 1px solid var(--color-border-light);
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+	transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.record-card:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+}
+
+.record-main {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+
+.record-title {
+	font-size: 14px;
+	line-height: 1.35;
+	font-weight: 700;
+	color: var(--color-text-dark);
+}
+
+.record-subtext,
+.record-meta-note {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.45;
+	color: var(--color-text-muted);
+}
+
+.record-inline-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.record-date {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-subtle);
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: var(--color-surface-muted);
+	border: 1px solid var(--color-border-light);
+}
+
+.record-side {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 8px;
+	text-align: right;
+}
+
+.record-amount {
+	font-size: 15px;
+	font-weight: 800;
+	white-space: nowrap;
+}
+
+.record-secondary-amount {
+	font-size: 11px;
+	font-weight: 700;
+	white-space: nowrap;
+	color: var(--color-text-muted);
+}
+
+.currency-card .inline-input {
+	width: 132px;
+	text-align: right;
+}
+
+.category-card {
+	grid-template-columns: 1fr;
+}
+
+.empty-copy.record-card {
+	display: block;
+	text-align: center;
+	color: var(--color-text-muted);
 }
 
 .form-grid {
@@ -556,35 +651,9 @@ select:focus {
 	color: var(--color-negative);
 }
 
-table {
-	width: 100%;
-	border-collapse: collapse;
-	table-layout: auto;
-}
-
-th,
-td {
-	padding: 5px 0px;
-	border-bottom: 1px solid var(--color-border-light);
-	font-size: small;
-	text-align: left;
-	vertical-align: middle;
-}
-
 .align-right {
 	text-align: right;
 	padding-right: 20px;
-}
-
-th {
-	color: var(--color-th-text);
-	font-size: 13px;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	background: var(--color-surface);
-	position: sticky;
-	top: 0;
-	z-index: 1;
 }
 
 .pill {
@@ -1156,34 +1225,8 @@ select:focus {
 	color: #991b1b;
 }
 
-table {
-	width: 100%;
-	border-collapse: collapse;
-	table-layout: auto;
-}
-
-th,
-td {
-	padding: 5px 0px;
-	border-bottom: 1px solid #e2e8f0;
-	font-size: small;
-	text-align: left;
-	vertical-align: middle;
-}
-
 .align-right {
 	text-align: right;
-}
-
-th {
-	color: #475569;
-	font-size: 13px;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	background: #fff;
-	position: sticky;
-	top: 0;
-	z-index: 1;
 }
 
 .pill {
@@ -1329,7 +1372,7 @@ th {
 	margin: 0;
 }
 /* ── Mobile (≤768px) ─────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
 	.layout {
 		flex-direction: column;
 		min-height: 100vh;
@@ -1429,9 +1472,32 @@ th {
 		grid-template-columns: 1fr 1fr;
 	}
 
-	.table-card {
+	.record-list-panel {
 		min-height: auto;
 		border-radius: 14px;
+	}
+
+	.record-card {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 10px;
+		padding: 12px;
+	}
+
+	.record-title {
+		font-size: 13px;
+	}
+
+	.record-subtext,
+	.record-meta-note {
+		font-size: 11px;
+	}
+
+	.record-side .table-button {
+		padding: 8px 10px;
+	}
+
+	.currency-card .inline-input {
+		width: 118px;
 	}
 
 	.tx-filters {
@@ -1457,13 +1523,26 @@ th {
 		grid-template-columns: 1fr;
 	}
 
-	.stats-grid {
+	.record-card {
 		grid-template-columns: 1fr;
 	}
 
-	th, td {
-		padding: 6px 4px;
-		font-size: 11px;
+	.record-side {
+		align-items: flex-end;
+		text-align: right;
+	}
+
+	.record-amount {
+		font-size: 14px;
+	}
+
+	.currency-card .inline-input {
+		width: 100%;
+		max-width: 180px;
+	}
+
+	.stats-grid {
+		grid-template-columns: 1fr;
 	}
 
 	.pill {

@@ -1,35 +1,36 @@
 function renderCurrencies() {
     const currencies = window.state.currencies || [];
     const rates = window.state.currencyRates || {};
-    const tbody = getElement("currency-list");
+    const list = getElement("currency-list");
 
     if (!currencies.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="empty-cell">No currencies yet.</td></tr>';
+        list.innerHTML = '<div class="record-card empty-copy">No currencies yet.</div>';
         return;
     }
 
-    tbody.innerHTML = currencies
+    list.innerHTML = currencies
         .map((code) => {
             const rate = code === "EUR" ? 1 : (rates[code] ?? "");
             const isBase = code === "EUR";
             return `
-                <tr>
-                    <td>${escapeHtml(code)}</td>
-                    <td class="align-right">
+                <article class="record-card currency-card">
+                    <div class="record-main">
+                        <strong class="record-title">${escapeHtml(code)}</strong>
+                        <p class="record-subtext">${isBase ? "Base currency" : "Exchange rate per 1 EUR"}</p>
+                    </div>
+                    <div class="record-side">
                         ${isBase
-                            ? '<span class="muted">Base currency</span>'
+                            ? '<strong class="record-amount">1.000000</strong>'
                             : `<input type="number" class="inline-input" min="0.000001" step="any"
                                 value="${escapeHtml(String(rate))}"
                                 onchange="updateCurrencyRate('${escapeHtml(code)}', this.value)">`
                         }
-                    </td>
-                    <td class="align-right">
                         ${isBase
                             ? ""
                             : `<button class="table-button" onclick="deleteCurrency('${escapeHtml(code)}')">Delete</button>`
                         }
-                    </td>
-                </tr>
+                    </div>
+                </article>
             `;
         })
         .join("");

@@ -1,26 +1,31 @@
 function renderAccounts() {
-    const tbody = getElement("account-list");
+    const list = getElement("account-list");
 
     if (!window.state.accounts.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">No accounts yet.</td></tr>';
+        list.innerHTML = '<div class="record-card empty-copy">No accounts yet.</div>';
         return;
     }
 
-    tbody.innerHTML = [...window.state.accounts]
+    list.innerHTML = [...window.state.accounts]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(
             (account) => {
                 const balanceClass = account.currentBalance >= 0 ? "amount-positive" : "amount-negative";
                 const eurClass = account.eurEquivalent >= 0 ? "amount-positive" : "amount-negative";
+                const eurText = typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—";
+                const isEurAccount = String(account.currency || "").toUpperCase() === "EUR";
                 return `
-                <tr>
-                    <td>${escapeHtml(account.name)}</td>
-                    <td class="align-right">${escapeHtml(account.currency)}</td>
-                    <td class="align-right ${balanceClass}">${formatMoney(account.currentBalance, account.currency)}</td>
-                    <td class="align-right ${typeof account.eurEquivalent === "number" ? eurClass : ""}">${typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—"}</td>
-                    <td class="align-right">${account.transactionCount}</td>
-                    <td class="align-right"><button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button></td>
-                </tr>
+                <article class="record-card account-card">
+                    <div class="record-main">
+                        <strong class="record-title">${escapeHtml(account.name)}</strong>
+                        <p class="record-subtext">${escapeHtml(account.currency)} • ${account.transactionCount} transactions</p>
+                    </div>
+                    <div class="record-side">
+                        <strong class="record-amount ${balanceClass}">${formatMoney(account.currentBalance, account.currency)}</strong>
+                        ${isEurAccount ? "" : `<span class="record-secondary-amount ${typeof account.eurEquivalent === "number" ? eurClass : ""}">EUR: ${eurText}</span>`}
+                        <button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button>
+                    </div>
+                </article>
             `;
             }
         )
