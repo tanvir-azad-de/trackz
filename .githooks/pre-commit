@@ -1,0 +1,22 @@
+#!/bin/sh
+# Auto-increments the patch version in public/js/version.js before each commit.
+
+VERSION_FILE="public/js/version.js"
+
+current=$(grep -o '"[0-9]*\.[0-9]*\.[0-9]*"' "$VERSION_FILE" | tr -d '"')
+
+if [ -z "$current" ]; then
+    echo "pre-commit: could not read version from $VERSION_FILE" >&2
+    exit 1
+fi
+
+major=$(echo "$current" | cut -d. -f1)
+minor=$(echo "$current" | cut -d. -f2)
+patch=$(echo "$current" | cut -d. -f3)
+
+next="$major.$minor.$((patch + 1))"
+
+sed -i '' "s/\"$current\"/\"$next\"/" "$VERSION_FILE"
+git add "$VERSION_FILE"
+
+echo "pre-commit: version bumped $current → $next"

@@ -51,7 +51,11 @@
             </nav>
             <div class="sidebar-footer">
                 <span id="sync-status" class="muted" style="font-size:.75rem"></span>
-                <button class="ghost-button" style="font-size:.75rem;padding:4px 8px" onclick="driveSync.signOut()">Sign out</button>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <button class="ghost-button" style="font-size:.75rem;padding:4px 8px" onclick="driveSync.signOut()">Sign out</button>
+                    <span id="app-version" class="muted" style="font-size:.7rem"></span>
+                </div>
+                <script>document.getElementById('app-version').textContent = window.TRACKZ_VERSION ? 'v' + window.TRACKZ_VERSION : '';</script>
             </div>
         </aside>
 
@@ -419,6 +423,7 @@
     </div><!-- /app-root -->
 
     <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="js/version.js"></script>
     <script src="js/state.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/db.js"></script>
