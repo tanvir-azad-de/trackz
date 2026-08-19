@@ -4,29 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>trackz</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <!-- Login screen shown before Google OAuth completes -->
-    <div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;">
-        <span style="font-size:2.5rem">⚡</span>
-        <h1 style="margin:0;font-size:1.5rem">trackz</h1>
-        <p style="margin:0;color:var(--muted,#888)">Sign in to load and sync your data with Google Drive.</p>
-        <button id="signin-button" onclick="driveSync.handleSignIn()" style="padding:10px 24px;font-size:1rem;cursor:pointer;border-radius:6px;border:1px solid #ccc;background:#fff;display:flex;align-items:center;gap:8px;">
-            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.1 33.1 29.5 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.2-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.1 19.2 13 24 13c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.1 29.4 4 24 4c-7.7 0-14.4 4.4-17.7 10.7z"/><path fill="#FBBC05" d="M24 44c5.4 0 10.2-1.8 13.9-4.9l-6.4-5.3C29.5 35.4 26.9 36 24 36c-5.5 0-10.1-2.9-11.7-7.5l-7 5.4C8.6 40.3 15.7 44 24 44z"/><path fill="#EA4335" d="M43.8 20H24v8.5h11.7c-.8 2.3-2.3 4.2-4.3 5.5l6.4 5.3C41.2 36.1 44 30.5 44 24c0-1.3-.1-2.7-.2-4z"/></svg>
-            Sign in with Google
-        </button>
-        <p id="login-error" hidden style="color:#c00;margin:0;font-size:.9rem"></p>
+    <div id="login-screen" hidden style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;gap:0;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:24px;padding:48px;background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:16px;max-width:360px;width:90%;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <img src="logo.svg" width="36" height="36" alt="">
+            </div>
+            <div style="text-align:center;">
+                <p style="margin:0 0 6px;font-size:1.1rem;font-weight:600;color:#f1f5f9">Welcome back</p>
+                <p style="margin:0;font-size:.875rem;color:#94a3b8;line-height:1.5">Sign in to access and sync your<br>financial data with Google Drive.</p>
+            </div>
+            <button id="signin-button" onclick="driveSync.handleSignIn()" style="width:100%;padding:11px 20px;font-size:.9rem;font-weight:500;cursor:pointer;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:#fff;color:#1e293b;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s;">
+                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.1 33.1 29.5 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.2-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.1 19.2 13 24 13c3 0 5.7 1.1 7.8 2.9l6-6C34.3 6.1 29.4 4 24 4c-7.7 0-14.4 4.4-17.7 10.7z"/><path fill="#FBBC05" d="M24 44c5.4 0 10.2-1.8 13.9-4.9l-6.4-5.3C29.5 35.4 26.9 36 24 36c-5.5 0-10.1-2.9-11.7-7.5l-7 5.4C8.6 40.3 15.7 44 24 44z"/><path fill="#EA4335" d="M43.8 20H24v8.5h11.7c-.8 2.3-2.3 4.2-4.3 5.5l6.4 5.3C41.2 36.1 44 30.5 44 24c0-1.3-.1-2.7-.2-4z"/></svg>
+                Sign in with Google
+            </button>
+            <p id="login-error" hidden style="margin:0;font-size:.8rem;color:#f87171;text-align:center;padding:8px 12px;background:rgba(248,113,113,0.1);border-radius:6px;width:100%;box-sizing:border-box;"></p>
+        </div>
+        <p style="margin:24px 0 0;font-size:.75rem;color:#475569;">Your data is stored privately in your own Google Drive.</p>
     </div>
 
     <div id="app-root" hidden>
     <div class="layout">
         <aside class="sidebar">
-            <div class="sidebar-brand">
-                <span class="sidebar-logo">⚡</span>
-                <span class="sidebar-title">trackz</span>
-            </div>
             <nav class="nav">
                 <button class="nav-button active" data-page="dashboard" onclick="page('dashboard')">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -48,13 +51,18 @@
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                     Debts
                 </button>
+                <button class="nav-button" data-page="currencies" onclick="page('currencies')">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                    Currencies
+                </button>
             </nav>
             <div class="sidebar-footer">
-                <span id="sync-status" class="muted" style="font-size:.75rem"></span>
-                <div style="display:flex;justify-content:space-between;align-items:center">
-                    <button class="ghost-button" style="font-size:.75rem;padding:4px 8px" onclick="driveSync.signOut()">Sign out</button>
-                    <span id="app-version" class="muted" style="font-size:.7rem"></span>
+                <div class="sidebar-footer-actions">
+                    <button class="sidebar-footer-btn" onclick="showDataUtilityDialog()">⇅ Import/Export</button>
+                    <button class="sidebar-footer-btn" onclick="driveSync.signOut()">Sign out</button>
                 </div>
+                <span id="sync-status" class="sidebar-sync-status"></span>
+                <span id="app-version" class="sidebar-version"></span>
             </div>
         </aside>
 
@@ -417,6 +425,51 @@
                     </div>
                 </div>
             </section>
+
+            <section id="currencies" hidden>
+                <div class="page-header">
+                    <div class="page-header-main">
+                        <div><h1>Currencies</h1></div>
+                        <div class="page-header-actions">
+                            <button class="icon-button primary-button" title="Add Currency" onclick="toggleCurrencyForm(true)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="currency-feedback" class="status" hidden></div>
+
+                <div id="currency-form" class="card form-panel" hidden>
+                    <div class="form-grid">
+                        <label>
+                            <span>Currency Code</span>
+                            <input id="currency-code" placeholder="e.g. USD" maxlength="5" style="text-transform:uppercase">
+                        </label>
+                        <label>
+                            <span>Rate (per 1 EUR)</span>
+                            <input id="currency-rate" type="number" min="0.000001" step="any" placeholder="e.g. 1.08">
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button class="primary-button" onclick="saveCurrency()">Save currency</button>
+                        <button class="ghost-button" onclick="toggleCurrencyForm(false)">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="table-card card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th class="align-right">Rate (per 1 EUR)</th>
+                                <th class="align-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="currency-list"></tbody>
+                    </table>
+                </div>
+            </section>
         </main>
     </div>
     </div><!-- /app-root -->
@@ -428,9 +481,11 @@
     <script src="js/db.js"></script>
     <script src="js/config.js"></script>
     <script src="js/drive-sync.js"></script>
+    <script src="js/data-utility.js"></script>
     <script src="js/transactions.js"></script>
     <script src="js/accounts.js"></script>
     <script src="js/categories.js"></script>
+    <script src="js/currencies.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/debts.js"></script>
     <script src="js/app-shell.js"></script>

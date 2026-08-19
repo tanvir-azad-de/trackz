@@ -7,7 +7,7 @@ const GOOGLE_CLIENT_ID = window.TRACKZ_CONFIG?.GOOGLE_CLIENT_ID || "";
 const DRIVE_FILE_NAME = "trackz-data.json";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const GAPI_DISCOVERY = "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest";
-const SYNC_INTERVAL_MS = 60_000;
+const SYNC_INTERVAL_MS = 1_000;
 
 let _accessToken = null;
 let _dirty = false;
@@ -20,6 +20,21 @@ function isSignedIn() {
     return Boolean(_accessToken);
 }
 
+function setAccessToken(token) {
+    _accessToken = token;
+    if (token) {
+        localStorage.setItem("trackz_token", token);
+        localStorage.setItem("trackz_signed_in", "1");
+    } else {
+        localStorage.removeItem("trackz_token");
+        localStorage.removeItem("trackz_signed_in");
+    }
+}
+
+function getStoredToken() {
+    return localStorage.getItem("trackz_token");
+}
+
 function signIn() {
     return new Promise((resolve, reject) => {
         const client = google.accounts.oauth2.initTokenClient({
@@ -27,7 +42,7 @@ function signIn() {
             scope: DRIVE_SCOPE,
             callback: (response) => {
                 if (response.error) { reject(new Error(response.error)); return; }
-                _accessToken = response.access_token;
+                setAccessToken(response.access_token);
                 resolve(response);
             }
         });
@@ -35,32 +50,24 @@ function signIn() {
     });
 }
 
-// Silent re-auth on page load — skips account chooser if already authorized
-function signInSilent() {
-    return new Promise((resolve, reject) => {
-        const client = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: DRIVE_SCOPE,
-            prompt: "",
-            callback: (response) => {
-                if (response.error) { reject(new Error(response.error)); return; }
-                _accessToken = response.access_token;
-                resolve(response);
-            }
-        });
-        client.requestAccessToken();
-    });
+// Restore token without showing popup — only use stored token
+function restoreSession() {
+    const token = getStoredToken();
+    if (token) {
+        _accessToken = token;
+        return true;
+    }
+    return false;
 }
 
 function signOut() {
     if (_accessToken) {
         google.accounts.oauth2.revoke(_accessToken);
     }
-    _accessToken = null;
+    setAccessToken(null);
     _cachedFileId = null;
     _dirty = false;
     clearInterval(_syncTimer);
-    localStorage.removeItem("trackz_signed_in");
     showLoginScreen();
 }
 
@@ -143,7 +150,8 @@ async function syncNow() {
     try {
         await uploadData(window.db.exportAll());
         _dirty = false;
-        updateSyncStatus("Synced");
+        const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        updateSyncStatus(`Last synced at ${time}`);
     } catch (err) {
         console.error("Drive sync failed:", err);
         updateSyncStatus("Sync failed");
@@ -183,21 +191,20 @@ async function initDriveSync() {
         return;
     }
 
-    // Auto-restore session silently if the user has signed in before
-    if (localStorage.getItem("trackz_signed_in")) {
+    // Try to restore session from stored token — no popup
+    if (restoreSession()) {
         try {
-            await signInSilent();
             const remote = await downloadData();
             if (remote) window.db.importAll(remote);
             window.db.init();
             hideLoginScreen();
-            updateSyncStatus("Synced");
+            updateSyncStatus("Drive connected");
             startSyncTimer();
             if (window.loadData) await window.loadData();
             return;
-        } catch {
-            // Silent restore failed — fall through to show login screen
-            localStorage.removeItem("trackz_signed_in");
+        } catch (err) {
+            console.warn("Session restore failed, showing login:", err);
+            setAccessToken(null);
         }
     }
 
@@ -221,7 +228,7 @@ async function handleSignIn() {
         window.db.init();
 
         hideLoginScreen();
-        updateSyncStatus("Synced");
+        updateSyncStatus("Drive connected");
         startSyncTimer();
 
         // Trigger app load

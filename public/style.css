@@ -92,43 +92,47 @@ body {
 
 .sidebar-footer {
 	margin-top: auto;
-	padding-top: 12px;
+	padding: 12px 2px 0;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 8px;
 	border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.sidebar-brand {
+.sidebar-footer-actions {
 	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 8px 10px 20px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-	margin-bottom: 8px;
+	gap: 4px;
 }
 
-.sidebar-logo {
-	font-size: 22px;
-	line-height: 1;
-}
-
-.sidebar-title {
-	font-size: 20px;
-	font-weight: 700;
-	letter-spacing: -0.02em;
-	color: var(--color-sidebar-title);
-}
-
-.sidebar h2 {
-	margin: 6px 0 8px;
-	font-size: 30px;
-}
-
-.sidebar-copy {
-	margin: 0;
-	line-height: 1.5;
+.sidebar-footer-btn {
+	flex: 1;
+	background: rgba(255, 255, 255, 0.06);
 	color: var(--color-sidebar-muted);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 6px;
+	padding: 6px 4px;
+	font-size: .72rem;
+	cursor: pointer;
+	text-align: center;
+	transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-footer-btn:hover {
+	background: rgba(255, 255, 255, 0.12);
+	color: var(--color-sidebar-text);
+}
+
+.sidebar-sync-status {
+	font-size: .7rem;
+	color: var(--color-sidebar-nav-text);
+	text-align: center;
+	min-height: 1em;
+}
+
+.sidebar-version {
+	font-size: .68rem;
+	color: rgba(148, 163, 184, 0.5);
+	text-align: center;
 }
 
 .nav {
@@ -210,6 +214,17 @@ body {
 .table-button {
 	background: var(--color-ghost-bg);
 	color: var(--color-text);
+}
+
+.inline-input {
+	width: 120px;
+	padding: 4px 8px;
+	font-size: 0.875rem;
+	border: 1px solid var(--color-border, #ccc);
+	border-radius: 4px;
+	background: var(--color-input-bg, transparent);
+	color: var(--color-text);
+	text-align: right;
 }
 
 main {
@@ -717,38 +732,6 @@ th {
 
 .debts-grid {
 	grid-template-columns: 1fr;
-}
-
-.sidebar-brand {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 8px 10px 20px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-	margin-bottom: 8px;
-}
-
-.sidebar-logo {
-	font-size: 22px;
-	line-height: 1;
-}
-
-.sidebar-title {
-	font-size: 20px;
-	font-weight: 700;
-	letter-spacing: -0.02em;
-	color: #f1f5f9;
-}
-
-.sidebar h2 {
-	margin: 6px 0 8px;
-	font-size: 30px;
-}
-
-.sidebar-copy {
-	margin: 0;
-	line-height: 1.5;
-	color: #cbd5e1;
 }
 
 .nav {

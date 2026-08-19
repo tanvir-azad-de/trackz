@@ -4,9 +4,10 @@ function renderAll() {
     renderAccounts();
     renderCategories();
     renderDebts();
+    renderCurrencies();
 }
 
-const PAGES = ["dashboard", "transactions", "accounts", "categories", "debts"];
+const PAGES = ["dashboard", "transactions", "accounts", "categories", "debts", "currencies"];
 
 function _showPage(name) {
     if (!PAGES.includes(name)) name = "dashboard";
@@ -45,6 +46,7 @@ async function loadData() {
     window.state.categories = categories;
     window.state.categoryTree = categoryTree;
     window.state.currencies = currencies;
+    window.state.currencyRates = window.db.getCurrencyRates();
     window.state.summary = summary;
     window.state.dashboardSummary = null;
     window.state.debts = debts;

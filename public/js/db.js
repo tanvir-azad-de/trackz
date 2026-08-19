@@ -138,6 +138,47 @@ function dbGetCurrencies() {
     return readStore(DB_KEYS.currencies, DEFAULT_CURRENCIES);
 }
 
+function dbGetCurrencyRates() {
+    return readStore(DB_KEYS.currencyRates, DEFAULT_CURRENCY_RATES);
+}
+
+function dbSaveCurrency(code, rate) {
+    const clean = String(code || "").trim().toUpperCase();
+    if (!clean || !/^[A-Z]{2,5}$/.test(clean)) throw new Error("Enter a valid currency code (e.g. USD).");
+
+    const currencies = dbGetCurrencies();
+    if (currencies.includes(clean)) throw new Error("Currency already exists.");
+
+    const rateNum = Number(rate);
+    if (clean !== "EUR" && (!Number.isFinite(rateNum) || rateNum <= 0)) {
+        throw new Error("Rate must be a positive number.");
+    }
+
+    currencies.push(clean);
+    writeStore(DB_KEYS.currencies, currencies);
+
+    const rates = dbGetCurrencyRates();
+    rates[clean] = clean === "EUR" ? 1 : rateNum;
+    writeStore(DB_KEYS.currencyRates, rates);
+}
+
+function dbUpdateCurrencyRate(code, rate) {
+    const rateNum = Number(rate);
+    if (!Number.isFinite(rateNum) || rateNum <= 0) throw new Error("Rate must be a positive number.");
+    const rates = dbGetCurrencyRates();
+    rates[code] = rateNum;
+    writeStore(DB_KEYS.currencyRates, rates);
+}
+
+function dbDeleteCurrency(code) {
+    if (code === "EUR") throw new Error("Cannot delete the base currency (EUR).");
+    const currencies = dbGetCurrencies().filter((c) => c !== code);
+    writeStore(DB_KEYS.currencies, currencies);
+    const rates = dbGetCurrencyRates();
+    delete rates[code];
+    writeStore(DB_KEYS.currencyRates, rates);
+}
+
 // ── Accounts ──────────────────────────────────────────────────────────────────
 
 function dbGetRawAccounts() {
@@ -655,6 +696,10 @@ window.db = {
     saveCategory: dbSaveCategory,
     saveSubcategory: dbSaveSubcategory,
     getCurrencies: dbGetCurrencies,
+    getCurrencyRates: dbGetCurrencyRates,
+    saveCurrency: dbSaveCurrency,
+    updateCurrencyRate: dbUpdateCurrencyRate,
+    deleteCurrency: dbDeleteCurrency,
     getDebts: dbComputeDebtSummaries,
     saveDebt: dbSaveDebt,
     deleteDebt: dbDeleteDebt,

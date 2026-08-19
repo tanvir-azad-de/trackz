@@ -4,6 +4,7 @@ window.state = {
     categories: [],
     categoryTree: [],
     currencies: [],
+    currencyRates: {},
     debts: [],
     summary: null,
     dashboardSummary: null,
