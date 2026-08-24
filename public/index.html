@@ -110,7 +110,7 @@
                                 <strong id="overview-net-expense-total" class="amount-negative">€0.00</strong>
                             </div>
                             <div class="list-row">
-                                <span>Assets</span>
+                                <span>Assets (Δ this range)</span>
                                 <strong id="overview-assets-total" class="amount-positive">€0.00</strong>
                             </div>
                             <div class="list-row">
@@ -118,6 +118,27 @@
                                 <strong id="overview-balance-total" class="amount-positive">€0.00</strong>
                             </div>
                         </div>
+                    </article>
+
+                    <article class="card">
+                        <div class="panel-head">
+                            <div>
+                                <h3>Untracked Categories</h3>
+                                <small class="muted">Transactions in this range not covered by any dashboard card</small>
+                            </div>
+                        </div>
+                        <div id="untracked-categories-list" class="list-stack"></div>
+                    </article>
+
+                    <article class="card">
+                        <div class="panel-head">
+                            <div>
+                                <h3>Total Assets</h3>
+                                <small class="muted">Snapshot as of end date — sum by month, oldest → newest</small>
+                            </div>
+                            <strong id="total-assets-total" class="amount-positive">€0.00</strong>
+                        </div>
+                        <div id="total-assets-chart" class="bar-chart"></div>
                     </article>
 
                     <article class="card">

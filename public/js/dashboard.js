@@ -67,17 +67,269 @@ const EXPENSE_CATEGORIES = [
     "Personal Care",
     "WG Costs",
     "Travel",
-    "WiFi Mobile",
+    "WiFi",
+    "Mobile",
     "Broadcasting Fee",
     "Subscriptions",
     "Lemfi",
     "Entertainment",
     "University",
-    "Repayment ABH",
+    "Repayment",
+    "ABH",
     "Electricity"
 ];
 
 const CASHFLOW_CATEGORIES = ["Reimbursements", "Sold Items", "Refunds"];
+
+const TRACKED_ACCOUNT_NAMES = [
+    "Commerzbank",
+    "Advanzia",
+    "Cash",
+    "Revolut",
+    "Revolut JPY",
+    "Revolut Brokerage",
+    "Scalable Capital"
+];
+
+const TOTAL_ASSETS_ACCOUNT_NAMES = [
+    "Commerzbank",
+    "Cash",
+    "Revolut",
+    "Revolut JPY",
+    "Revolut Brokerage",
+    "Scalable Capital"
+];
+
+function shiftMonth(monthStr, delta) {
+    const [y, m] = monthStr.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+    return d.toISOString().slice(0, 7);
+}
+
+function getMonthRange(fromMonth, toMonth) {
+    if (!fromMonth || !toMonth) return [];
+    const months = [];
+    let cursor = new Date(`${fromMonth}-01T00:00:00Z`);
+    const end = new Date(`${toMonth}-01T00:00:00Z`);
+    while (cursor <= end) {
+        months.push(cursor.toISOString().slice(0, 7));
+        cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+    return months;
+}
+
+function getAccountBalanceAtMonthEnd(monthlyBalances, month, openingBalance) {
+    // monthlyBalances is sorted ascending by month and covers the account's full history.
+    // Returns the balance as of the end of `month` (or the latest available balance if
+    // `month` is null, meaning "no upper bound").
+    if (!monthlyBalances.length) return openingBalance;
+
+    if (!month) {
+        return monthlyBalances[monthlyBalances.length - 1].balance;
+    }
+
+    let result = null;
+    for (const entry of monthlyBalances) {
+        if (entry.month <= month) {
+            result = entry.balance;
+        } else {
+            break;
+        }
+    }
+
+    return result === null ? openingBalance : result;
+}
+
+function getAccountBalanceDelta(accountName) {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    const account = (window.state.accounts || []).find((a) => a.name === accountName);
+    const openingBalance = account ? Number(account.openingBalance) || 0 : 0;
+    const currency = account ? account.currency : "EUR";
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const monthlyBalances = window.db.getAccountMonthlyBalances(accountName) || [];
+
+    const startMonth = fromMonth ? shiftMonth(fromMonth, -1) : null;
+    const startBalance = fromMonth
+        ? getAccountBalanceAtMonthEnd(monthlyBalances, startMonth, openingBalance)
+        : openingBalance;
+    const endBalance = getAccountBalanceAtMonthEnd(monthlyBalances, toMonth, openingBalance);
+
+    return toEUR(endBalance - startBalance);
+}
+
+function getCumulativeCategoryBalances({ expenseCategory, incomeCategory }) {
+    const transactions = (window.state.transactions || [])
+        .filter(
+            (t) =>
+                (t.type === "Expense" && t.category === expenseCategory) ||
+                (t.type === "Income" && t.category === incomeCategory)
+        )
+        .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(String(t.date || "")))
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    if (!transactions.length) return [];
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const firstMonth = transactions[0].date.slice(0, 7);
+    const lastMonth = transactions[transactions.length - 1].date.slice(0, 7);
+
+    const impactByMonth = {};
+    transactions.forEach((t) => {
+        const month = t.date.slice(0, 7);
+        const eurAmount = toEUR(t.amount, t.currency);
+        const impact = t.type === "Expense" ? eurAmount : -eurAmount;
+        impactByMonth[month] = (impactByMonth[month] || 0) + impact;
+    });
+
+    const months = getMonthRange(firstMonth, lastMonth);
+
+    let runningBalance = 0;
+    return months.map((month) => {
+        runningBalance += impactByMonth[month] || 0;
+        return { month, balance: runningBalance };
+    });
+}
+
+function renderTotalAssetsChart() {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    if (!fromMonth || !toMonth) {
+        renderBarChartCard({
+            points: [],
+            totalElementId: "total-assets-total",
+            chartElementId: "total-assets-chart",
+            emptyMessage: "Select a date range."
+        });
+        return;
+    }
+
+    const months = getMonthRange(fromMonth, toMonth);
+
+    const loanCumulative = getCumulativeCategoryBalances({
+        expenseCategory: "Short Term Loan Given",
+        incomeCategory: "Short Term Loan Return"
+    });
+    const kautionCumulative = getCumulativeCategoryBalances({
+        expenseCategory: "Kaution Given",
+        incomeCategory: "Kaution Return"
+    });
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const accountsData = TOTAL_ASSETS_ACCOUNT_NAMES.map((name) => {
+        const account = (window.state.accounts || []).find((a) => a.name === name);
+        const openingBalance = account ? Number(account.openingBalance) || 0 : 0;
+        const currency = account ? account.currency : "EUR";
+        const monthlyBalances = window.db.getAccountMonthlyBalances(name) || [];
+        return { openingBalance, currency, monthlyBalances };
+    });
+
+    const points = months.map((month) => {
+        const loanBalance = getAccountBalanceAtMonthEnd(loanCumulative, month, 0);
+        const kautionBalance = getAccountBalanceAtMonthEnd(kautionCumulative, month, 0);
+        const accountsBalance = accountsData.reduce((sum, acc) => {
+            const balance = getAccountBalanceAtMonthEnd(acc.monthlyBalances, month, acc.openingBalance);
+            return sum + toEUR(balance, acc.currency);
+        }, 0);
+
+        return { month, amount: loanBalance + kautionBalance + accountsBalance };
+    });
+
+    renderBarChartCard({
+        points,
+        totalElementId: "total-assets-total",
+        chartElementId: "total-assets-chart",
+        emptyMessage: "No asset data available for this range.",
+        colorBySign: "negative-is-negative",
+        totalMode: "last"
+    });
+}
+
+function getUntrackedTransactionSummary() {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const isTracked = (t) => {
+        if (t.type === "Transfer") return true;
+        if (t.type === "Income" && t.category === "Income") return true;
+        if (t.type === "Income" && CASHFLOW_CATEGORIES.includes(t.category)) return true;
+        if (t.type === "Expense" && EXPENSE_CATEGORIES.includes(t.category)) return true;
+        if (t.type === "Expense" && t.category === "Short Term Loan Given") return true;
+        if (t.type === "Income" && t.category === "Short Term Loan Return") return true;
+        if (t.type === "Expense" && t.category === "Kaution Given") return true;
+        if (t.type === "Income" && t.category === "Kaution Return") return true;
+        return false;
+    };
+
+    const untracked = (window.state.transactions || []).filter((t) => {
+        if (isTracked(t)) return false;
+        const d = String(t.date || "");
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+    });
+
+    const groups = {};
+    untracked.forEach((t) => {
+        const key = `${t.type}|${t.category || "Uncategorized"}`;
+        if (!groups[key]) {
+            groups[key] = { type: t.type, category: t.category || "Uncategorized", count: 0, total: 0 };
+        }
+        groups[key].count += 1;
+        groups[key].total += toEUR(t.amount, t.currency);
+    });
+
+    return Object.values(groups).sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+}
+
+function renderUntrackedCategoriesCard() {
+    const groups = getUntrackedTransactionSummary();
+    const list = getElement("untracked-categories-list");
+
+    if (!groups.length) {
+        list.innerHTML = '<p class="empty-copy">All transactions in this range are covered by the dashboard categories.</p>';
+        return;
+    }
+
+    list.innerHTML = groups
+        .map((g) => {
+            const amountClass = g.total >= 0 ? "amount-positive" : "amount-negative";
+            return `
+                <div class="list-row">
+                    <span>${escapeHtml(g.category)} (${escapeHtml(g.type)}) — ${g.count} tx</span>
+                    <strong class="${amountClass}">${escapeHtml(formatMoney(g.total, "EUR"))}</strong>
+                </div>`;
+        })
+        .join("");
+}
 
 function renderDashboard() {
     const expenseResult = renderMonthlyBarChart({
@@ -181,19 +433,16 @@ function renderDashboard() {
     const assetsTotal =
         shortTermLoanResult.total +
         kautionResult.total +
-        commerzbankResult.total +
-        advanziaResult.total +
-        cashResult.total +
-        revolutResult.total +
-        revolutJpyResult.total +
-        revolutBrokerageResult.total +
-        scalableCapitalResult.total;
+        TRACKED_ACCOUNT_NAMES.reduce((sum, name) => sum + getAccountBalanceDelta(name), 0);
 
     renderOverviewCard({
         incomeTotal: incomeResult.total,
         netExpenseTotal: netExpenseResult.total,
         assetsTotal
     });
+
+    renderUntrackedCategoriesCard();
+    renderTotalAssetsChart();
 }
 
 function renderOverviewCard({ incomeTotal, netExpenseTotal, assetsTotal }) {
