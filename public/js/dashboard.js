@@ -105,7 +105,78 @@ function renderDashboard() {
         emptyMessage: "No incoming cash flow in this range."
     });
 
-    renderNetExpenseChart(expensePoints, cashflowPoints);
+    renderNetBalanceChart({
+        subtractPoints: expensePoints,
+        fromPoints: cashflowPoints,
+        totalElementId: "net-expense-total",
+        chartElementId: "net-expense-chart",
+        emptyMessage: "No expenses or incoming cash flow in this range."
+    });
+
+    renderNetBalanceChart({
+        subtractPoints: getMonthlyPoints({ type: "Expense", categories: ["Short Term Loan Given"] }),
+        fromPoints: getMonthlyPoints({ type: "Income", categories: ["Short Term Loan Return"] }),
+        totalElementId: "short-term-loan-balance-total",
+        chartElementId: "short-term-loan-balance-chart",
+        emptyMessage: "No short term loan activity in this range."
+    });
+
+    renderNetBalanceChart({
+        subtractPoints: getMonthlyPoints({ type: "Expense", categories: ["Kaution Given"] }),
+        fromPoints: getMonthlyPoints({ type: "Income", categories: ["Kaution Return"] }),
+        totalElementId: "kaution-balance-total",
+        chartElementId: "kaution-balance-chart",
+        emptyMessage: "No Kaution activity in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Commerzbank",
+        totalElementId: "account-balance-commerzbank-total",
+        chartElementId: "account-balance-commerzbank-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Advanzia",
+        totalElementId: "account-balance-advanzia-total",
+        chartElementId: "account-balance-advanzia-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Cash",
+        totalElementId: "account-balance-cash-total",
+        chartElementId: "account-balance-cash-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Revolut",
+        totalElementId: "account-balance-revolut-total",
+        chartElementId: "account-balance-revolut-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Revolut JPY",
+        totalElementId: "account-balance-revolut-jpy-total",
+        chartElementId: "account-balance-revolut-jpy-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Revolut Brokerage",
+        totalElementId: "account-balance-revolut-brokerage-total",
+        chartElementId: "account-balance-revolut-brokerage-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
+
+    renderAccountBalanceChart({
+        accountName: "Scalable Capital",
+        totalElementId: "account-balance-scalable-capital-total",
+        chartElementId: "account-balance-scalable-capital-chart",
+        emptyMessage: "No transactions found for this account in this range."
+    });
 }
 
 function getMonthlyTotalsForTransactions({ type, categories }) {
@@ -135,54 +206,66 @@ function getMonthlyTotalsForTransactions({ type, categories }) {
     return totalsByMonth;
 }
 
-function renderMonthlyBarChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+function getMonthlyPoints({ type, categories }) {
     const totalsByMonth = getMonthlyTotalsForTransactions({ type, categories });
 
-    const points = Object.entries(totalsByMonth)
+    return Object.entries(totalsByMonth)
         .map(([month, amount]) => ({ month, amount }))
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+}
+
+function renderMonthlyBarChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+    const points = getMonthlyPoints({ type, categories });
 
     renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone });
 
     return points;
 }
 
-function renderNetExpenseChart(expensePoints, cashflowPoints) {
-    const cashflowByMonth = {};
-    cashflowPoints.forEach((p) => {
-        cashflowByMonth[p.month] = p.amount;
+function renderNetBalanceChart({ subtractPoints, fromPoints, totalElementId, chartElementId, emptyMessage }) {
+    const subtractByMonth = {};
+    subtractPoints.forEach((p) => {
+        subtractByMonth[p.month] = p.amount;
     });
 
-    const expenseByMonth = {};
-    expensePoints.forEach((p) => {
-        expenseByMonth[p.month] = p.amount;
+    const fromByMonth = {};
+    fromPoints.forEach((p) => {
+        fromByMonth[p.month] = p.amount;
     });
 
-    const months = new Set([...Object.keys(expenseByMonth), ...Object.keys(cashflowByMonth)]);
+    const months = new Set([...Object.keys(subtractByMonth), ...Object.keys(fromByMonth)]);
 
     const points = Array.from(months)
         .map((month) => ({
             month,
-            amount: (expenseByMonth[month] || 0) - (cashflowByMonth[month] || 0)
+            amount: (subtractByMonth[month] || 0) - (fromByMonth[month] || 0)
         }))
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
 
     renderBarChartCard({
         points,
-        totalElementId: "net-expense-total",
-        chartElementId: "net-expense-chart",
-        emptyMessage: "No expenses or incoming cash flow in this range.",
+        totalElementId,
+        chartElementId,
+        emptyMessage,
         tone: "negative",
-        colorBySign: true
+        colorBySign: "positive-is-negative"
     });
+
+    return points;
 }
 
-function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone = "positive", colorBySign = false }) {
-    const total = points.reduce((sum, p) => sum + p.amount, 0);
+function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone = "positive", colorBySign = null, totalMode = "sum" }) {
+    const total = totalMode === "last" ? (points.length ? points[points.length - 1].amount : 0) : points.reduce((sum, p) => sum + p.amount, 0);
     const totalElement = getElement(totalElementId);
     totalElement.textContent = formatMoney(total, "EUR");
-    totalElement.classList.toggle("amount-negative", tone === "negative");
-    totalElement.classList.toggle("amount-positive", tone !== "negative");
+
+    const isTotalNegativeTone = colorBySign
+        ? colorBySign === "positive-is-negative"
+            ? total >= 0
+            : total < 0
+        : tone === "negative";
+    totalElement.classList.toggle("amount-negative", isTotalNegativeTone);
+    totalElement.classList.toggle("amount-positive", !isTotalNegativeTone);
 
     const chart = getElement(chartElementId);
 
@@ -196,7 +279,11 @@ function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessa
     chart.innerHTML = points
         .map((p) => {
             const heightPct = Math.max((Math.abs(p.amount) / maxAmount) * 100, 2);
-            const isNegativeBar = colorBySign ? p.amount >= 0 : tone === "negative";
+            const isNegativeBar = colorBySign
+                ? colorBySign === "positive-is-negative"
+                    ? p.amount >= 0
+                    : p.amount < 0
+                : tone === "negative";
             const barClass = isNegativeBar ? "bar-chart-bar bar-chart-bar--negative" : "bar-chart-bar";
             return `
                 <div class="bar-chart-col" title="${escapeHtml(p.month)}: ${escapeHtml(formatMoney(p.amount, "EUR"))}">
@@ -206,6 +293,41 @@ function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessa
                 </div>`;
         })
         .join("");
+}
+
+function renderAccountBalanceChart({ accountName, totalElementId, chartElementId, emptyMessage }) {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const monthlyBalances = (window.db.getAccountMonthlyBalances(accountName) || []).filter((entry) => {
+        if (fromMonth && entry.month < fromMonth) return false;
+        if (toMonth && entry.month > toMonth) return false;
+        return true;
+    });
+
+    const points = monthlyBalances.map((entry) => ({
+        month: entry.month,
+        amount: toEUR(entry.balance, entry.currency)
+    }));
+
+    renderBarChartCard({
+        points,
+        totalElementId,
+        chartElementId,
+        emptyMessage,
+        colorBySign: "negative-is-negative",
+        totalMode: "last"
+    });
+
+    return points;
 }
 
 function toggleDashboardFilters() {

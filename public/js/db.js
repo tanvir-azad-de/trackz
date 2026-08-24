@@ -236,6 +236,47 @@ function dbComputeAccountSummaries() {
     });
 }
 
+function dbComputeAccountMonthlyBalances(accountName) {
+    const accounts = dbGetRawAccounts();
+    const account = accounts.find((a) => a.name === accountName);
+    if (!account) return [];
+
+    const transactions = dbGetTransactions();
+    const rates = getRates();
+    const accountCurrencyByName = new Map(accounts.map((a) => [a.name, a.currency]));
+
+    const matching = transactions
+        .filter((t) => t.account === accountName || t.destinationAccount === accountName)
+        .filter((t) => isValidDate(t.date))
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    if (!matching.length) return [];
+
+    const firstMonth = matching[0].date.slice(0, 7);
+    const lastMonth = matching[matching.length - 1].date.slice(0, 7);
+
+    const impactByMonth = {};
+    matching.forEach((t) => {
+        const month = t.date.slice(0, 7);
+        impactByMonth[month] =
+            (impactByMonth[month] || 0) + getTransactionImpact(t, accountName, { accountCurrencyByName, rates });
+    });
+
+    const months = [];
+    let cursor = new Date(`${firstMonth}-01T00:00:00Z`);
+    const end = new Date(`${lastMonth}-01T00:00:00Z`);
+    while (cursor <= end) {
+        months.push(cursor.toISOString().slice(0, 7));
+        cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+
+    let runningBalance = account.openingBalance;
+    return months.map((month) => {
+        runningBalance += impactByMonth[month] || 0;
+        return { month, balance: runningBalance, currency: account.currency };
+    });
+}
+
 function dbValidateAccountPayload(body) {
     const accounts = dbGetRawAccounts();
     const currencies = dbGetCurrencies();
@@ -689,6 +730,7 @@ window.db = {
     saveTransaction: dbSaveTransaction,
     deleteTransaction: dbDeleteTransaction,
     getAccounts: dbComputeAccountSummaries,
+    getAccountMonthlyBalances: dbComputeAccountMonthlyBalances,
     saveAccount: dbSaveAccount,
     deleteAccount: dbDeleteAccount,
     getCategoryTree: dbGetCategoryTree,
