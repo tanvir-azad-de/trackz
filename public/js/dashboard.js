@@ -3,9 +3,7 @@ function toISODate(value) {
 }
 
 function defaultDashboardFromDate() {
-    const today = new Date();
-    const from = new Date(today.getFullYear(), today.getMonth() - 1, 27);
-    return toISODate(from);
+    return "2024-11-01";
 }
 
 function ensureDashboardRangeDefaults() {
@@ -59,103 +57,60 @@ function onDashboardRangeChange() {
 }
 
 function renderDashboard() {
-    const summary = window.state.dashboardSummary || window.state.summary;
+    renderIncomeCategoryChart();
+}
 
-    if (!summary) {
-        return;
-    }
-
-    // --- Liquid Money card ---
-    const positiveAccounts = summary.accounts.filter(
-        (account) => typeof account.currentBalance === "number" && account.currentBalance > 0
-    );
-    const liquidMoney = positiveAccounts.reduce(
-        (sum, account) =>
-            sum + (typeof account.eurEquivalent === "number" ? account.eurEquivalent : 0),
-        0
-    );
-    getElement("stat-balance").textContent = formatMoney(liquidMoney, "EUR");
-
-    getElement("account-overview").innerHTML = positiveAccounts.length
-        ? positiveAccounts
-              .map(
-                  (account) => `
-                    <div class="list-row">
-                        <strong>${escapeHtml(account.name)}</strong>
-                        <strong class="amount-positive">${formatMoney(account.currentBalance, account.currency)}</strong>
-                    </div>`
-              )
-              .join("")
-        : '<p class="empty-copy">No accounts with positive balance.</p>';
-
-    // --- Income card: group scoped transactions by main category ---
+function renderIncomeCategoryChart() {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
 
-    const scopedTransactions = (window.state.transactions || []).filter((t) => {
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const incomeTransactions = (window.state.transactions || []).filter((t) => {
+        if (t.type !== "Income" || t.category !== "Income") return false;
         const d = String(t.date || "");
         if (from && d < from) return false;
         if (to && d > to) return false;
         return true;
     });
 
-    const rates = {};
-    (summary.accounts || []).forEach(() => {}); // rates come from summary totals; use toEUR helper below
+    const totalsByMonth = {};
+    incomeTransactions.forEach((t) => {
+        const key = String(t.date || "").slice(0, 7); // YYYY-MM
+        totalsByMonth[key] = (totalsByMonth[key] || 0) + toEUR(t.amount, t.currency);
+    });
 
-    function toEUR(amount, currency) {
-        // re-use account eurEquivalent ratio if available, otherwise approximate
-        const sample = summary.accounts.find((a) => a.currency === currency);
-        if (!sample || typeof sample.eurEquivalent !== "number" || sample.currentBalance === 0) {
-            return amount; // fallback
-        }
-        return amount * (sample.eurEquivalent / sample.currentBalance);
+    const points = Object.entries(totalsByMonth)
+        .map(([month, amount]) => ({ month, amount }))
+        .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+
+    const total = points.reduce((sum, p) => sum + p.amount, 0);
+    getElement("income-category-total").textContent = formatMoney(total, "EUR");
+
+    const chart = getElement("income-category-chart");
+
+    if (!points.length) {
+        chart.innerHTML = '<p class="empty-copy">No income in this range.</p>';
+        return;
     }
 
-    function groupByCategory(transactions) {
-        const map = {};
-        transactions.forEach((t) => {
-            const key = t.category || "Uncategorized";
-            map[key] = (map[key] || 0) + toEUR(t.amount, t.currency);
-        });
-        return Object.entries(map)
-            .map(([name, amount]) => ({ name, amount }))
-            .sort((a, b) => b.amount - a.amount);
-    }
+    const maxAmount = Math.max(...points.map((p) => p.amount), 1);
 
-    const incomeTransactions = scopedTransactions.filter((t) => t.type === "Income");
-    const expenseTransactions = scopedTransactions.filter((t) => t.type === "Expense");
-
-    const totalIncome = incomeTransactions.reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
-    const totalExpense = expenseTransactions.reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
-
-    getElement("stat-income").textContent = formatMoney(totalIncome, "EUR");
-    getElement("stat-expense").textContent = formatMoney(totalExpense, "EUR");
-
-    const incomeByCategory = groupByCategory(incomeTransactions);
-    getElement("income-breakdown").innerHTML = incomeByCategory.length
-        ? incomeByCategory
-              .map(
-                  (entry) => `
-                    <div class="list-row">
-                        <span>${escapeHtml(entry.name)}</span>
-                        <strong class="amount-positive">${formatMoney(entry.amount, "EUR")}</strong>
-                    </div>`
-              )
-              .join("")
-        : '<p class="empty-copy">No income in this range.</p>';
-
-    const expenseByCategory = groupByCategory(expenseTransactions);
-    getElement("expense-breakdown").innerHTML = expenseByCategory.length
-        ? expenseByCategory
-              .map(
-                  (entry) => `
-                    <div class="list-row">
-                        <span>${escapeHtml(entry.name)}</span>
-                        <strong class="amount-negative">${formatMoney(entry.amount, "EUR")}</strong>
-                    </div>`
-              )
-              .join("")
-        : '<p class="empty-copy">No expenses in this range.</p>';
+    chart.innerHTML = points
+        .map((p) => {
+            const heightPct = Math.max((p.amount / maxAmount) * 100, 2);
+            return `
+                <div class="bar-chart-col" title="${escapeHtml(p.month)}: ${escapeHtml(formatMoney(p.amount, "EUR"))}">
+                    <span class="bar-chart-value">${escapeHtml(formatMoney(p.amount, "EUR"))}</span>
+                    <div class="bar-chart-bar" style="height: ${heightPct}%"></div>
+                    <span class="bar-chart-label">${escapeHtml(p.month)}</span>
+                </div>`;
+        })
+        .join("");
 }
 
 function toggleDashboardFilters() {
