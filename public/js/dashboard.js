@@ -388,13 +388,6 @@ function renderDashboard() {
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    const advanziaResult = renderAccountBalanceChart({
-        accountName: "Advanzia",
-        totalElementId: "account-balance-advanzia-total",
-        chartElementId: "account-balance-advanzia-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
-
     const cashResult = renderAccountBalanceChart({
         accountName: "Cash",
         totalElementId: "account-balance-cash-total",
@@ -406,20 +399,6 @@ function renderDashboard() {
         accountName: "Revolut",
         totalElementId: "account-balance-revolut-total",
         chartElementId: "account-balance-revolut-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
-
-    const revolutJpyResult = renderAccountBalanceChart({
-        accountName: "Revolut JPY",
-        totalElementId: "account-balance-revolut-jpy-total",
-        chartElementId: "account-balance-revolut-jpy-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
-
-    const revolutBrokerageResult = renderAccountBalanceChart({
-        accountName: "Revolut Brokerage",
-        totalElementId: "account-balance-revolut-brokerage-total",
-        chartElementId: "account-balance-revolut-brokerage-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 

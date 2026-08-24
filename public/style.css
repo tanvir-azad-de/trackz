@@ -325,6 +325,17 @@ small {
 	grid-column: span 2;
 }
 
+.full-row {
+	grid-column: 1 / -1;
+}
+
+.dashboard-row {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 18px;
+}
+
 .card {
 	background: var(--color-surface);
 	border-radius: 20px;
@@ -368,7 +379,7 @@ small {
 	gap: 6px;
 	height: 220px;
 	padding-top: 10px;
-	padding-bottom: 90px;
+	padding-bottom: 60px;
 	overflow-x: auto;
 }
 
@@ -1033,6 +1044,17 @@ small {
 
 .wide-card {
 	grid-column: span 2;
+}
+
+.full-row {
+	grid-column: 1 / -1;
+}
+
+.dashboard-row {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 18px;
 }
 
 .card {
