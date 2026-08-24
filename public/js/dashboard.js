@@ -56,11 +56,59 @@ function onDashboardRangeChange() {
     refreshDashboardSummaryForRange();
 }
 
+const EXPENSE_CATEGORIES = [
+    "Shopping",
+    "Groceries",
+    "Restaurant",
+    "Family Support",
+    "Health Insurance",
+    "Rent",
+    "Smokes",
+    "Personal Care",
+    "WG Costs",
+    "Travel",
+    "WiFi Mobile",
+    "Broadcasting Fee",
+    "Subscriptions",
+    "Lemfi",
+    "Entertainment",
+    "University",
+    "Repayment ABH",
+    "Electricity"
+];
+
+const CASHFLOW_CATEGORIES = ["Reimbursements", "Sold Items", "Refunds"];
+
 function renderDashboard() {
-    renderIncomeCategoryChart();
+    const expensePoints = renderMonthlyBarChart({
+        type: "Expense",
+        categories: EXPENSE_CATEGORIES,
+        totalElementId: "expense-category-total",
+        chartElementId: "expense-category-chart",
+        emptyMessage: "No expenses in this range.",
+        tone: "negative"
+    });
+
+    renderMonthlyBarChart({
+        type: "Income",
+        categories: ["Income"],
+        totalElementId: "income-category-total",
+        chartElementId: "income-category-chart",
+        emptyMessage: "No income in this range."
+    });
+
+    const cashflowPoints = renderMonthlyBarChart({
+        type: "Income",
+        categories: CASHFLOW_CATEGORIES,
+        totalElementId: "cashflow-category-total",
+        chartElementId: "cashflow-category-chart",
+        emptyMessage: "No incoming cash flow in this range."
+    });
+
+    renderNetExpenseChart(expensePoints, cashflowPoints);
 }
 
-function renderIncomeCategoryChart() {
+function getMonthlyTotalsForTransactions({ type, categories }) {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
 
@@ -70,8 +118,8 @@ function renderIncomeCategoryChart() {
         return typeof rate === "number" ? amount * rate : amount;
     };
 
-    const incomeTransactions = (window.state.transactions || []).filter((t) => {
-        if (t.type !== "Income" || t.category !== "Income") return false;
+    const matchingTransactions = (window.state.transactions || []).filter((t) => {
+        if (t.type !== type || !categories.includes(t.category)) return false;
         const d = String(t.date || "");
         if (from && d < from) return false;
         if (to && d > to) return false;
@@ -79,34 +127,81 @@ function renderIncomeCategoryChart() {
     });
 
     const totalsByMonth = {};
-    incomeTransactions.forEach((t) => {
+    matchingTransactions.forEach((t) => {
         const key = String(t.date || "").slice(0, 7); // YYYY-MM
         totalsByMonth[key] = (totalsByMonth[key] || 0) + toEUR(t.amount, t.currency);
     });
+
+    return totalsByMonth;
+}
+
+function renderMonthlyBarChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+    const totalsByMonth = getMonthlyTotalsForTransactions({ type, categories });
 
     const points = Object.entries(totalsByMonth)
         .map(([month, amount]) => ({ month, amount }))
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
 
-    const total = points.reduce((sum, p) => sum + p.amount, 0);
-    getElement("income-category-total").textContent = formatMoney(total, "EUR");
+    renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone });
 
-    const chart = getElement("income-category-chart");
+    return points;
+}
+
+function renderNetExpenseChart(expensePoints, cashflowPoints) {
+    const cashflowByMonth = {};
+    cashflowPoints.forEach((p) => {
+        cashflowByMonth[p.month] = p.amount;
+    });
+
+    const expenseByMonth = {};
+    expensePoints.forEach((p) => {
+        expenseByMonth[p.month] = p.amount;
+    });
+
+    const months = new Set([...Object.keys(expenseByMonth), ...Object.keys(cashflowByMonth)]);
+
+    const points = Array.from(months)
+        .map((month) => ({
+            month,
+            amount: (expenseByMonth[month] || 0) - (cashflowByMonth[month] || 0)
+        }))
+        .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+
+    renderBarChartCard({
+        points,
+        totalElementId: "net-expense-total",
+        chartElementId: "net-expense-chart",
+        emptyMessage: "No expenses or incoming cash flow in this range.",
+        tone: "negative",
+        colorBySign: true
+    });
+}
+
+function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone = "positive", colorBySign = false }) {
+    const total = points.reduce((sum, p) => sum + p.amount, 0);
+    const totalElement = getElement(totalElementId);
+    totalElement.textContent = formatMoney(total, "EUR");
+    totalElement.classList.toggle("amount-negative", tone === "negative");
+    totalElement.classList.toggle("amount-positive", tone !== "negative");
+
+    const chart = getElement(chartElementId);
 
     if (!points.length) {
-        chart.innerHTML = '<p class="empty-copy">No income in this range.</p>';
+        chart.innerHTML = `<p class="empty-copy">${escapeHtml(emptyMessage)}</p>`;
         return;
     }
 
-    const maxAmount = Math.max(...points.map((p) => p.amount), 1);
+    const maxAmount = Math.max(...points.map((p) => Math.abs(p.amount)), 1);
 
     chart.innerHTML = points
         .map((p) => {
-            const heightPct = Math.max((p.amount / maxAmount) * 100, 2);
+            const heightPct = Math.max((Math.abs(p.amount) / maxAmount) * 100, 2);
+            const isNegativeBar = colorBySign ? p.amount >= 0 : tone === "negative";
+            const barClass = isNegativeBar ? "bar-chart-bar bar-chart-bar--negative" : "bar-chart-bar";
             return `
                 <div class="bar-chart-col" title="${escapeHtml(p.month)}: ${escapeHtml(formatMoney(p.amount, "EUR"))}">
                     <span class="bar-chart-value">${escapeHtml(formatMoney(p.amount, "EUR"))}</span>
-                    <div class="bar-chart-bar" style="height: ${heightPct}%"></div>
+                    <div class="${barClass}" style="height: ${heightPct}%"></div>
                     <span class="bar-chart-label">${escapeHtml(p.month)}</span>
                 </div>`;
         })

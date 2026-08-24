@@ -398,6 +398,10 @@ small {
 	background: var(--color-primary);
 }
 
+.bar-chart-bar--negative {
+	background: var(--color-negative-mid);
+}
+
 .bar-chart-label {
 	position: absolute;
 	top: 100%;
