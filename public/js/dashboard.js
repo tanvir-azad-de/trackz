@@ -80,7 +80,7 @@ const EXPENSE_CATEGORIES = [
 const CASHFLOW_CATEGORIES = ["Reimbursements", "Sold Items", "Refunds"];
 
 function renderDashboard() {
-    const expensePoints = renderMonthlyBarChart({
+    const expenseResult = renderMonthlyBarChart({
         type: "Expense",
         categories: EXPENSE_CATEGORIES,
         totalElementId: "expense-category-total",
@@ -89,7 +89,7 @@ function renderDashboard() {
         tone: "negative"
     });
 
-    renderMonthlyBarChart({
+    const incomeResult = renderMonthlyBarChart({
         type: "Income",
         categories: ["Income"],
         totalElementId: "income-category-total",
@@ -97,7 +97,7 @@ function renderDashboard() {
         emptyMessage: "No income in this range."
     });
 
-    const cashflowPoints = renderMonthlyBarChart({
+    const cashflowResult = renderMonthlyBarChart({
         type: "Income",
         categories: CASHFLOW_CATEGORIES,
         totalElementId: "cashflow-category-total",
@@ -105,15 +105,15 @@ function renderDashboard() {
         emptyMessage: "No incoming cash flow in this range."
     });
 
-    renderNetBalanceChart({
-        subtractPoints: expensePoints,
-        fromPoints: cashflowPoints,
+    const netExpenseResult = renderNetBalanceChart({
+        subtractPoints: expenseResult.points,
+        fromPoints: cashflowResult.points,
         totalElementId: "net-expense-total",
         chartElementId: "net-expense-chart",
         emptyMessage: "No expenses or incoming cash flow in this range."
     });
 
-    renderNetBalanceChart({
+    const shortTermLoanResult = renderNetBalanceChart({
         subtractPoints: getMonthlyPoints({ type: "Expense", categories: ["Short Term Loan Given"] }),
         fromPoints: getMonthlyPoints({ type: "Income", categories: ["Short Term Loan Return"] }),
         totalElementId: "short-term-loan-balance-total",
@@ -121,7 +121,7 @@ function renderDashboard() {
         emptyMessage: "No short term loan activity in this range."
     });
 
-    renderNetBalanceChart({
+    const kautionResult = renderNetBalanceChart({
         subtractPoints: getMonthlyPoints({ type: "Expense", categories: ["Kaution Given"] }),
         fromPoints: getMonthlyPoints({ type: "Income", categories: ["Kaution Return"] }),
         totalElementId: "kaution-balance-total",
@@ -129,54 +129,94 @@ function renderDashboard() {
         emptyMessage: "No Kaution activity in this range."
     });
 
-    renderAccountBalanceChart({
+    const commerzbankResult = renderAccountBalanceChart({
         accountName: "Commerzbank",
         totalElementId: "account-balance-commerzbank-total",
         chartElementId: "account-balance-commerzbank-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    renderAccountBalanceChart({
+    const advanziaResult = renderAccountBalanceChart({
         accountName: "Advanzia",
         totalElementId: "account-balance-advanzia-total",
         chartElementId: "account-balance-advanzia-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    renderAccountBalanceChart({
+    const cashResult = renderAccountBalanceChart({
         accountName: "Cash",
         totalElementId: "account-balance-cash-total",
         chartElementId: "account-balance-cash-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    renderAccountBalanceChart({
+    const revolutResult = renderAccountBalanceChart({
         accountName: "Revolut",
         totalElementId: "account-balance-revolut-total",
         chartElementId: "account-balance-revolut-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    renderAccountBalanceChart({
+    const revolutJpyResult = renderAccountBalanceChart({
         accountName: "Revolut JPY",
         totalElementId: "account-balance-revolut-jpy-total",
         chartElementId: "account-balance-revolut-jpy-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    renderAccountBalanceChart({
+    const revolutBrokerageResult = renderAccountBalanceChart({
         accountName: "Revolut Brokerage",
         totalElementId: "account-balance-revolut-brokerage-total",
         chartElementId: "account-balance-revolut-brokerage-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
 
-    renderAccountBalanceChart({
+    const scalableCapitalResult = renderAccountBalanceChart({
         accountName: "Scalable Capital",
         totalElementId: "account-balance-scalable-capital-total",
         chartElementId: "account-balance-scalable-capital-chart",
         emptyMessage: "No transactions found for this account in this range."
     });
+
+    const assetsTotal =
+        shortTermLoanResult.total +
+        kautionResult.total +
+        commerzbankResult.total +
+        advanziaResult.total +
+        cashResult.total +
+        revolutResult.total +
+        revolutJpyResult.total +
+        revolutBrokerageResult.total +
+        scalableCapitalResult.total;
+
+    renderOverviewCard({
+        incomeTotal: incomeResult.total,
+        netExpenseTotal: netExpenseResult.total,
+        assetsTotal
+    });
+}
+
+function renderOverviewCard({ incomeTotal, netExpenseTotal, assetsTotal }) {
+    const incomeElement = getElement("overview-income-total");
+    incomeElement.textContent = formatMoney(incomeTotal, "EUR");
+    incomeElement.classList.toggle("amount-negative", incomeTotal < 0);
+    incomeElement.classList.toggle("amount-positive", incomeTotal >= 0);
+
+    const netExpenseElement = getElement("overview-net-expense-total");
+    netExpenseElement.textContent = formatMoney(netExpenseTotal, "EUR");
+    netExpenseElement.classList.toggle("amount-negative", netExpenseTotal >= 0);
+    netExpenseElement.classList.toggle("amount-positive", netExpenseTotal < 0);
+
+    const assetsElement = getElement("overview-assets-total");
+    assetsElement.textContent = formatMoney(assetsTotal, "EUR");
+    assetsElement.classList.toggle("amount-negative", assetsTotal < 0);
+    assetsElement.classList.toggle("amount-positive", assetsTotal >= 0);
+
+    const balanceTotal = incomeTotal - netExpenseTotal - assetsTotal;
+    const balanceElement = getElement("overview-balance-total");
+    balanceElement.textContent = formatMoney(balanceTotal, "EUR");
+    balanceElement.classList.toggle("amount-negative", balanceTotal < 0);
+    balanceElement.classList.toggle("amount-positive", balanceTotal >= 0);
 }
 
 function getMonthlyTotalsForTransactions({ type, categories }) {
@@ -217,9 +257,9 @@ function getMonthlyPoints({ type, categories }) {
 function renderMonthlyBarChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
     const points = getMonthlyPoints({ type, categories });
 
-    renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone });
+    const total = renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone });
 
-    return points;
+    return { points, total };
 }
 
 function renderNetBalanceChart({ subtractPoints, fromPoints, totalElementId, chartElementId, emptyMessage }) {
@@ -242,7 +282,7 @@ function renderNetBalanceChart({ subtractPoints, fromPoints, totalElementId, cha
         }))
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
 
-    renderBarChartCard({
+    const total = renderBarChartCard({
         points,
         totalElementId,
         chartElementId,
@@ -251,7 +291,7 @@ function renderNetBalanceChart({ subtractPoints, fromPoints, totalElementId, cha
         colorBySign: "positive-is-negative"
     });
 
-    return points;
+    return { points, total };
 }
 
 function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone = "positive", colorBySign = null, totalMode = "sum" }) {
@@ -271,7 +311,7 @@ function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessa
 
     if (!points.length) {
         chart.innerHTML = `<p class="empty-copy">${escapeHtml(emptyMessage)}</p>`;
-        return;
+        return total;
     }
 
     const maxAmount = Math.max(...points.map((p) => Math.abs(p.amount)), 1);
@@ -293,6 +333,8 @@ function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessa
                 </div>`;
         })
         .join("");
+
+    return total;
 }
 
 function renderAccountBalanceChart({ accountName, totalElementId, chartElementId, emptyMessage }) {
@@ -318,7 +360,7 @@ function renderAccountBalanceChart({ accountName, totalElementId, chartElementId
         amount: toEUR(entry.balance, entry.currency)
     }));
 
-    renderBarChartCard({
+    const total = renderBarChartCard({
         points,
         totalElementId,
         chartElementId,
@@ -327,7 +369,7 @@ function renderAccountBalanceChart({ accountName, totalElementId, chartElementId
         totalMode: "last"
     });
 
-    return points;
+    return { points, total };
 }
 
 function toggleDashboardFilters() {
