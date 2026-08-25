@@ -201,6 +201,10 @@ function formatMonthLabel(month) {
     return `${MONTH_NAMES[monthIndex]} ${year}`;
 }
 
+function getSeriesNameFromLegendLabel(label) {
+    return String(label || "Value").split(":")[0].trim() || "Value";
+}
+
 function getNetBalancePoints({ subtractPoints, fromPoints }) {
     const subtractByMonth = {};
     subtractPoints.forEach((point) => {
@@ -364,7 +368,6 @@ function renderDashboardTrendChart() {
                     fill: false
                 },
                 {
-                    label: "Net Expenses",
                     label: `Net Expenses: ${formatMoney(netExpenseTotal)}`,
                     data: trendData.labels.map((month) => trendData.series.netExpenses[month] ?? null),
                     borderColor: expenseColor,
@@ -378,7 +381,6 @@ function renderDashboardTrendChart() {
                     fill: true
                 },
                 {
-                    label: "Income",
                     label: `Income: ${formatMoney(incomeTotal)}`,
                     data: trendData.labels.map((month) => trendData.series.income[month] ?? null),
                     borderColor: incomeColor,
@@ -422,7 +424,8 @@ function renderDashboardTrendChart() {
                 tooltip: {
                     callbacks: {
                         label(context) {
-                            return `${context.dataset.label}: ${formatMoney(context.parsed.y, "EUR")}`;
+                            const seriesName = getSeriesNameFromLegendLabel(context.dataset.label);
+                            return `${seriesName}: ${formatMoney(context.parsed.y, "EUR")}`;
                         }
                     }
                 }
@@ -815,7 +818,8 @@ function renderLoanKautionBalanceChart() {
                 tooltip: {
                     callbacks: {
                         label(context) {
-                            return `${context.dataset.label}: ${formatMoney(context.parsed.y, "EUR")}`;
+                            const seriesName = getSeriesNameFromLegendLabel(context.dataset.label);
+                            return `${seriesName}: ${formatMoney(context.parsed.y, "EUR")}`;
                         }
                     }
                 }
@@ -1002,7 +1006,8 @@ function renderSourceAccountsBalanceChart() {
                 tooltip: {
                     callbacks: {
                         label(context) {
-                            return `${context.dataset.label}: ${formatMoney(context.parsed.y, "EUR")}`;
+                            const seriesName = getSeriesNameFromLegendLabel(context.dataset.label);
+                            return `${seriesName}: ${formatMoney(context.parsed.y, "EUR")}`;
                         }
                     }
                 }

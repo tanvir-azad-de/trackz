@@ -69,6 +69,10 @@ function importAll(data) {
     if (data.currencies) localStorage.setItem(DB_KEYS.currencies, JSON.stringify(data.currencies));
     if (data.currencyRates) localStorage.setItem(DB_KEYS.currencyRates, JSON.stringify(data.currencyRates));
     if (data.debts) localStorage.setItem(DB_KEYS.debts, JSON.stringify(data.debts));
+
+    if (window.driveSync) {
+        window.driveSync.markDirty();
+    }
 }
 
 // ── Initialisation ────────────────────────────────────────────────────────────

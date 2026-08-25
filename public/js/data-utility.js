@@ -90,7 +90,12 @@ async function handleImport(input) {
 
     try {
         await importData(input.files[0]);
-        status.textContent = "Import successful! Data will sync to Drive shortly.";
+        if (window.driveSync && window.driveSync.isSignedIn()) {
+            await window.driveSync.syncNow();
+            status.textContent = "Import successful and synced to Drive.";
+        } else {
+            status.textContent = "Import successful! Sign in to sync this data to Drive.";
+        }
         status.style.color = "green";
         setTimeout(() => closeDataUtilityDialog(), 2000);
     } catch (err) {
