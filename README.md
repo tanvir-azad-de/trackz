@@ -18,6 +18,8 @@ npm install
 npm start
 ```
 
+`npm install` also configures Git to use the tracked hooks in `.githooks/`, so the pre-commit hook runs during commits.
+
 Then open `http://localhost:3000`.
 
 ## Notes
