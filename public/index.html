@@ -96,34 +96,11 @@
                     <article class="card full-row">
                         <div class="panel-head">
                             <div>
-                                <h3>Income</h3>
-                                <small class="muted">Category: Income — sum by month, oldest → newest</small>
+                                <h3>Monthly Trend</h3>
+                                <small class="muted">Income, Net Expenses, and Total Assets plotted together. Total Assets is derived as Income - Net Expenses.</small>
                             </div>
-                            <strong id="income-category-total" class="amount-positive">€0.00</strong>
                         </div>
-                        <div id="income-category-chart" class="bar-chart"></div>
-                    </article>
-
-                    <article class="card full-row">
-                        <div class="panel-head">
-                            <div>
-                                <h3>Net Expenses</h3>
-                                <small class="muted">Expenses minus Incoming Cash Flow — sum by month, oldest → newest</small>
-                            </div>
-                            <strong id="net-expense-total" class="amount-negative">€0.00</strong>
-                        </div>
-                        <div id="net-expense-chart" class="bar-chart"></div>
-                    </article>
-
-                    <article class="card full-row">
-                        <div class="panel-head">
-                            <div>
-                                <h3>Total Assets</h3>
-                                <small class="muted">Snapshot as of end date — sum by month, oldest → newest</small>
-                            </div>
-                            <strong id="total-assets-total" class="amount-positive">€0.00</strong>
-                        </div>
-                        <div id="total-assets-chart" class="bar-chart"></div>
+                        <div id="dashboard-trend-chart" class="line-chart"><canvas id="dashboard-trend-chart-canvas"></canvas></div>
                     </article>
 
                     <div class="dashboard-row">
@@ -578,6 +555,7 @@
     <script src="js/accounts.js"></script>
     <script src="js/categories.js"></script>
     <script src="js/currencies.js"></script>
+    <script src="vendor/chart.umd.min.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/debts.js"></script>
     <script src="js/app-shell.js"></script>

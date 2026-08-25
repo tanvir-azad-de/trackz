@@ -101,6 +101,50 @@ const TOTAL_ASSETS_ACCOUNT_NAMES = [
     "Scalable Capital"
 ];
 
+const DASHBOARD_TREND_SERIES = [
+    { key: "income", label: "Income" },
+    { key: "netExpenses", label: "Net Expenses" },
+    { key: "totalAssets", label: "Total Assets" }
+];
+
+const MONTH_NAMES = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec"
+];
+
+let dashboardTrendChart = null;
+
+function getThemeColor(variableName, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+    return value || fallback;
+}
+
+function hexToRgba(hexColor, alpha) {
+    const normalized = String(hexColor || "").trim();
+    const hex = normalized.startsWith("#") ? normalized.slice(1) : normalized;
+
+    if (!/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/.test(hex)) {
+        return normalized;
+    }
+
+    const expanded = hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex;
+    const numeric = Number.parseInt(expanded, 16);
+    const red = (numeric >> 16) & 255;
+    const green = (numeric >> 8) & 255;
+    const blue = numeric & 255;
+
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
 function shiftMonth(monthStr, delta) {
     const [y, m] = monthStr.split("-").map(Number);
     const d = new Date(Date.UTC(y, m - 1 + delta, 1));
@@ -117,6 +161,277 @@ function getMonthRange(fromMonth, toMonth) {
         cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
     }
     return months;
+}
+
+function formatMonthLabel(month) {
+    const [year, monthNumber] = String(month || "").split("-");
+    const monthIndex = Number(monthNumber) - 1;
+
+    if (!year || Number.isNaN(monthIndex) || monthIndex < 0 || monthIndex >= MONTH_NAMES.length) {
+        return month;
+    }
+
+    return `${MONTH_NAMES[monthIndex]} ${year}`;
+}
+
+function getNetBalancePoints({ subtractPoints, fromPoints }) {
+    const subtractByMonth = {};
+    subtractPoints.forEach((point) => {
+        subtractByMonth[point.month] = point.amount;
+    });
+
+    const fromByMonth = {};
+    fromPoints.forEach((point) => {
+        fromByMonth[point.month] = point.amount;
+    });
+
+    const months = new Set([...Object.keys(subtractByMonth), ...Object.keys(fromByMonth)]);
+
+    return Array.from(months)
+        .map((month) => ({
+            month,
+            amount: (subtractByMonth[month] || 0) - (fromByMonth[month] || 0)
+        }))
+        .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+}
+
+function getTotalAssetsPoints() {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    if (!fromMonth || !toMonth) {
+        return [];
+    }
+
+    const months = getMonthRange(fromMonth, toMonth);
+    const loanCumulative = getCumulativeCategoryBalances({
+        expenseCategory: "Short Term Loan Given",
+        incomeCategory: "Short Term Loan Return"
+    });
+    const kautionCumulative = getCumulativeCategoryBalances({
+        expenseCategory: "Kaution Given",
+        incomeCategory: "Kaution Return"
+    });
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const accountsData = TOTAL_ASSETS_ACCOUNT_NAMES.map((name) => {
+        const account = (window.state.accounts || []).find((accountItem) => accountItem.name === name);
+        const openingBalance = account ? Number(account.openingBalance) || 0 : 0;
+        const currency = account ? account.currency : "EUR";
+        const monthlyBalances = window.db.getAccountMonthlyBalances(name) || [];
+        return { openingBalance, currency, monthlyBalances };
+    });
+
+    return months.map((month) => {
+        const loanBalance = getAccountBalanceAtMonthEnd(loanCumulative, month, 0);
+        const kautionBalance = getAccountBalanceAtMonthEnd(kautionCumulative, month, 0);
+        const accountsBalance = accountsData.reduce((sum, accountData) => {
+            const balance = getAccountBalanceAtMonthEnd(
+                accountData.monthlyBalances,
+                month,
+                accountData.openingBalance
+            );
+            return sum + toEUR(balance, accountData.currency);
+        }, 0);
+
+        return { month, amount: loanBalance + kautionBalance + accountsBalance };
+    });
+}
+
+function getDashboardTrendData() {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    if (!fromMonth || !toMonth) {
+        return null;
+    }
+
+    const incomePoints = getMonthlyPoints({ type: "Income", categories: ["Income"] });
+    const expensePoints = getMonthlyPoints({ type: "Expense", categories: EXPENSE_CATEGORIES });
+    const cashflowPoints = getMonthlyPoints({ type: "Income", categories: CASHFLOW_CATEGORIES });
+    const netExpensePoints = getNetBalancePoints({ subtractPoints: expensePoints, fromPoints: cashflowPoints });
+    const totalAssetsPoints = getTotalAssetsPoints();
+
+    const seriesToMap = (points) => {
+        const lookup = {};
+        points.forEach((point) => {
+            lookup[point.month] = point.amount;
+        });
+        return lookup;
+    };
+
+    const labels = Array.from(
+        new Set([
+            ...incomePoints.map((point) => point.month),
+            ...netExpensePoints.map((point) => point.month),
+            ...totalAssetsPoints.map((point) => point.month)
+        ])
+    ).sort();
+
+    return {
+        labels,
+        series: {
+            income: seriesToMap(incomePoints),
+            netExpenses: seriesToMap(netExpensePoints),
+            totalAssets: seriesToMap(totalAssetsPoints)
+        }
+    };
+}
+
+function renderDashboardTrendChart() {
+    const chart = getElement("dashboard-trend-chart");
+    const trendData = getDashboardTrendData();
+
+    if (dashboardTrendChart) {
+        dashboardTrendChart.destroy();
+        dashboardTrendChart = null;
+    }
+
+    if (!trendData || !trendData.labels.length) {
+        chart.innerHTML = '<p class="empty-copy">Select a date range.</p>';
+        return { incomeTotal: 0, netExpenseTotal: 0, assetsTotal: 0 };
+    }
+
+    chart.innerHTML = '<canvas id="dashboard-trend-chart-canvas"></canvas>';
+
+    const canvas = getElement("dashboard-trend-chart-canvas");
+    const incomeColor = getThemeColor("--color-positive-mid", "#16a34a");
+    const expenseColor = getThemeColor("--color-negative-mid", "#dc2626");
+    const assetColor = getThemeColor("--color-primary", "#2563eb");
+    const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
+    const textColor = getThemeColor("--color-text-muted", "#64748b");
+    const axisColor = getThemeColor("--color-border", "#cbd5e1");
+
+    const incomeTotal = Object.values(trendData.series.income).reduce((sum, amount) => sum + amount, 0);
+    const netExpenseTotal = Object.values(trendData.series.netExpenses).reduce((sum, amount) => sum + amount, 0);
+    const assetsValues = Object.values(trendData.series.totalAssets);
+    const assetsTotal = assetsValues.length ? assetsValues[assetsValues.length - 1] : 0;
+
+    dashboardTrendChart = new Chart(canvas, {
+        type: "line",
+        data: {
+            labels: trendData.labels.map((month) => formatMonthLabel(month)),
+            datasets: [
+                
+                {
+                    label: "Total Assets",
+                    data: trendData.labels.map((month) => trendData.series.totalAssets[month] ?? null),
+                    borderColor: assetColor,
+                    backgroundColor: hexToRgba(assetColor, 0.1),
+                    pointBackgroundColor: assetColor,
+                    pointBorderColor: assetColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: false
+                },
+                {
+                    label: "Net Expenses",
+                    data: trendData.labels.map((month) => trendData.series.netExpenses[month] ?? null),
+                    borderColor: expenseColor,
+                    backgroundColor: hexToRgba(expenseColor, 0.1),
+                    pointBackgroundColor: expenseColor,
+                    pointBorderColor: expenseColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: true
+                },
+                {
+                    label: "Income",
+                    data: trendData.labels.map((month) => trendData.series.income[month] ?? null),
+                    borderColor: incomeColor,
+                    backgroundColor: hexToRgba(incomeColor, 0.1),
+                    pointBackgroundColor: incomeColor,
+                    pointBorderColor: incomeColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: false
+                },
+                
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: "top",
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: "box",
+                        boxWidth: 5,
+                        boxHeight: 5,
+                        color: textColor,
+                        font: {
+                            size: 14,
+                            weight: "600"
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            return `${context.dataset.label}: ${formatMoney(context.parsed.y, "EUR")}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        maxRotation: 0,
+                        autoSkip: true
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                },
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        color: textColor,
+                        callback(value) {
+                            return formatMoney(value, "EUR");
+                        }
+                    },
+                    grid: {
+                        color: gridColor
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                }
+            }
+        }
+    });
+
+    return {
+        incomeTotal,
+        netExpenseTotal,
+        assetsTotal
+    };
 }
 
 function getAccountBalanceAtMonthEnd(monthlyBalances, month, openingBalance) {
@@ -333,6 +648,8 @@ function renderUntrackedCategoriesCard() {
 }
 
 function renderDashboard() {
+    const trendTotals = renderDashboardTrendChart();
+
     const expenseResult = renderMonthlyBarChart({
         type: "Expense",
         categories: EXPENSE_CATEGORIES,
@@ -342,28 +659,12 @@ function renderDashboard() {
         tone: "negative"
     });
 
-    const incomeResult = renderMonthlyBarChart({
-        type: "Income",
-        categories: ["Income"],
-        totalElementId: "income-category-total",
-        chartElementId: "income-category-chart",
-        emptyMessage: "No income in this range."
-    });
-
     const cashflowResult = renderMonthlyBarChart({
         type: "Income",
         categories: CASHFLOW_CATEGORIES,
         totalElementId: "cashflow-category-total",
         chartElementId: "cashflow-category-chart",
         emptyMessage: "No incoming cash flow in this range."
-    });
-
-    const netExpenseResult = renderNetBalanceChart({
-        subtractPoints: expenseResult.points,
-        fromPoints: cashflowResult.points,
-        totalElementId: "net-expense-total",
-        chartElementId: "net-expense-chart",
-        emptyMessage: "No expenses or incoming cash flow in this range."
     });
 
     const shortTermLoanResult = renderNetBalanceChart({
@@ -416,13 +717,12 @@ function renderDashboard() {
         TRACKED_ACCOUNT_NAMES.reduce((sum, name) => sum + getAccountBalanceDelta(name), 0);
 
     renderOverviewCard({
-        incomeTotal: incomeResult.total,
-        netExpenseTotal: netExpenseResult.total,
+        incomeTotal: trendTotals.incomeTotal,
+        netExpenseTotal: trendTotals.netExpenseTotal,
         assetsTotal
     });
 
     renderUntrackedCategoriesCard();
-    renderTotalAssetsChart();
 }
 
 function renderOverviewCard({ incomeTotal, netExpenseTotal, assetsTotal }) {

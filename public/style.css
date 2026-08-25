@@ -426,6 +426,16 @@ small {
 	margin-top: 8px;
 }
 
+.line-chart {
+	position: relative;
+	min-height: 320px;
+}
+
+.line-chart canvas {
+	width: 100% !important;
+	height: 320px !important;
+}
+
 .form-panel,
 .filter-panel,
 .record-list-panel {

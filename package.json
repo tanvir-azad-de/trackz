@@ -4,5 +4,8 @@
   "scripts": {
     "prepare": "sh scripts/setup-git-hooks.sh",
     "start": "npx serve public"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1"
   }
 }
