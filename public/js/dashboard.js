@@ -71,6 +71,7 @@ const EXPENSE_CATEGORIES = [
     "Mobile",
     "Broadcasting Fee",
     "Subscriptions",
+    "Bank Charges",
     "Lemfi",
     "Entertainment",
     "University",
