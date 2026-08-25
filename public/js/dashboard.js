@@ -123,6 +123,32 @@ const MONTH_NAMES = [
 ];
 
 let dashboardTrendChart = null;
+const dashboardMiniLineCharts = {};
+const verticalHoverLinePlugin = {
+    id: "verticalHoverLine",
+    afterDatasetsDraw(chart, _args, pluginOptions) {
+        const tooltip = chart.tooltip;
+        if (!tooltip) return;
+
+        const activeElements = tooltip.getActiveElements();
+        if (!activeElements.length) return;
+
+        const context = chart.ctx;
+        const x = activeElements[0].element.x;
+        const yAxis = chart.scales.y;
+        if (!yAxis) return;
+
+        context.save();
+        context.beginPath();
+        context.moveTo(x, yAxis.top);
+        context.lineTo(x, yAxis.bottom);
+        context.lineWidth = pluginOptions && pluginOptions.lineWidth ? pluginOptions.lineWidth : 1;
+        context.strokeStyle = pluginOptions && pluginOptions.color ? pluginOptions.color : "rgba(100, 116, 139, 0.65)";
+        context.setLineDash(pluginOptions && pluginOptions.dash ? pluginOptions.dash : [4, 4]);
+        context.stroke();
+        context.restore();
+    }
+};
 
 function getThemeColor(variableName, fallback) {
     const value = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
@@ -155,11 +181,12 @@ function getMonthRange(fromMonth, toMonth) {
     if (!fromMonth || !toMonth) return [];
     const months = [];
     let cursor = new Date(`${fromMonth}-01T00:00:00Z`);
-    const end = new Date(`${toMonth}-01T00:00:00Z`);
-    while (cursor <= end) {
+
+    while (cursor.toISOString().slice(0, 7) <= toMonth) {
         months.push(cursor.toISOString().slice(0, 7));
         cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
     }
+
     return months;
 }
 
@@ -317,13 +344,14 @@ function renderDashboardTrendChart() {
     const assetsTotal = assetsValues.length ? assetsValues[assetsValues.length - 1] : 0;
 
     dashboardTrendChart = new Chart(canvas, {
+        plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
             labels: trendData.labels.map((month) => formatMonthLabel(month)),
             datasets: [
                 
                 {
-                    label: "Total Assets",
+                    label: `Total Assets: ${formatMoney(assetsTotal)}`,
                     data: trendData.labels.map((month) => trendData.series.totalAssets[month] ?? null),
                     borderColor: assetColor,
                     backgroundColor: hexToRgba(assetColor, 0.1),
@@ -337,6 +365,7 @@ function renderDashboardTrendChart() {
                 },
                 {
                     label: "Net Expenses",
+                    label: `Net Expenses: ${formatMoney(netExpenseTotal)}`,
                     data: trendData.labels.map((month) => trendData.series.netExpenses[month] ?? null),
                     borderColor: expenseColor,
                     backgroundColor: hexToRgba(expenseColor, 0.1),
@@ -350,6 +379,7 @@ function renderDashboardTrendChart() {
                 },
                 {
                     label: "Income",
+                    label: `Income: ${formatMoney(incomeTotal)}`,
                     data: trendData.labels.map((month) => trendData.series.income[month] ?? null),
                     borderColor: incomeColor,
                     backgroundColor: hexToRgba(incomeColor, 0.1),
@@ -372,6 +402,9 @@ function renderDashboardTrendChart() {
                 intersect: false
             },
             plugins: {
+                verticalHoverLine: {
+                    color: axisColor
+                },
                 legend: {
                     position: "top",
                     labels: {
@@ -647,10 +680,373 @@ function renderUntrackedCategoriesCard() {
         .join("");
 }
 
+const getNetBalanceSeries = (subtractSeries, fromSeries) => {
+    const subtractByMonth = {};
+    subtractSeries.forEach((point) => {
+        subtractByMonth[point.month] = point.amount;
+    });
+
+    const fromByMonth = {};
+    fromSeries.forEach((point) => {
+        fromByMonth[point.month] = point.amount;
+    });
+
+    const months = new Set([...Object.keys(subtractByMonth), ...Object.keys(fromByMonth)]);
+
+    return Array.from(months)
+        .map((month) => ({
+            month,
+            amount: (subtractByMonth[month] || 0) - (fromByMonth[month] || 0)
+        }))
+        .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+};
+
+function renderLoanKautionBalanceChart() {
+    const shortTermLoanPoints = getNetBalanceSeries(
+        getMonthlyPoints({ type: "Expense", categories: ["Short Term Loan Given"] }),
+        getMonthlyPoints({ type: "Income", categories: ["Short Term Loan Return"] })
+    );
+    const kautionPoints = getNetBalanceSeries(
+        getMonthlyPoints({ type: "Expense", categories: ["Kaution Given"] }),
+        getMonthlyPoints({ type: "Income", categories: ["Kaution Return"] })
+    );
+
+    const shortTermLoanTotal = shortTermLoanPoints.reduce((sum, point) => sum + point.amount, 0);
+    const kautionTotal = kautionPoints.reduce((sum, point) => sum + point.amount, 0);
+    const combinedTotal = shortTermLoanTotal + kautionTotal;
+    const combinedTotalElement = getElement("loan-kaution-balance-total");
+
+    combinedTotalElement.textContent = formatMoney(combinedTotal, "EUR");
+    combinedTotalElement.classList.toggle("amount-negative", combinedTotal >= 0);
+    combinedTotalElement.classList.toggle("amount-positive", combinedTotal < 0);
+
+    const shortTermLoanByMonth = {};
+    shortTermLoanPoints.forEach((point) => {
+        shortTermLoanByMonth[point.month] = point.amount;
+    });
+
+    const kautionByMonth = {};
+    kautionPoints.forEach((point) => {
+        kautionByMonth[point.month] = point.amount;
+    });
+
+    const months = Array.from(new Set([...Object.keys(shortTermLoanByMonth), ...Object.keys(kautionByMonth)])).sort();
+    const chartElementId = "loan-kaution-balance-chart";
+    const chartHost = getElement(chartElementId);
+
+    if (dashboardMiniLineCharts[chartElementId]) {
+        dashboardMiniLineCharts[chartElementId].destroy();
+        dashboardMiniLineCharts[chartElementId] = null;
+    }
+
+    if (!months.length) {
+        chartHost.innerHTML = '<p class="empty-copy">No short term loan or Kaution activity in this range.</p>';
+        return { shortTermLoanTotal, kautionTotal, combinedTotal };
+    }
+
+    chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
+    const canvas = getElement(`${chartElementId}-canvas`);
+    const textColor = getThemeColor("--color-text-muted", "#64748b");
+    const axisColor = getThemeColor("--color-border", "#cbd5e1");
+    const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
+    const shortTermLoanColor = "pink";
+    const kautionColor = "purple";
+
+    dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
+        plugins: [verticalHoverLinePlugin],
+        type: "line",
+        data: {
+            labels: months.map((month) => formatMonthLabel(month)),
+            datasets: [
+                {
+                    label: `Short Term Loan: ${formatMoney(shortTermLoanTotal, "EUR")}`,
+                    data: months.map((month) => shortTermLoanByMonth[month] || 0),
+                    borderColor: shortTermLoanColor,
+                    backgroundColor: "transparent",
+                    pointBackgroundColor: shortTermLoanColor,
+                    pointBorderColor: shortTermLoanColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false
+                },
+                {
+                    label: `Kaution: ${formatMoney(kautionTotal, "EUR")}`,
+                    data: months.map((month) => kautionByMonth[month] || 0),
+                    borderColor: kautionColor,
+                    backgroundColor: "transparent",
+                    pointBackgroundColor: kautionColor,
+                    pointBorderColor: kautionColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            
+            plugins: {
+                verticalHoverLine: {
+                    color: axisColor
+                },
+                legend: {
+                    position: "top",
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: "box",
+                        boxWidth: 5,
+                        boxHeight: 5,
+                        color: textColor,
+                        font: {
+                            size: 14,
+                            weight: "600"
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            return `${context.dataset.label}: ${formatMoney(context.parsed.y, "EUR")}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: textColor,
+                        callback(value) {
+                            return formatMoney(value, "EUR");
+                        }
+                    },
+                    grid: {
+                        color: gridColor
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                }
+            }
+        }
+    });
+
+    return { shortTermLoanTotal, kautionTotal, combinedTotal };
+}
+
+function renderSourceAccountsBalanceChart() {
+    const accountNames = [
+        "Commerzbank",
+        "Revolut",
+        "Cash",
+        "Scalable Capital",
+        "Revolut Brokerage",
+        "Revolut JPY"
+    ];
+
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const seriesByAccount = {};
+    const monthsSet = new Set();
+
+    accountNames.forEach((accountName) => {
+        const points = (window.db.getAccountMonthlyBalances(accountName) || [])
+            .filter((entry) => {
+                if (fromMonth && entry.month < fromMonth) return false;
+                if (toMonth && entry.month > toMonth) return false;
+                return true;
+            })
+            .map((entry) => ({
+                month: entry.month,
+                amount: toEUR(entry.balance, entry.currency)
+            }));
+
+        const byMonth = {};
+        points.forEach((point) => {
+            byMonth[point.month] = point.amount;
+            monthsSet.add(point.month);
+        });
+
+        seriesByAccount[accountName] = byMonth;
+    });
+
+    const months = Array.from(monthsSet).sort();
+    const chartElementId = "source-accounts-balance-chart";
+    const chartHost = getElement(chartElementId);
+    const totalElement = getElement("source-accounts-balance-total");
+
+    if (dashboardMiniLineCharts[chartElementId]) {
+        dashboardMiniLineCharts[chartElementId].destroy();
+        dashboardMiniLineCharts[chartElementId] = null;
+    }
+
+    if (!months.length) {
+        totalElement.textContent = formatMoney(0, "EUR");
+        totalElement.classList.toggle("amount-negative", false);
+        totalElement.classList.toggle("amount-positive", true);
+        chartHost.innerHTML = '<p class="empty-copy">No account balance data found in this range.</p>';
+        return { total: 0 };
+    }
+
+    const textColor = getThemeColor("--color-text-muted", "#64748b");
+    const axisColor = getThemeColor("--color-border", "#cbd5e1");
+    const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
+
+    const colors = {
+        "Commerzbank": "#1d4ed8",
+        "Revolut": "#0f766e",
+        "Cash": "#16a34a",
+        "Scalable Capital": "#ca8a04",
+        "Revolut Brokerage": "#9333ea",
+        "Revolut JPY": "#dc2626"
+    };
+
+    const datasets = accountNames.map((accountName) => {
+        const byMonth = seriesByAccount[accountName] || {};
+        const values = months.map((month) => (byMonth[month] == null ? null : byMonth[month]));
+        const lastValue = [...values].reverse().find((value) => value != null) || 0;
+        const color = colors[accountName];
+
+        return {
+            label: `${accountName}: ${formatMoney(lastValue, "EUR")}`,
+            data: values,
+            borderColor: color,
+            backgroundColor: "transparent",
+            pointBackgroundColor: color,
+            pointBorderColor: color,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 2,
+            tension: 0.3,
+            fill: false
+        };
+    });
+
+    const total = accountNames.reduce((sum, accountName) => {
+        const byMonth = seriesByAccount[accountName] || {};
+        const latestMonth = months[months.length - 1];
+        const latestValue = byMonth[latestMonth] || 0;
+        return sum + latestValue;
+    }, 0);
+
+    totalElement.textContent = formatMoney(total, "EUR");
+    totalElement.classList.toggle("amount-negative", total < 0);
+    totalElement.classList.toggle("amount-positive", total >= 0);
+
+    chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
+    const canvas = getElement(`${chartElementId}-canvas`);
+
+    dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
+        plugins: [verticalHoverLinePlugin],
+        type: "line",
+        data: {
+            labels: months.map((month) => formatMonthLabel(month)),
+            datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            plugins: {
+                verticalHoverLine: {
+                    color: axisColor
+                },
+                legend: {
+                    position: "top",
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: "box",
+                        boxWidth: 5,
+                        boxHeight: 5,
+                        color: textColor,
+                        font: {
+                            size: 14,
+                            weight: "600"
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            return `${context.dataset.label}: ${formatMoney(context.parsed.y, "EUR")}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: textColor,
+                        callback(value) {
+                            return formatMoney(value, "EUR");
+                        }
+                    },
+                    grid: {
+                        color: gridColor
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                }
+            }
+        }
+    });
+
+    return { total };
+}
+
 function renderDashboard() {
     const trendTotals = renderDashboardTrendChart();
 
-    const expenseResult = renderMonthlyBarChart({
+    renderMonthlyLineChart({
         type: "Expense",
         categories: EXPENSE_CATEGORIES,
         totalElementId: "expense-category-total",
@@ -659,7 +1055,7 @@ function renderDashboard() {
         tone: "negative"
     });
 
-    const cashflowResult = renderMonthlyBarChart({
+    renderMonthlyLineChart({
         type: "Income",
         categories: CASHFLOW_CATEGORIES,
         totalElementId: "cashflow-category-total",
@@ -667,53 +1063,12 @@ function renderDashboard() {
         emptyMessage: "No incoming cash flow in this range."
     });
 
-    const shortTermLoanResult = renderNetBalanceChart({
-        subtractPoints: getMonthlyPoints({ type: "Expense", categories: ["Short Term Loan Given"] }),
-        fromPoints: getMonthlyPoints({ type: "Income", categories: ["Short Term Loan Return"] }),
-        totalElementId: "short-term-loan-balance-total",
-        chartElementId: "short-term-loan-balance-chart",
-        emptyMessage: "No short term loan activity in this range."
-    });
-
-    const kautionResult = renderNetBalanceChart({
-        subtractPoints: getMonthlyPoints({ type: "Expense", categories: ["Kaution Given"] }),
-        fromPoints: getMonthlyPoints({ type: "Income", categories: ["Kaution Return"] }),
-        totalElementId: "kaution-balance-total",
-        chartElementId: "kaution-balance-chart",
-        emptyMessage: "No Kaution activity in this range."
-    });
-
-    const commerzbankResult = renderAccountBalanceChart({
-        accountName: "Commerzbank",
-        totalElementId: "account-balance-commerzbank-total",
-        chartElementId: "account-balance-commerzbank-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
-
-    const cashResult = renderAccountBalanceChart({
-        accountName: "Cash",
-        totalElementId: "account-balance-cash-total",
-        chartElementId: "account-balance-cash-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
-
-    const revolutResult = renderAccountBalanceChart({
-        accountName: "Revolut",
-        totalElementId: "account-balance-revolut-total",
-        chartElementId: "account-balance-revolut-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
-
-    const scalableCapitalResult = renderAccountBalanceChart({
-        accountName: "Scalable Capital",
-        totalElementId: "account-balance-scalable-capital-total",
-        chartElementId: "account-balance-scalable-capital-chart",
-        emptyMessage: "No transactions found for this account in this range."
-    });
+    const loanKautionResult = renderLoanKautionBalanceChart();
+    renderSourceAccountsBalanceChart();
 
     const assetsTotal =
-        shortTermLoanResult.total +
-        kautionResult.total +
+        loanKautionResult.shortTermLoanTotal +
+        loanKautionResult.kautionTotal +
         TRACKED_ACCOUNT_NAMES.reduce((sum, name) => sum + getAccountBalanceDelta(name), 0);
 
     renderOverviewCard({
@@ -787,6 +1142,114 @@ function renderMonthlyBarChart({ type, categories, totalElementId, chartElementI
     const points = getMonthlyPoints({ type, categories });
 
     const total = renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone });
+
+    return { points, total };
+}
+
+function renderMonthlyLineChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+    const points = getMonthlyPoints({ type, categories });
+    const total = points.reduce((sum, point) => sum + point.amount, 0);
+    const totalElement = getElement(totalElementId);
+
+    totalElement.textContent = formatMoney(total, "EUR");
+    totalElement.classList.toggle("amount-negative", tone === "negative");
+    totalElement.classList.toggle("amount-positive", tone !== "negative");
+
+    const chartHost = getElement(chartElementId);
+    if (dashboardMiniLineCharts[chartElementId]) {
+        dashboardMiniLineCharts[chartElementId].destroy();
+        dashboardMiniLineCharts[chartElementId] = null;
+    }
+
+    if (!points.length) {
+        chartHost.innerHTML = `<p class="empty-copy">${escapeHtml(emptyMessage)}</p>`;
+        return { points, total };
+    }
+
+    chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
+    const canvas = getElement(`${chartElementId}-canvas`);
+
+    const textColor = getThemeColor("--color-text-muted", "#64748b");
+    const axisColor = getThemeColor("--color-border", "#cbd5e1");
+    const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
+    const lineColor = tone === "negative"
+        ? getThemeColor("--color-negative-mid", "#dc2626")
+        : getThemeColor("--color-positive-mid", "#16a34a");
+
+    dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
+        plugins: [verticalHoverLinePlugin],
+        type: "line",
+        data: {
+            labels: points.map((point) => formatMonthLabel(point.month)),
+            datasets: [
+                {
+                    data: points.map((point) => point.amount),
+                    borderColor: lineColor,
+                    backgroundColor: hexToRgba(lineColor, 0.15),
+                    pointBackgroundColor: lineColor,
+                    pointBorderColor: lineColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            plugins: {
+                verticalHoverLine: {
+                    color: axisColor
+                },
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            return formatMoney(context.parsed.y, "EUR");
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: textColor,
+                        callback(value) {
+                            return formatMoney(value, "EUR");
+                        }
+                    },
+                    grid: {
+                        color: gridColor
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                }
+            }
+        }
+    });
 
     return { points, total };
 }

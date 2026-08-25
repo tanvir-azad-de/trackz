@@ -97,7 +97,6 @@
                         <div class="panel-head">
                             <div>
                                 <h3>Monthly Trend</h3>
-                                <small class="muted">Income, Net Expenses, and Total Assets plotted together. Total Assets is derived as Income - Net Expenses.</small>
                             </div>
                         </div>
                         <div id="dashboard-trend-chart" class="line-chart"><canvas id="dashboard-trend-chart-canvas"></canvas></div>
@@ -107,23 +106,20 @@
                         <article class="card">
                             <div class="panel-head">
                                 <div>
-                                    <h3>Incoming Cash Flow</h3>
-                                    <small class="muted">Reimbursements, Sold Items, Refunds — sum by month, oldest → newest</small>
+                                    <h3>Assets: Receivables</h3>
                                 </div>
-                                <strong id="cashflow-category-total" class="amount-positive">€0.00</strong>
+                                <strong id="loan-kaution-balance-total" class="amount-negative">€0.00</strong>
                             </div>
-                            <div id="cashflow-category-chart" class="bar-chart"></div>
+                            <div id="loan-kaution-balance-chart" class="line-chart"></div>
                         </article>
-
                         <article class="card">
                             <div class="panel-head">
                                 <div>
-                                    <h3>Gross Expenses</h3>
-                                    <small class="muted">All expense categories — sum by month, oldest → newest</small>
+                                    <h3>Assets: Liquid</h3>
                                 </div>
-                                <strong id="expense-category-total" class="amount-negative">€0.00</strong>
+                                <strong id="source-accounts-balance-total" class="amount-positive">€0.00</strong>
                             </div>
-                            <div id="expense-category-chart" class="bar-chart"></div>
+                            <div id="source-accounts-balance-chart" class="line-chart"></div>
                         </article>
                     </div>
 
@@ -131,8 +127,29 @@
                         <article class="card">
                             <div class="panel-head">
                                 <div>
-                                    <h3>Overview</h3>
-                                    <small class="muted">Totals for the selected date range</small>
+                                    <h3>Reimbursements, Sold Items and Refunds</h3>
+                                </div>
+                                <strong id="cashflow-category-total" class="amount-positive">€0.00</strong>
+                            </div>
+                            <div id="cashflow-category-chart" class="line-chart"></div>
+                        </article>
+
+                        <article class="card">
+                            <div class="panel-head">
+                                <div>
+                                    <h3>Gross Expenses</h3>
+                                </div>
+                                <strong id="expense-category-total" class="amount-negative">€0.00</strong>
+                            </div>
+                            <div id="expense-category-chart" class="line-chart"></div>
+                        </article>
+                    </div>
+
+                    <div class="dashboard-row">
+                        <article class="card">
+                            <div class="panel-head">
+                                <div>
+                                    <h3>Discrepancies</h3>
                                 </div>
                             </div>
                             <div class="list-stack">
@@ -145,11 +162,11 @@
                                     <strong id="overview-net-expense-total" class="amount-negative">€0.00</strong>
                                 </div>
                                 <div class="list-row">
-                                    <span>Assets (Δ this range)</span>
+                                    <span>Assets</span>
                                     <strong id="overview-assets-total" class="amount-positive">€0.00</strong>
                                 </div>
                                 <div class="list-row">
-                                    <span>Balance</span>
+                                    <span>Discrepancy</span>
                                     <strong id="overview-balance-total" class="amount-positive">€0.00</strong>
                                 </div>
                             </div>
@@ -159,82 +176,13 @@
                             <div class="panel-head">
                                 <div>
                                     <h3>Untracked Categories</h3>
-                                    <small class="muted">Transactions in this range not covered by any dashboard card</small>
                                 </div>
                             </div>
                             <div id="untracked-categories-list" class="list-stack"></div>
                         </article>
                     </div>
 
-                    <div class="dashboard-row">
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Short Term Loan Balance</h3>
-                                    <small class="muted">Short Term Loan Given minus Short Term Loan Return — sum by month</small>
-                                </div>
-                                <strong id="short-term-loan-balance-total" class="amount-negative">€0.00</strong>
-                            </div>
-                            <div id="short-term-loan-balance-chart" class="bar-chart"></div>
-                        </article>
-
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Kaution Balance</h3>
-                                    <small class="muted">Kaution Given minus Kaution Return — sum by month</small>
-                                </div>
-                                <strong id="kaution-balance-total" class="amount-negative">€0.00</strong>
-                            </div>
-                            <div id="kaution-balance-chart" class="bar-chart"></div>
-                        </article>
-                    </div>
-
-                    <div class="dashboard-row">
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Commerzbank Balance</h3>
-                                    <small class="muted">Remaining balance at end of each month</small>
-                                </div>
-                                <strong id="account-balance-commerzbank-total" class="amount-positive">€0.00</strong>
-                            </div>
-                            <div id="account-balance-commerzbank-chart" class="bar-chart"></div>
-                        </article>
-
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Revolut Balance</h3>
-                                    <small class="muted">Remaining balance at end of each month</small>
-                                </div>
-                                <strong id="account-balance-revolut-total" class="amount-positive">€0.00</strong>
-                            </div>
-                            <div id="account-balance-revolut-chart" class="bar-chart"></div>
-                        </article>
-
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Cash Balance</h3>
-                                    <small class="muted">Remaining balance at end of each month</small>
-                                </div>
-                                <strong id="account-balance-cash-total" class="amount-positive">€0.00</strong>
-                            </div>
-                            <div id="account-balance-cash-chart" class="bar-chart"></div>
-                        </article>
-
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Scalable Capital Balance</h3>
-                                    <small class="muted">Remaining balance at end of each month</small>
-                                </div>
-                                <strong id="account-balance-scalable-capital-total" class="amount-positive">€0.00</strong>
-                            </div>
-                            <div id="account-balance-scalable-capital-chart" class="bar-chart"></div>
-                        </article>
-                    </div>
+                    
                 </div>
             </section>
 
