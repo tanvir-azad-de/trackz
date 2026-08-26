@@ -62,9 +62,16 @@ function formatDate(value) {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
+function formatCashflowLabel(cashflow) {
+    const value = String(cashflow || "").trim().toLowerCase();
+    if (!value) return "";
+    return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
 window.getElement = getElement;
 window.formatDate = formatDate;
 window.formatMoney = formatMoney;
+window.formatCashflowLabel = formatCashflowLabel;
 window.escapeHtml = escapeHtml;
 window.showStatus = showStatus;
 window.hideStatus = hideStatus;

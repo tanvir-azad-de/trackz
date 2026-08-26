@@ -106,20 +106,29 @@
                         <article class="card">
                             <div class="panel-head">
                                 <div>
+                                    <h3>Assets: Liquid</h3>
+                                </div>
+                                <strong id="source-accounts-balance-total" class="amount-positive">€0.00</strong>
+                            </div>
+                            <div id="source-accounts-balance-chart" class="line-chart"></div>
+                        </article>
+                        <article class="card">
+                            <div class="panel-head">
+                                <div>
                                     <h3>Assets: Receivables</h3>
                                 </div>
-                                <strong id="loan-kaution-balance-total" class="amount-negative">€0.00</strong>
+                                <strong id="loan-kaution-balance-total" class="amount-positive">€0.00</strong>
                             </div>
                             <div id="loan-kaution-balance-chart" class="line-chart"></div>
                         </article>
                         <article class="card">
                             <div class="panel-head">
                                 <div>
-                                    <h3>Assets: Liquid</h3>
+                                    <h3>Liabilities: Payables</h3>
                                 </div>
-                                <strong id="source-accounts-balance-total" class="amount-positive">€0.00</strong>
+                                <strong id="payables-balance-total" class="amount-negative">€0.00</strong>
                             </div>
-                            <div id="source-accounts-balance-chart" class="line-chart"></div>
+                            <div id="payables-balance-chart" class="line-chart"></div>
                         </article>
                     </div>
 
@@ -127,22 +136,44 @@
                         <article class="card">
                             <div class="panel-head">
                                 <div>
-                                    <h3>Reimbursements, Sold Items and Refunds</h3>
+                                    <h3>Expenses</h3>
+                                </div>
+                                <strong id="expense-category-total" class="amount-negative">€0.00</strong>
+                            </div>
+                            <div id="expense-category-chart" class="line-chart"></div>
+                        </article>
+                        <article class="card">
+                            <div class="panel-head">
+                                <div>
+                                    <h3>Incomes</h3>
+                                </div>
+                                <strong id="income-category-total" class="amount-positive">€0.00</strong>
+                            </div>
+                            <div id="income-category-chart" class="line-chart"></div>
+                        </article>
+                        <article class="card">
+                            <div class="panel-head">
+                                <div>
+                                    <h3>Non Expenses</h3>
+                                </div>
+                                <strong id="non-expense-category-total" class="amount-negative">€0.00</strong>
+                            </div>
+                            <div id="non-expense-category-chart" class="line-chart"></div>
+                        </article>
+
+
+                        <article class="card">
+                            <div class="panel-head">
+                                <div>
+                                    <h3>Non Incomes</h3>
                                 </div>
                                 <strong id="cashflow-category-total" class="amount-positive">€0.00</strong>
                             </div>
                             <div id="cashflow-category-chart" class="line-chart"></div>
                         </article>
 
-                        <article class="card">
-                            <div class="panel-head">
-                                <div>
-                                    <h3>Gross Expenses</h3>
-                                </div>
-                                <strong id="expense-category-total" class="amount-negative">€0.00</strong>
-                            </div>
-                            <div id="expense-category-chart" class="line-chart"></div>
-                        </article>
+                        
+                        
                     </div>
 
                     <div class="dashboard-row">
@@ -206,10 +237,10 @@
                 <div id="filters-panel" class="card form-panel tx-filters" hidden>
                     <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
                     <select id="type-filter" onchange="renderTransactions()">
-                        <option value="">All types</option>
-                        <option value="Income">Income</option>
-                        <option value="Expense">Expense</option>
-                        <option value="Transfer">Transfer</option>
+                        <option value="">All cash flows</option>
+                        <option value="in">In</option>
+                        <option value="out">Out</option>
+                        <option value="none">None</option>
                     </select>
                     <select id="account-filter" onchange="renderTransactions()">
                         <option value="">All accounts</option>
@@ -239,11 +270,11 @@
                         </label>
 
                         <label>
-                            <span>Type</span>
+                            <span>Cash flow</span>
                             <select id="type" onchange="updateTransactionType()">
-                                <option>Income</option>
-                                <option>Expense</option>
-                                <option>Transfer</option>
+                                <option value="in">In</option>
+                                <option value="out">Out</option>
+                                <option value="none">None</option>
                             </select>
                         </label>
 

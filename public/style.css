@@ -739,17 +739,17 @@ select:focus {
 	font-weight: 700;
 }
 
-.pill.income {
+.pill.in {
 	background: var(--color-positive-bg);
 	color: var(--color-positive);
 }
 
-.pill.expense {
+.pill.out {
 	background: var(--color-negative-bg);
 	color: var(--color-negative);
 }
 
-.pill.transfer {
+.pill.none {
 	background: var(--color-transfer-bg);
 	color: var(--color-transfer);
 }
@@ -1323,17 +1323,17 @@ select:focus {
 	font-weight: 700;
 }
 
-.pill.income {
+.pill.in {
 	background: #dcfce7;
 	color: #166534;
 }
 
-.pill.expense {
+.pill.out {
 	background: #fee2e2;
 	color: #991b1b;
 }
 
-.pill.transfer {
+.pill.none {
 	background: #dbeafe;
 	color: #1d4ed8;
 }

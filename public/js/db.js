@@ -29,7 +29,41 @@ const DEFAULT_CATEGORIES = [
     { name: "Transfer", subcategories: [] }
 ];
 
-const TRANSACTION_TYPES = new Set(["Income", "Expense", "Transfer"]);
+const TRANSACTION_CASHFLOWS = new Set(["in", "out", "none"]);
+
+function normalizeTransactionRecord(transaction) {
+    const source = transaction && typeof transaction === "object" ? transaction : {};
+    const cashflow = String(source.cashflow || "").trim().toLowerCase();
+    const { cashflow: rawCashflow, destinationAccount, notes, ...rest } = source;
+
+    return {
+        ...rest,
+        cashflow: TRANSACTION_CASHFLOWS.has(cashflow) ? cashflow : (String(destinationAccount || "").trim() ? "none" : "out"),
+        destinationAccount: destinationAccount || "",
+        notes: notes || ""
+    };
+}
+
+function migrationCanRewriteTransactions(rawTransactions) {
+    return Array.isArray(rawTransactions) && rawTransactions.some((transaction) => transaction && typeof transaction === "object" && "type" in transaction && !("cashflow" in transaction));
+}
+
+function migrateTransactionSchema(rawTransactions) {
+    if (!Array.isArray(rawTransactions)) return [];
+
+    return rawTransactions.map((transaction) => {
+        const source = transaction && typeof transaction === "object" ? transaction : {};
+        let cashflow = String(source.cashflow || "").trim().toLowerCase();
+
+        if (!TRANSACTION_CASHFLOWS.has(cashflow)) {
+            if (source.type === "Income") cashflow = "in";
+            else if (source.type === "Expense") cashflow = "out";
+            else if (source.type === "Transfer") cashflow = "none";
+        }
+
+        return normalizeTransactionRecord({ ...source, cashflow });
+    });
+}
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
@@ -52,7 +86,7 @@ function writeStore(key, data) {
 // Export all data as a single object for Drive sync
 function exportAll() {
     return {
-        transactions: readStore(DB_KEYS.transactions, []),
+        transactions: dbGetTransactions(),
         accounts: readStore(DB_KEYS.accounts, []),
         categories: readStore(DB_KEYS.categories, DEFAULT_CATEGORIES),
         currencies: readStore(DB_KEYS.currencies, DEFAULT_CURRENCIES),
@@ -63,7 +97,12 @@ function exportAll() {
 
 // Import all data from Drive (overwrites localStorage)
 function importAll(data) {
-    if (data.transactions) localStorage.setItem(DB_KEYS.transactions, JSON.stringify(data.transactions));
+    if (Array.isArray(data.transactions)) {
+        localStorage.setItem(
+            DB_KEYS.transactions,
+            JSON.stringify(migrateTransactionSchema(data.transactions))
+        );
+    }
     if (data.accounts) localStorage.setItem(DB_KEYS.accounts, JSON.stringify(data.accounts));
     if (data.categories) localStorage.setItem(DB_KEYS.categories, JSON.stringify(data.categories));
     if (data.currencies) localStorage.setItem(DB_KEYS.currencies, JSON.stringify(data.currencies));
@@ -78,6 +117,11 @@ function importAll(data) {
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 function initDefaults() {
+    const storedTransactions = readStore(DB_KEYS.transactions, []);
+    if (migrationCanRewriteTransactions(storedTransactions)) {
+        writeStore(DB_KEYS.transactions, migrateTransactionSchema(storedTransactions));
+    }
+
     if (!localStorage.getItem(DB_KEYS.currencies)) {
         localStorage.setItem(DB_KEYS.currencies, JSON.stringify(DEFAULT_CURRENCIES));
     }
@@ -195,13 +239,13 @@ function dbGetRawAccounts() {
 function getTransactionImpact(transaction, accountName, context = {}) {
     const { accountCurrencyByName = new Map(), rates = {} } = context;
 
-    if (transaction.type === "Income" && transaction.account === accountName) {
+    if (transaction.cashflow === "in" && transaction.account === accountName) {
         return transaction.amount;
     }
-    if (transaction.type === "Expense" && transaction.account === accountName) {
+    if (transaction.cashflow === "out" && transaction.account === accountName) {
         return -transaction.amount;
     }
-    if (transaction.type === "Transfer") {
+    if (transaction.cashflow === "none") {
         if (transaction.account === accountName) return -transaction.amount;
         if (transaction.destinationAccount === accountName) {
             const destCurrency = accountCurrencyByName.get(accountName);
@@ -322,28 +366,31 @@ function dbDeleteAccount(name) {
 // ── Transactions ──────────────────────────────────────────────────────────────
 
 function dbGetTransactions() {
-    return readStore(DB_KEYS.transactions, [])
-        .map((t) => ({
-            ...t,
-            amount: toNumber(t.amount),
-            destinationAccount: t.destinationAccount || "",
-            notes: t.notes || ""
-        }))
-        .sort((a, b) => {
-            const ak = `${a.date || ""}T${a.createdAt || ""}`;
-            const bk = `${b.date || ""}T${b.createdAt || ""}`;
-            return bk.localeCompare(ak);
-        });
+    const rawTransactions = readStore(DB_KEYS.transactions, []);
+
+    return Array.isArray(rawTransactions)
+        ? rawTransactions
+              .map((t) => ({
+                  ...normalizeTransactionRecord(t),
+                  amount: toNumber(t.amount)
+              }))
+              .sort((a, b) => {
+                  const ak = `${a.date || ""}T${a.createdAt || ""}`;
+                  const bk = `${b.date || ""}T${b.createdAt || ""}`;
+                  return bk.localeCompare(ak);
+              })
+        : [];
 }
 
 function dbValidateTransactionPayload(body) {
     const accounts = dbGetRawAccounts();
     const accountNames = new Set(accounts.map((a) => a.name));
     const sourceAccount = accounts.find((a) => a.name === body.account);
+    const cashflow = normalizeTransactionCashflow(body.cashflow ?? body.type);
 
     if (!isValidDate(body.date)) throw new Error("Choose a valid date.");
     if (!accountNames.has(body.account)) throw new Error("Select a valid account.");
-    if (!TRANSACTION_TYPES.has(body.type)) throw new Error("Select a valid transaction type.");
+    if (!TRANSACTION_CASHFLOWS.has(cashflow)) throw new Error("Select a valid cash flow.");
 
     const amount = toPositiveNumber(body.amount);
     if (amount === null) throw new Error("Amount must be greater than zero.");
@@ -356,15 +403,15 @@ function dbValidateTransactionPayload(body) {
     let subcategory = String(body.subcategory || "").trim();
     let destinationAccount = "";
 
-    if (debtId && !["Expense", "Income"].includes(body.type)) {
-        throw new Error("Debt-linked transactions must be Income or Expense.");
+    if (debtId && !["out", "in"].includes(cashflow)) {
+        throw new Error("Debt-linked transactions must be In or Out.");
     }
     if (debtId) {
         const debts = dbGetRawDebts();
         if (!debts.some((d) => d.id === debtId)) throw new Error("Select a valid debt.");
     }
 
-    if (body.type === "Transfer") {
+    if (cashflow === "none") {
         destinationAccount = String(body.destinationAccount || "").trim();
         if (!destinationAccount || !accountNames.has(destinationAccount)) {
             throw new Error("Select a destination account for transfers.");
@@ -390,7 +437,7 @@ function dbValidateTransactionPayload(body) {
         date: body.date,
         account: body.account,
         destinationAccount,
-        type: body.type,
+        cashflow,
         category,
         subcategory,
         amount,
@@ -619,7 +666,7 @@ function dbAddPayment(debtId, body) {
         date: payment.date,
         account: payment.account,
         destinationAccount: "",
-        type: debt.direction === "i_owe" ? "Expense" : "Income",
+        cashflow: debt.direction === "i_owe" ? "out" : "in",
         category: debt.direction === "i_owe" ? "Debt Payment" : "Debt Collection",
         subcategory: "",
         amount: payment.amount,
@@ -675,29 +722,29 @@ function dbComputeSummary(range = {}) {
         : transactions;
 
     const income = scoped
-        .filter((t) => t.type === "Income")
+        .filter((t) => t.cashflow === "in")
         .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
     const expense = scoped
-        .filter((t) => t.type === "Expense")
+        .filter((t) => t.cashflow === "out")
         .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
     const transfer = scoped
-        .filter((t) => t.type === "Transfer")
+        .filter((t) => t.cashflow === "none")
         .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
 
     const monthIncome = hasRange
         ? income
         : transactions
-              .filter((t) => t.type === "Income" && String(t.date || "").startsWith(today))
+              .filter((t) => t.cashflow === "in" && String(t.date || "").startsWith(today))
               .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
     const monthExpense = hasRange
         ? expense
         : transactions
-              .filter((t) => t.type === "Expense" && String(t.date || "").startsWith(today))
+              .filter((t) => t.cashflow === "out" && String(t.date || "").startsWith(today))
               .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
 
     const expenseByCategory = Object.entries(
         scoped
-            .filter((t) => t.type === "Expense")
+            .filter((t) => t.cashflow === "out")
             .reduce((groups, t) => {
                 const key = t.category || "Uncategorized";
                 groups[key] = (groups[key] || 0) + toEUR(t.amount, t.currency);

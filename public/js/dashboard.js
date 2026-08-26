@@ -56,31 +56,15 @@ function onDashboardRangeChange() {
     refreshDashboardSummaryForRange();
 }
 
-const EXPENSE_CATEGORIES = [
-    "Shopping",
-    "Groceries",
-    "Restaurant",
-    "Family Support",
-    "Health Insurance",
-    "Rent",
-    "Smokes",
-    "Personal Care",
-    "WG Costs",
-    "Travel",
-    "WiFi",
-    "Mobile",
-    "Broadcasting Fee",
-    "Subscriptions",
-    "Bank Charges",
-    "Lemfi",
-    "Entertainment",
-    "University",
-    "Repayment",
-    "ABH",
-    "Electricity"
-];
-
-const CASHFLOW_CATEGORIES = ["Reimbursements", "Sold Items", "Refunds"];
+const TRACKED_CATEGORY_TYPES = new Set([
+    "income",
+    "expense",
+    "transfer",
+    "non_income",
+    "non_expense",
+    "receivable",
+    "payable"
+]);
 
 const TRACKED_ACCOUNT_NAMES = [
     "Commerzbank",
@@ -227,53 +211,28 @@ function getNetBalancePoints({ subtractPoints, fromPoints }) {
 }
 
 function getTotalAssetsPoints() {
-    const from = getElement("dashboard-from").value;
-    const to = getElement("dashboard-to").value;
-    const fromMonth = from ? from.slice(0, 7) : null;
-    const toMonth = to ? to.slice(0, 7) : null;
+    const receivablePoints = getCategoryTypeBalancePoints({ categoryType: "receivable", positiveCashflow: "out" });
+    const liquidPoints = getLiquidAssetsPoints();
 
-    if (!fromMonth || !toMonth) {
-        return [];
-    }
-
-    const months = getMonthRange(fromMonth, toMonth);
-    const loanCumulative = getCumulativeCategoryBalances({
-        expenseCategory: "Short Term Loan Given",
-        incomeCategory: "Short Term Loan Return"
-    });
-    const kautionCumulative = getCumulativeCategoryBalances({
-        expenseCategory: "Kaution Given",
-        incomeCategory: "Kaution Return"
+    const receivableByMonth = {};
+    receivablePoints.forEach((point) => {
+        receivableByMonth[point.month] = point.amount;
     });
 
-    const rates = window.state.currencyRates || {};
-    const toEUR = (amount, currency) => {
-        const rate = rates[String(currency || "").toUpperCase()];
-        return typeof rate === "number" ? amount * rate : amount;
-    };
-
-    const accountsData = TOTAL_ASSETS_ACCOUNT_NAMES.map((name) => {
-        const account = (window.state.accounts || []).find((accountItem) => accountItem.name === name);
-        const openingBalance = account ? Number(account.openingBalance) || 0 : 0;
-        const currency = account ? account.currency : "EUR";
-        const monthlyBalances = window.db.getAccountMonthlyBalances(name) || [];
-        return { openingBalance, currency, monthlyBalances };
+    const liquidByMonth = {};
+    liquidPoints.forEach((point) => {
+        liquidByMonth[point.month] = point.amount;
     });
 
-    return months.map((month) => {
-        const loanBalance = getAccountBalanceAtMonthEnd(loanCumulative, month, 0);
-        const kautionBalance = getAccountBalanceAtMonthEnd(kautionCumulative, month, 0);
-        const accountsBalance = accountsData.reduce((sum, accountData) => {
-            const balance = getAccountBalanceAtMonthEnd(
-                accountData.monthlyBalances,
-                month,
-                accountData.openingBalance
-            );
-            return sum + toEUR(balance, accountData.currency);
-        }, 0);
+    const months = Array.from(new Set([
+        ...Object.keys(receivableByMonth),
+        ...Object.keys(liquidByMonth)
+    ])).sort();
 
-        return { month, amount: loanBalance + kautionBalance + accountsBalance };
-    });
+    return months.map((month) => ({
+        month,
+        amount: (liquidByMonth[month] || 0) + (receivableByMonth[month] || 0)
+    }));
 }
 
 function getDashboardTrendData() {
@@ -286,10 +245,32 @@ function getDashboardTrendData() {
         return null;
     }
 
-    const incomePoints = getMonthlyPoints({ type: "Income", categories: ["Income"] });
-    const expensePoints = getMonthlyPoints({ type: "Expense", categories: EXPENSE_CATEGORIES });
-    const cashflowPoints = getMonthlyPoints({ type: "Income", categories: CASHFLOW_CATEGORIES });
-    const netExpensePoints = getNetBalancePoints({ subtractPoints: expensePoints, fromPoints: cashflowPoints });
+    const incomePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["income"] });
+    const expensePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["expense"], cashflow: "out" });
+    const nonExpensePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["non_expense"] });
+    const nonIncomePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["non_income"] });
+    const expensesByMonth = {};
+    expensePoints.forEach((point) => {
+        expensesByMonth[point.month] = (expensesByMonth[point.month] || 0) + point.amount;
+    });
+    nonExpensePoints.forEach((point) => {
+        expensesByMonth[point.month] = (expensesByMonth[point.month] || 0) + point.amount;
+    });
+
+    const nonIncomeByMonth = {};
+    nonIncomePoints.forEach((point) => {
+        nonIncomeByMonth[point.month] = point.amount;
+    });
+
+    const netExpenseMonths = Array.from(new Set([
+        ...Object.keys(expensesByMonth),
+        ...Object.keys(nonIncomeByMonth)
+    ])).sort();
+
+    const netExpensePoints = netExpenseMonths.map((month) => ({
+        month,
+        amount: (expensesByMonth[month] || 0) - (nonIncomeByMonth[month] || 0)
+    }));
     const totalAssetsPoints = getTotalAssetsPoints();
 
     const seriesToMap = (points) => {
@@ -519,17 +500,10 @@ function getAccountBalanceDelta(accountName) {
     return toEUR(endBalance - startBalance);
 }
 
-function getCumulativeCategoryBalances({ expenseCategory, incomeCategory }) {
-    const transactions = (window.state.transactions || [])
-        .filter(
-            (t) =>
-                (t.type === "Expense" && t.category === expenseCategory) ||
-                (t.type === "Income" && t.category === incomeCategory)
-        )
-        .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(String(t.date || "")))
-        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-    if (!transactions.length) return [];
+function getMonthlyTotalsByCategoryType({ categoryTypes, cashflow }) {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const typeSet = new Set((categoryTypes || []).map((t) => String(t || "").trim().toLowerCase()));
 
     const rates = window.state.currencyRates || {};
     const toEUR = (amount, currency) => {
@@ -537,23 +511,93 @@ function getCumulativeCategoryBalances({ expenseCategory, incomeCategory }) {
         return typeof rate === "number" ? amount * rate : amount;
     };
 
-    const firstMonth = transactions[0].date.slice(0, 7);
-    const lastMonth = transactions[transactions.length - 1].date.slice(0, 7);
+    const matchingTransactions = (window.state.transactions || []).filter((transaction) => {
+        const categoryType = String(transaction.categoryType || "").trim().toLowerCase();
+        if (!typeSet.has(categoryType)) return false;
+        if (cashflow && transaction.cashflow !== cashflow) return false;
 
-    const impactByMonth = {};
-    transactions.forEach((t) => {
-        const month = t.date.slice(0, 7);
-        const eurAmount = toEUR(t.amount, t.currency);
-        const impact = t.type === "Expense" ? eurAmount : -eurAmount;
-        impactByMonth[month] = (impactByMonth[month] || 0) + impact;
+        const date = String(transaction.date || "");
+        if (from && date < from) return false;
+        if (to && date > to) return false;
+        return true;
     });
 
-    const months = getMonthRange(firstMonth, lastMonth);
+    const totalsByMonth = {};
+    matchingTransactions.forEach((transaction) => {
+        const month = String(transaction.date || "").slice(0, 7);
+        totalsByMonth[month] = (totalsByMonth[month] || 0) + toEUR(transaction.amount, transaction.currency);
+    });
 
-    let runningBalance = 0;
+    return totalsByMonth;
+}
+
+function getMonthlyPointsByCategoryType({ categoryTypes, cashflow }) {
+    const totalsByMonth = getMonthlyTotalsByCategoryType({ categoryTypes, cashflow });
+
+    return Object.entries(totalsByMonth)
+        .map(([month, amount]) => ({ month, amount }))
+        .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
+}
+
+function getCategoryTypeBalancePoints({ categoryType, positiveCashflow }) {
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const fromMonth = from ? from.slice(0, 7) : null;
+    const toMonth = to ? to.slice(0, 7) : null;
+    const normalizedType = String(categoryType || "").trim().toLowerCase();
+
+    const rates = window.state.currencyRates || {};
+    const toEUR = (amount, currency) => {
+        const rate = rates[String(currency || "").toUpperCase()];
+        return typeof rate === "number" ? amount * rate : amount;
+    };
+
+    const transactions = (window.state.transactions || [])
+        .filter((transaction) => String(transaction.categoryType || "").trim().toLowerCase() === normalizedType)
+        .filter((transaction) => {
+            const date = String(transaction.date || "");
+            return /^\d{4}-\d{2}-\d{2}$/.test(date);
+        })
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    if (!transactions.length) return [];
+
+    const impactFor = (transaction) => {
+        const eurAmount = toEUR(transaction.amount, transaction.currency);
+        const direction = transaction.cashflow === positiveCashflow ? 1 : -1;
+        return direction * eurAmount;
+    };
+
+    const openingBalance = transactions
+        .filter((transaction) => !from || transaction.date < from)
+        .reduce((sum, transaction) => sum + impactFor(transaction), 0);
+
+    const inRangeTransactions = transactions.filter((transaction) => {
+        if (from && transaction.date < from) return false;
+        if (to && transaction.date > to) return false;
+        return true;
+    });
+
+    const months = fromMonth && toMonth
+        ? getMonthRange(fromMonth, toMonth)
+        : (() => {
+              const firstMonth = transactions[0].date.slice(0, 7);
+              const lastMonth = transactions[transactions.length - 1].date.slice(0, 7);
+              return getMonthRange(firstMonth, lastMonth);
+          })();
+
+    if (!months.length) return [];
+
+    const impactByMonth = {};
+    inRangeTransactions.forEach((transaction) => {
+        const month = transaction.date.slice(0, 7);
+        impactByMonth[month] = (impactByMonth[month] || 0) + impactFor(transaction);
+    });
+
+    let runningBalance = openingBalance;
     return months.map((month) => {
         runningBalance += impactByMonth[month] || 0;
-        return { month, balance: runningBalance };
+        return { month, amount: runningBalance };
     });
 }
 
@@ -574,15 +618,7 @@ function renderTotalAssetsChart() {
     }
 
     const months = getMonthRange(fromMonth, toMonth);
-
-    const loanCumulative = getCumulativeCategoryBalances({
-        expenseCategory: "Short Term Loan Given",
-        incomeCategory: "Short Term Loan Return"
-    });
-    const kautionCumulative = getCumulativeCategoryBalances({
-        expenseCategory: "Kaution Given",
-        incomeCategory: "Kaution Return"
-    });
+    const receivablePoints = getCategoryTypeBalancePoints({ categoryType: "receivable", positiveCashflow: "out" });
 
     const rates = window.state.currencyRates || {};
     const toEUR = (amount, currency) => {
@@ -599,14 +635,13 @@ function renderTotalAssetsChart() {
     });
 
     const points = months.map((month) => {
-        const loanBalance = getAccountBalanceAtMonthEnd(loanCumulative, month, 0);
-        const kautionBalance = getAccountBalanceAtMonthEnd(kautionCumulative, month, 0);
+        const receivableBalance = getAccountBalanceAtMonthEnd(receivablePoints, month, 0);
         const accountsBalance = accountsData.reduce((sum, acc) => {
             const balance = getAccountBalanceAtMonthEnd(acc.monthlyBalances, month, acc.openingBalance);
             return sum + toEUR(balance, acc.currency);
         }, 0);
 
-        return { month, amount: loanBalance + kautionBalance + accountsBalance };
+        return { month, amount: receivableBalance + accountsBalance };
     });
 
     renderBarChartCard({
@@ -629,17 +664,7 @@ function getUntrackedTransactionSummary() {
         return typeof rate === "number" ? amount * rate : amount;
     };
 
-    const isTracked = (t) => {
-        if (t.type === "Transfer") return true;
-        if (t.type === "Income" && t.category === "Income") return true;
-        if (t.type === "Income" && CASHFLOW_CATEGORIES.includes(t.category)) return true;
-        if (t.type === "Expense" && EXPENSE_CATEGORIES.includes(t.category)) return true;
-        if (t.type === "Expense" && t.category === "Short Term Loan Given") return true;
-        if (t.type === "Income" && t.category === "Short Term Loan Return") return true;
-        if (t.type === "Expense" && t.category === "Kaution Given") return true;
-        if (t.type === "Income" && t.category === "Kaution Return") return true;
-        return false;
-    };
+    const isTracked = (t) => TRACKED_CATEGORY_TYPES.has(String(t.categoryType || "").trim().toLowerCase());
 
     const untracked = (window.state.transactions || []).filter((t) => {
         if (isTracked(t)) return false;
@@ -651,9 +676,9 @@ function getUntrackedTransactionSummary() {
 
     const groups = {};
     untracked.forEach((t) => {
-        const key = `${t.type}|${t.category || "Uncategorized"}`;
+        const key = `${t.cashflow}|${t.category || "Uncategorized"}`;
         if (!groups[key]) {
-            groups[key] = { type: t.type, category: t.category || "Uncategorized", count: 0, total: 0 };
+            groups[key] = { cashflow: t.cashflow, category: t.category || "Uncategorized", count: 0, total: 0 };
         }
         groups[key].count += 1;
         groups[key].total += toEUR(t.amount, t.currency);
@@ -676,7 +701,7 @@ function renderUntrackedCategoriesCard() {
             const amountClass = g.total >= 0 ? "amount-positive" : "amount-negative";
             return `
                 <div class="list-row">
-                    <span>${escapeHtml(g.category)} (${escapeHtml(g.type)}) — ${g.count} tx</span>
+                    <span>${escapeHtml(g.category)} (${escapeHtml(formatCashflowLabel(g.cashflow))}) — ${g.count} tx</span>
                     <strong class="${amountClass}">${escapeHtml(formatMoney(g.total, "EUR"))}</strong>
                 </div>`;
         })
@@ -705,35 +730,15 @@ const getNetBalanceSeries = (subtractSeries, fromSeries) => {
 };
 
 function renderLoanKautionBalanceChart() {
-    const shortTermLoanPoints = getNetBalanceSeries(
-        getMonthlyPoints({ type: "Expense", categories: ["Short Term Loan Given"] }),
-        getMonthlyPoints({ type: "Income", categories: ["Short Term Loan Return"] })
-    );
-    const kautionPoints = getNetBalanceSeries(
-        getMonthlyPoints({ type: "Expense", categories: ["Kaution Given"] }),
-        getMonthlyPoints({ type: "Income", categories: ["Kaution Return"] })
-    );
-
-    const shortTermLoanTotal = shortTermLoanPoints.reduce((sum, point) => sum + point.amount, 0);
-    const kautionTotal = kautionPoints.reduce((sum, point) => sum + point.amount, 0);
-    const combinedTotal = shortTermLoanTotal + kautionTotal;
+    const receivablePoints = getCategoryTypeBalancePoints({ categoryType: "receivable", positiveCashflow: "out" });
+    const combinedTotal = receivablePoints.length ? receivablePoints[receivablePoints.length - 1].amount : 0;
     const combinedTotalElement = getElement("loan-kaution-balance-total");
 
     combinedTotalElement.textContent = formatMoney(combinedTotal, "EUR");
-    combinedTotalElement.classList.toggle("amount-negative", combinedTotal >= 0);
-    combinedTotalElement.classList.toggle("amount-positive", combinedTotal < 0);
+    combinedTotalElement.classList.toggle("amount-negative", combinedTotal < 0);
+    combinedTotalElement.classList.toggle("amount-positive", combinedTotal >= 0);
 
-    const shortTermLoanByMonth = {};
-    shortTermLoanPoints.forEach((point) => {
-        shortTermLoanByMonth[point.month] = point.amount;
-    });
-
-    const kautionByMonth = {};
-    kautionPoints.forEach((point) => {
-        kautionByMonth[point.month] = point.amount;
-    });
-
-    const months = Array.from(new Set([...Object.keys(shortTermLoanByMonth), ...Object.keys(kautionByMonth)])).sort();
+    const months = receivablePoints.map((point) => point.month);
     const chartElementId = "loan-kaution-balance-chart";
     const chartHost = getElement(chartElementId);
 
@@ -743,8 +748,8 @@ function renderLoanKautionBalanceChart() {
     }
 
     if (!months.length) {
-        chartHost.innerHTML = '<p class="empty-copy">No short term loan or Kaution activity in this range.</p>';
-        return { shortTermLoanTotal, kautionTotal, combinedTotal };
+        chartHost.innerHTML = '<p class="empty-copy">No receivable activity in this range.</p>';
+        return { combinedTotal };
     }
 
     chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
@@ -752,8 +757,7 @@ function renderLoanKautionBalanceChart() {
     const textColor = getThemeColor("--color-text-muted", "#64748b");
     const axisColor = getThemeColor("--color-border", "#cbd5e1");
     const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
-    const shortTermLoanColor = "pink";
-    const kautionColor = "purple";
+    const receivableColor = getThemeColor("--color-positive-mid", "#16a34a");
 
     dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
         plugins: [verticalHoverLinePlugin],
@@ -762,25 +766,12 @@ function renderLoanKautionBalanceChart() {
             labels: months.map((month) => formatMonthLabel(month)),
             datasets: [
                 {
-                    label: `Short Term Loan: ${formatMoney(shortTermLoanTotal, "EUR")}`,
-                    data: months.map((month) => shortTermLoanByMonth[month] || 0),
-                    borderColor: shortTermLoanColor,
+                    label: `Receivables: ${formatMoney(combinedTotal, "EUR")}`,
+                    data: receivablePoints.map((point) => point.amount),
+                    borderColor: receivableColor,
                     backgroundColor: "transparent",
-                    pointBackgroundColor: shortTermLoanColor,
-                    pointBorderColor: shortTermLoanColor,
-                    pointRadius: 0,
-                    pointHoverRadius: 3,
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: false
-                },
-                {
-                    label: `Kaution: ${formatMoney(kautionTotal, "EUR")}`,
-                    data: months.map((month) => kautionByMonth[month] || 0),
-                    borderColor: kautionColor,
-                    backgroundColor: "transparent",
-                    pointBackgroundColor: kautionColor,
-                    pointBorderColor: kautionColor,
+                    pointBackgroundColor: receivableColor,
+                    pointBorderColor: receivableColor,
                     pointRadius: 0,
                     pointHoverRadius: 3,
                     borderWidth: 2,
@@ -857,19 +848,140 @@ function renderLoanKautionBalanceChart() {
         }
     });
 
-    return { shortTermLoanTotal, kautionTotal, combinedTotal };
+    return { combinedTotal };
 }
 
-function renderSourceAccountsBalanceChart() {
-    const accountNames = [
-        "Commerzbank",
-        "Revolut",
-        "Cash",
-        "Scalable Capital",
-        "Revolut Brokerage",
-        "Revolut JPY"
-    ];
+function renderPayablesBalanceChart() {
+    const payablesPoints = getCategoryTypeBalancePoints({ categoryType: "payable", positiveCashflow: "in" });
+    const total = payablesPoints.length ? payablesPoints[payablesPoints.length - 1].amount : 0;
+    const totalElement = getElement("payables-balance-total");
 
+    totalElement.textContent = formatMoney(total, "EUR");
+    totalElement.classList.toggle("amount-negative", total >= 0);
+    totalElement.classList.toggle("amount-positive", total < 0);
+
+    const months = payablesPoints.map((point) => point.month);
+    const chartElementId = "payables-balance-chart";
+    const chartHost = getElement(chartElementId);
+
+    if (dashboardMiniLineCharts[chartElementId]) {
+        dashboardMiniLineCharts[chartElementId].destroy();
+        dashboardMiniLineCharts[chartElementId] = null;
+    }
+
+    if (!months.length) {
+        chartHost.innerHTML = '<p class="empty-copy">No payable activity in this range.</p>';
+        return { total };
+    }
+
+    chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
+    const canvas = getElement(`${chartElementId}-canvas`);
+    const textColor = getThemeColor("--color-text-muted", "#64748b");
+    const axisColor = getThemeColor("--color-border", "#cbd5e1");
+    const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
+    const payablesColor = "#ef4444";
+
+    dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
+        plugins: [verticalHoverLinePlugin],
+        type: "line",
+        data: {
+            labels: months.map((month) => formatMonthLabel(month)),
+            datasets: [
+                {
+                    label: `Payables: ${formatMoney(total, "EUR")}`,
+                    data: payablesPoints.map((point) => point.amount),
+                    borderColor: payablesColor,
+                    backgroundColor: "transparent",
+                    pointBackgroundColor: payablesColor,
+                    pointBorderColor: payablesColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            plugins: {
+                verticalHoverLine: {
+                    color: axisColor
+                },
+                legend: {
+                    position: "top",
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: "box",
+                        boxWidth: 5,
+                        boxHeight: 5,
+                        color: textColor,
+                        font: {
+                            size: 14,
+                            weight: "600"
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const seriesName = getSeriesNameFromLegendLabel(context.dataset.label);
+                            return `${seriesName}: ${formatMoney(context.parsed.y, "EUR")}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: textColor,
+                        callback(value) {
+                            return formatMoney(value, "EUR");
+                        }
+                    },
+                    grid: {
+                        color: gridColor
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                }
+            }
+        }
+    });
+
+    return { total };
+}
+
+const SOURCE_ACCOUNT_NAMES = [
+    "Commerzbank",
+    "Revolut",
+    "Cash",
+    "Scalable Capital",
+    "Revolut Brokerage",
+    "Revolut JPY"
+];
+
+function getSourceAccountsSeriesData() {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
     const fromMonth = from ? from.slice(0, 7) : null;
@@ -884,7 +996,7 @@ function renderSourceAccountsBalanceChart() {
     const seriesByAccount = {};
     const monthsSet = new Set();
 
-    accountNames.forEach((accountName) => {
+    SOURCE_ACCOUNT_NAMES.forEach((accountName) => {
         const points = (window.db.getAccountMonthlyBalances(accountName) || [])
             .filter((entry) => {
                 if (fromMonth && entry.month < fromMonth) return false;
@@ -905,7 +1017,26 @@ function renderSourceAccountsBalanceChart() {
         seriesByAccount[accountName] = byMonth;
     });
 
-    const months = Array.from(monthsSet).sort();
+    return {
+        accountNames: SOURCE_ACCOUNT_NAMES,
+        seriesByAccount,
+        months: Array.from(monthsSet).sort()
+    };
+}
+
+function getLiquidAssetsPoints() {
+    const { accountNames, seriesByAccount, months } = getSourceAccountsSeriesData();
+    return months.map((month) => ({
+        month,
+        amount: accountNames.reduce((sum, accountName) => {
+            const byMonth = seriesByAccount[accountName] || {};
+            return sum + (byMonth[month] || 0);
+        }, 0)
+    }));
+}
+
+function renderSourceAccountsBalanceChart() {
+    const { accountNames, seriesByAccount, months } = getSourceAccountsSeriesData();
     const chartElementId = "source-accounts-balance-chart";
     const chartHost = getElement(chartElementId);
     const totalElement = getElement("source-accounts-balance-total");
@@ -1051,29 +1182,43 @@ function renderSourceAccountsBalanceChart() {
 function renderDashboard() {
     const trendTotals = renderDashboardTrendChart();
 
-    renderMonthlyLineChart({
-        type: "Expense",
-        categories: EXPENSE_CATEGORIES,
+    renderMonthlyLineChartByCategoryType({
+        categoryTypes: ["income"],
+        totalElementId: "income-category-total",
+        chartElementId: "income-category-chart",
+        emptyMessage: "No incomes in this range."
+    });
+
+    renderMonthlyLineChartByCategoryType({
+        categoryTypes: ["expense"],
+        cashflow: "out",
         totalElementId: "expense-category-total",
         chartElementId: "expense-category-chart",
         emptyMessage: "No expenses in this range.",
         tone: "negative"
     });
 
-    renderMonthlyLineChart({
-        type: "Income",
-        categories: CASHFLOW_CATEGORIES,
+    renderMonthlyLineChartByCategoryType({
+        categoryTypes: ["non_income"],
         totalElementId: "cashflow-category-total",
         chartElementId: "cashflow-category-chart",
         emptyMessage: "No incoming cash flow in this range."
     });
 
-    const loanKautionResult = renderLoanKautionBalanceChart();
+    renderMonthlyLineChartByCategoryType({
+        categoryTypes: ["non_expense"],
+        totalElementId: "non-expense-category-total",
+        chartElementId: "non-expense-category-chart",
+        emptyMessage: "No non-expenses in this range.",
+        tone: "negative"
+    });
+
+    const receivablesResult = renderLoanKautionBalanceChart();
+    renderPayablesBalanceChart();
     renderSourceAccountsBalanceChart();
 
     const assetsTotal =
-        loanKautionResult.shortTermLoanTotal +
-        loanKautionResult.kautionTotal +
+        receivablesResult.combinedTotal +
         TRACKED_ACCOUNT_NAMES.reduce((sum, name) => sum + getAccountBalanceDelta(name), 0);
 
     renderOverviewCard({
@@ -1108,7 +1253,7 @@ function renderOverviewCard({ incomeTotal, netExpenseTotal, assetsTotal }) {
     balanceElement.classList.toggle("amount-positive", balanceTotal >= 0);
 }
 
-function getMonthlyTotalsForTransactions({ type, categories }) {
+function getMonthlyTotalsForTransactions({ cashflow, categories }) {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
 
@@ -1119,7 +1264,7 @@ function getMonthlyTotalsForTransactions({ type, categories }) {
     };
 
     const matchingTransactions = (window.state.transactions || []).filter((t) => {
-        if (t.type !== type || !categories.includes(t.category)) return false;
+        if (t.cashflow !== cashflow || !categories.includes(t.category)) return false;
         const d = String(t.date || "");
         if (from && d < from) return false;
         if (to && d > to) return false;
@@ -1135,24 +1280,132 @@ function getMonthlyTotalsForTransactions({ type, categories }) {
     return totalsByMonth;
 }
 
-function getMonthlyPoints({ type, categories }) {
-    const totalsByMonth = getMonthlyTotalsForTransactions({ type, categories });
+function renderMonthlyLineChartByCategoryType({ categoryTypes, cashflow, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+    const points = getMonthlyPointsByCategoryType({ categoryTypes, cashflow });
+    const total = points.reduce((sum, point) => sum + point.amount, 0);
+    const totalElement = getElement(totalElementId);
+
+    totalElement.textContent = formatMoney(total, "EUR");
+    totalElement.classList.toggle("amount-negative", tone === "negative");
+    totalElement.classList.toggle("amount-positive", tone !== "negative");
+
+    const chartHost = getElement(chartElementId);
+    if (dashboardMiniLineCharts[chartElementId]) {
+        dashboardMiniLineCharts[chartElementId].destroy();
+        dashboardMiniLineCharts[chartElementId] = null;
+    }
+
+    if (!points.length) {
+        chartHost.innerHTML = `<p class="empty-copy">${escapeHtml(emptyMessage)}</p>`;
+        return { points, total };
+    }
+
+    chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
+    const canvas = getElement(`${chartElementId}-canvas`);
+
+    const textColor = getThemeColor("--color-text-muted", "#64748b");
+    const axisColor = getThemeColor("--color-border", "#cbd5e1");
+    const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
+    const lineColor = tone === "negative"
+        ? getThemeColor("--color-negative-mid", "#dc2626")
+        : getThemeColor("--color-positive-mid", "#16a34a");
+
+    dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
+        plugins: [verticalHoverLinePlugin],
+        type: "line",
+        data: {
+            labels: points.map((point) => formatMonthLabel(point.month)),
+            datasets: [
+                {
+                    data: points.map((point) => point.amount),
+                    borderColor: lineColor,
+                    backgroundColor: hexToRgba(lineColor, 0.15),
+                    pointBackgroundColor: lineColor,
+                    pointBorderColor: lineColor,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+            plugins: {
+                verticalHoverLine: {
+                    color: axisColor
+                },
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            return formatMoney(context.parsed.y, "EUR");
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: textColor,
+                        callback(value) {
+                            return formatMoney(value, "EUR");
+                        }
+                    },
+                    grid: {
+                        color: gridColor
+                    },
+                    border: {
+                        color: axisColor
+                    }
+                }
+            }
+        }
+    });
+
+    return { points, total };
+}
+
+function getMonthlyPoints({ cashflow, categories }) {
+    const totalsByMonth = getMonthlyTotalsForTransactions({ cashflow, categories });
 
     return Object.entries(totalsByMonth)
         .map(([month, amount]) => ({ month, amount }))
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
 }
 
-function renderMonthlyBarChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
-    const points = getMonthlyPoints({ type, categories });
+function renderMonthlyBarChart({ cashflow, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+    const points = getMonthlyPoints({ cashflow, categories });
 
     const total = renderBarChartCard({ points, totalElementId, chartElementId, emptyMessage, tone });
 
     return { points, total };
 }
 
-function renderMonthlyLineChart({ type, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
-    const points = getMonthlyPoints({ type, categories });
+function renderMonthlyLineChart({ cashflow, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
+    const points = getMonthlyPoints({ cashflow, categories });
     const total = points.reduce((sum, point) => sum + point.amount, 0);
     const totalElement = getElement(totalElementId);
 

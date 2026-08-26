@@ -1,9 +1,9 @@
 function getTransactionSignedAmount(transaction) {
-    if (transaction.type === "Income") {
+    if (transaction.cashflow === "in") {
         return transaction.amount;
     }
 
-    if (transaction.type === "Expense" || transaction.type === "Transfer") {
+    if (transaction.cashflow === "out" || transaction.cashflow === "none") {
         return -transaction.amount;
     }
 
@@ -11,7 +11,7 @@ function getTransactionSignedAmount(transaction) {
 }
 
 function transactionDescription(transaction) {
-    if (transaction.type === "Transfer" && transaction.destinationAccount) {
+    if (transaction.cashflow === "none" && transaction.destinationAccount) {
         return `${transaction.account} → ${transaction.destinationAccount}`;
     }
 
@@ -50,7 +50,7 @@ function populateTransactionSubcategories() {
 }
 
 function isDebtTypeAllowed(type) {
-    return type === "Expense" || type === "Income";
+    return type === "out" || type === "in";
 }
 
 function filteredTransactions() {
@@ -69,7 +69,7 @@ function filteredTransactions() {
             transaction.account.toLowerCase().includes(search) ||
             transaction.destinationAccount.toLowerCase().includes(search);
 
-        const matchesType = !type || transaction.type === type;
+        const matchesType = !type || transaction.cashflow === type;
         const matchesAccount =
             !account ||
             transaction.account === account ||
@@ -102,6 +102,7 @@ function renderTransactions() {
             const dateText = escapeHtml(formatDate(transaction.date));
             const accountText = escapeHtml(transactionDescription(transaction));
             const amountText = `${amountPrefix}${formatMoney(transaction.amount, transaction.currency)}`;
+            const cashflowLabel = escapeHtml(formatCashflowLabel(transaction.cashflow));
 
             return `
                 <article class="record-card transaction-card">
@@ -110,7 +111,7 @@ function renderTransactions() {
                         <p class="record-subtext">${categoryLabel}</p>
                         <div class="record-inline-meta">
                             <span class="record-date">${dateText}</span>
-                            <span class="pill ${transaction.type.toLowerCase()}">${escapeHtml(transaction.type)}</span>
+                            <span class="pill ${transaction.cashflow}">${cashflowLabel}</span>
                         </div>
                     </div>
                     <div class="record-side">
@@ -129,7 +130,7 @@ function syncCurrencyWithAccount() {
 }
 
 function updateTransactionType() {
-    const isTransfer = getElement("type").value === "Transfer";
+    const isTransfer = getElement("type").value === "none";
     getElement("destination-account-group").hidden = !isTransfer;
     getElement("category").disabled = isTransfer;
     getElement("subcategory").disabled = isTransfer;
@@ -137,7 +138,7 @@ function updateTransactionType() {
     getElement("debt-group").hidden = isTransfer;
 
     if (isTransfer) {
-        getElement("category").value = "Transfer";
+        getElement("category").value = "";
         populateTransactionSubcategories();
     }
 }
@@ -159,7 +160,7 @@ function resetTransactionForm() {
     getElement("date").value = new Date().toISOString().slice(0, 10);
     getElement("amount").value = "";
     getElement("notes").value = "";
-    getElement("type").value = "Expense";
+    getElement("type").value = "out";
     getElement("destination-account").value = "";
     getElement("transaction-debt").value = "";
     getElement("subcategory").value = "";
@@ -192,10 +193,10 @@ function toggleForm(force) {
 
 async function saveTransaction() {
     const debtId = getElement("transaction-debt").value || "";
-    const type = getElement("type").value;
+    const cashflow = getElement("type").value;
 
-    if (debtId && !isDebtTypeAllowed(type)) {
-        showStatus("transaction-feedback", "Debt-linked transactions must be Income or Expense.", "error");
+    if (debtId && !isDebtTypeAllowed(cashflow)) {
+        showStatus("transaction-feedback", "Debt-linked transactions must be In or Out.", "error");
         return;
     }
 
@@ -203,7 +204,7 @@ async function saveTransaction() {
         date: getElement("date").value,
         account: getElement("account").value,
         destinationAccount: getElement("destination-account").value,
-        type,
+        cashflow,
         category: getElement("category").value,
         subcategory: getElement("subcategory").value,
         amount: Number(getElement("amount").value),
