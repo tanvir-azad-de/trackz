@@ -343,6 +343,102 @@ small {
 	box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
 }
 
+.quick-overview-card {
+	padding-top: 16px;
+}
+
+.quick-overview-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 12px;
+}
+
+.quick-overview-item {
+	border: 1px solid var(--color-border-light);
+	background: linear-gradient(165deg, #ffffff 0%, #fbfdff 100%);
+	border-radius: 14px;
+	padding: 12px;
+	display: grid;
+	gap: 8px;
+	position: relative;
+	overflow: hidden;
+}
+
+.quick-overview-item::after {
+	content: "";
+	position: absolute;
+	right: -16px;
+	top: -20px;
+	width: 84px;
+	height: 84px;
+	border-radius: 999px;
+	background: rgba(148, 163, 184, 0.12);
+	pointer-events: none;
+}
+
+.quick-overview-art {
+	width: 28px;
+	height: 28px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	background: rgba(148, 163, 184, 0.16);
+	color: var(--color-text-subtle);
+	border: 1px solid rgba(148, 163, 184, 0.24);
+	z-index: 1;
+}
+
+.quick-overview-art svg {
+	width: 16px;
+	height: 16px;
+}
+
+.quick-overview-item--net-worth .quick-overview-art,
+.quick-overview-item--net-worth::after {
+	background: rgba(37, 99, 235, 0.12);
+	color: #1d4ed8;
+	border-color: rgba(37, 99, 235, 0.28);
+}
+
+.quick-overview-item--liquid .quick-overview-art,
+.quick-overview-item--liquid::after {
+	background: rgba(8, 145, 178, 0.12);
+	color: #0e7490;
+	border-color: rgba(8, 145, 178, 0.25);
+}
+
+.quick-overview-item--receivable .quick-overview-art,
+.quick-overview-item--receivable::after {
+	background: rgba(22, 163, 74, 0.12);
+	color: #15803d;
+	border-color: rgba(22, 163, 74, 0.24);
+}
+
+.quick-overview-item--payable .quick-overview-art,
+.quick-overview-item--payable::after {
+	background: rgba(220, 38, 38, 0.1);
+	color: #b91c1c;
+	border-color: rgba(220, 38, 38, 0.22);
+}
+
+.quick-overview-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.quick-overview-value {
+	font-size: 18px;
+	line-height: 1.2;
+	font-weight: 800;
+	color: var(--color-text-dark);
+	white-space: nowrap;
+	z-index: 1;
+}
+
 .list-stack {
 	display: grid;
 	gap: 12px;
