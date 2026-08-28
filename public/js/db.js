@@ -7,17 +7,17 @@ const DB_KEYS = {
 };
 
 const DEFAULT_CATEGORIES = [
-    { name: "Charges", subcategories: ["Bank Fee", "University Fee", "Credit Card Interest"] },
-    { name: "Entertainment", subcategories: ["Movies", "Transport"] },
-    { name: "Family and Friends", subcategories: [] },
-    { name: "Groceries", subcategories: ["Supermarket"] },
-    { name: "Housing", subcategories: ["Rent", "Electricity", "Water", "Furniture"] },
-    { name: "Income", subcategories: ["Salary", "Bonus"] },
-    { name: "Internet", subcategories: ["Wi-Fi", "Mobile"] },
-    { name: "Other", subcategories: ["Miscellaneous"] },
-    { name: "Shopping", subcategories: ["Amazon", "Clothing", "Electronics"] },
-    { name: "Subscriptions", subcategories: ["YouTube", "Netflix", "Spotify"] },
-    { name: "Transfer", subcategories: [] }
+    { name: "Charges", categoryType: "expense", subcategories: ["Bank Fee", "University Fee", "Credit Card Interest"] },
+    { name: "Entertainment", categoryType: "expense", subcategories: ["Movies", "Transport"] },
+    { name: "Family and Friends", categoryType: "expense", subcategories: [] },
+    { name: "Groceries", categoryType: "expense", subcategories: ["Supermarket"] },
+    { name: "Housing", categoryType: "expense", subcategories: ["Rent", "Electricity", "Water", "Furniture"] },
+    { name: "Income", categoryType: "income", subcategories: ["Salary", "Bonus"] },
+    { name: "Internet", categoryType: "expense", subcategories: ["Wi-Fi", "Mobile"] },
+    { name: "Other", categoryType: "expense", subcategories: ["Miscellaneous"] },
+    { name: "Shopping", categoryType: "expense", subcategories: ["Amazon", "Clothing", "Electronics"] },
+    { name: "Subscriptions", categoryType: "expense", subcategories: ["YouTube", "Netflix", "Spotify"] },
+    { name: "Transfer", categoryType: "transfer", subcategories: [] }
 ];
 
 const TRANSACTION_CASHFLOWS = new Set(["in", "out", "none"]);
@@ -26,10 +26,20 @@ function normalizeTransactionRecord(transaction) {
     const source = transaction && typeof transaction === "object" ? transaction : {};
     const cashflow = String(source.cashflow || "").trim().toLowerCase();
     const { cashflow: rawCashflow, destinationAccount, notes, debtId, paymentId, ...rest } = source;
+    const normalizedCashflow = TRANSACTION_CASHFLOWS.has(cashflow)
+        ? cashflow
+        : (String(destinationAccount || "").trim() ? "none" : "out");
+    const normalizedCategoryType = String(source.categoryType || "").trim().toLowerCase();
+    const inferredCategoryType = normalizedCashflow === "in"
+        ? "income"
+        : normalizedCashflow === "none"
+            ? "transfer"
+            : "expense";
 
     return {
         ...rest,
-        cashflow: TRANSACTION_CASHFLOWS.has(cashflow) ? cashflow : (String(destinationAccount || "").trim() ? "none" : "out"),
+        cashflow: normalizedCashflow,
+        categoryType: normalizedCategoryType || inferredCategoryType,
         destinationAccount: destinationAccount || "",
         notes: notes || ""
     };
@@ -54,6 +64,90 @@ function migrateTransactionSchema(rawTransactions) {
 
         return normalizeTransactionRecord({ ...source, cashflow });
     });
+}
+
+function normalizeTransactionCashflow(value) {
+    const cashflow = String(value || "").trim().toLowerCase();
+    if (TRANSACTION_CASHFLOWS.has(cashflow)) return cashflow;
+
+    if (cashflow === "income") return "in";
+    if (cashflow === "expense") return "out";
+    if (cashflow === "transfer") return "none";
+
+    return "";
+}
+
+function deriveAccountsFromTransactions(transactions) {
+    if (!Array.isArray(transactions)) return [];
+
+    const byName = new Map();
+
+    transactions.forEach((transaction) => {
+        const sourceName = String(transaction?.account || "").trim();
+        const destinationName = String(transaction?.destinationAccount || "").trim();
+        const currency = String(transaction?.currency || "").trim().toUpperCase() || "EUR";
+
+        if (sourceName && !byName.has(sourceName.toLowerCase())) {
+            byName.set(sourceName.toLowerCase(), { name: sourceName, currency, openingBalance: 0 });
+        }
+
+        if (destinationName && !byName.has(destinationName.toLowerCase())) {
+            byName.set(destinationName.toLowerCase(), { name: destinationName, currency, openingBalance: 0 });
+        }
+    });
+
+    return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function inferCategoryTypeFromTransaction(transaction) {
+    const explicitType = String(transaction?.categoryType || "").trim().toLowerCase();
+    if (explicitType) return explicitType;
+
+    const cashflow = String(transaction?.cashflow || "").trim().toLowerCase();
+    if (cashflow === "in") return "income";
+    if (cashflow === "none") return "transfer";
+    return "expense";
+}
+
+function deriveCategoryTreeFromTransactions(transactions) {
+    if (!Array.isArray(transactions)) return [];
+
+    const byName = new Map();
+    transactions.forEach((transaction) => {
+        const categoryName = String(transaction?.category || "").trim();
+        if (!categoryName) return;
+
+        const key = categoryName.toLowerCase();
+        const inferredType = inferCategoryTypeFromTransaction(transaction);
+
+        if (!byName.has(key)) {
+            byName.set(key, {
+                name: categoryName,
+                categoryType: inferredType,
+                subcategories: []
+            });
+        }
+
+        const category = byName.get(key);
+        if (!category.categoryType && inferredType) {
+            category.categoryType = inferredType;
+        }
+
+        const subcategoryName = String(transaction?.subcategory || "").trim();
+        if (
+            subcategoryName
+            && !category.subcategories.some((sub) => sub.toLowerCase() === subcategoryName.toLowerCase())
+        ) {
+            category.subcategories.push(subcategoryName);
+        }
+    });
+
+    return Array.from(byName.values())
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((category) => ({
+            ...category,
+            subcategories: [...category.subcategories].sort((a, b) => a.localeCompare(b))
+        }));
 }
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -85,14 +179,30 @@ function exportAll() {
 
 // Import all data from Drive (overwrites localStorage)
 function importAll(data) {
+    const importedTransactions = Array.isArray(data.transactions)
+        ? migrateTransactionSchema(data.transactions)
+        : [];
+
     if (Array.isArray(data.transactions)) {
         localStorage.setItem(
             DB_KEYS.transactions,
-            JSON.stringify(migrateTransactionSchema(data.transactions))
+            JSON.stringify(importedTransactions)
         );
     }
-    if (data.accounts) localStorage.setItem(DB_KEYS.accounts, JSON.stringify(data.accounts));
-    if (data.categories) localStorage.setItem(DB_KEYS.categories, JSON.stringify(data.categories));
+
+    const importedAccounts = Array.isArray(data.accounts) ? data.accounts : [];
+    const fallbackAccounts = deriveAccountsFromTransactions(importedTransactions);
+    localStorage.setItem(
+        DB_KEYS.accounts,
+        JSON.stringify(importedAccounts.length ? importedAccounts : fallbackAccounts)
+    );
+
+    const importedCategories = Array.isArray(data.categories) ? data.categories : [];
+    const fallbackCategories = deriveCategoryTreeFromTransactions(importedTransactions);
+    localStorage.setItem(
+        DB_KEYS.categories,
+        JSON.stringify(importedCategories.length ? importedCategories : fallbackCategories)
+    );
 
     if (window.driveSync) {
         window.driveSync.markDirty();
@@ -141,6 +251,13 @@ function toPositiveNumber(value) {
 function toNumber(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
+}
+
+function inferCategoryTypeFromName(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    if (normalized === "income") return "income";
+    if (normalized === "transfer") return "transfer";
+    return "expense";
 }
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
@@ -303,6 +420,7 @@ function dbValidateTransactionPayload(body) {
     let category = String(body.category || "").trim();
     let subcategory = String(body.subcategory || "").trim();
     let destinationAccount = "";
+    let categoryType = cashflow === "in" ? "income" : cashflow === "none" ? "transfer" : "expense";
 
     if (cashflow === "none") {
         destinationAccount = String(body.destinationAccount || "").trim();
@@ -313,10 +431,17 @@ function dbValidateTransactionPayload(body) {
             throw new Error("Transfer destination must be different from the source account.");
         }
         category = "Transfer";
+        const transferCategory = dbGetCategoryByName(category);
+        if (transferCategory?.categoryType) {
+            categoryType = String(transferCategory.categoryType).trim().toLowerCase();
+        }
         subcategory = "";
     } else {
         const selectedCategory = dbGetCategoryByName(category);
         if (!selectedCategory) throw new Error("Select a valid category.");
+        if (selectedCategory.categoryType) {
+            categoryType = String(selectedCategory.categoryType).trim().toLowerCase();
+        }
         if (
             subcategory &&
             !selectedCategory.subcategories.some((s) => s.toLowerCase() === subcategory.toLowerCase())
@@ -332,6 +457,7 @@ function dbValidateTransactionPayload(body) {
         destinationAccount,
         cashflow,
         category,
+        categoryType,
         subcategory,
         amount,
         currency,
@@ -365,14 +491,26 @@ function normalizeCategoryTree(raw) {
         if (typeof item === "string") {
             const name = item.trim();
             if (!name) return;
-            if (!byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), { name, subcategories: [] });
+            if (!byName.has(name.toLowerCase())) {
+                byName.set(name.toLowerCase(), {
+                    name,
+                    categoryType: inferCategoryTypeFromName(name),
+                    subcategories: []
+                });
+            }
             return;
         }
         const name = String(item?.name || "").trim();
+        const categoryType = String(item?.categoryType || "").trim().toLowerCase() || inferCategoryTypeFromName(name);
         if (!name) return;
-        if (!byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), { name, subcategories: [] });
+        if (!byName.has(name.toLowerCase())) {
+            byName.set(name.toLowerCase(), { name, categoryType, subcategories: [] });
+        }
 
         const cat = byName.get(name.toLowerCase());
+        if (!cat.categoryType && categoryType) {
+            cat.categoryType = categoryType;
+        }
         (Array.isArray(item?.subcategories) ? item.subcategories : []).forEach((sub) => {
             const s = String(sub || "").trim();
             if (s && !cat.subcategories.some((e) => e.toLowerCase() === s.toLowerCase())) {
@@ -405,17 +543,18 @@ function dbGetCategoryByName(name) {
     return dbGetCategoryTree().find((c) => c.name.toLowerCase() === lower) || null;
 }
 
-function dbSaveCategory(name) {
+function dbSaveCategory(name, type = "expense") {
     const categoryName = String(name || "").trim();
+    const categoryType = String(type || "expense").trim().toLowerCase();
     if (!categoryName) throw new Error("Category name is required.");
     const categories = dbGetCategoryTree();
     if (categories.some((c) => c.name.toLowerCase() === categoryName.toLowerCase())) {
         throw new Error("Category already exists.");
     }
-    categories.push({ name: categoryName, subcategories: [] });
+    categories.push({ name: categoryName, categoryType, subcategories: [] });
     categories.sort((a, b) => a.name.localeCompare(b.name));
     writeStore(DB_KEYS.categories, categories);
-    return { name: categoryName, subcategories: [] };
+    return { name: categoryName, categoryType, subcategories: [] };
 }
 
 function dbSaveSubcategory(categoryName, subcategoryName) {

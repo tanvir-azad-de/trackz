@@ -16,6 +16,13 @@ function categoryRows() {
     return rows;
 }
 
+function inferCategoryTypeForNewCategory(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    if (normalized === "income") return "income";
+    if (normalized === "transfer") return "transfer";
+    return "expense";
+}
+
 function toggleFormCategories(force) {
     const show = typeof force === "boolean" ? force : getElement("category-form").hidden;
     getElement("category-form").hidden = !show;
@@ -61,8 +68,10 @@ function resetCategoryForms() {
 }
 
 async function saveCategory() {
+    const categoryName = getElement("category-name").value.trim();
+
     try {
-        window.db.saveCategory(getElement("category-name").value.trim());
+        window.db.saveCategory(categoryName, inferCategoryTypeForNewCategory(categoryName));
     } catch (err) {
         showStatus("category-feedback", err.message || "Could not save category.", "error");
         return;
@@ -74,6 +83,11 @@ async function saveCategory() {
 }
 
 async function saveSubcategory() {
+    if (!(window.state.categoryTree || []).length) {
+        showStatus("category-feedback", "Create a category first.", "error");
+        return;
+    }
+
     try {
         window.db.saveSubcategory(
             getElement("subcategory-category").value,

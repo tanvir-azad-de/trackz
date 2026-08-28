@@ -8,3 +8,6 @@ Thumbs.db
 # Editor directories
 .vscode/
 .idea/
+
+# Local debug input/output data
+dummyData/

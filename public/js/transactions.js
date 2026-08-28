@@ -120,7 +120,9 @@ function renderTransactions() {
 
 function syncCurrencyWithAccount() {
     const selectedAccount = window.state.accounts.find((account) => account.name === getElement("account").value);
-    getElement("currency-display").textContent = selectedAccount ? "Amount (" + selectedAccount.currency + ")" : "—";
+    getElement("currency-display").textContent = selectedAccount
+        ? "Amount (" + selectedAccount.currency + ")"
+        : "Amount";
 }
 
 function updateTransactionType() {
@@ -147,6 +149,8 @@ function resetTransactionForm() {
     if (window.state.accounts[0]) {
         getElement("account").value = window.state.accounts[0].name;
         syncCurrencyWithAccount();
+    } else {
+        getElement("currency-display").textContent = "Amount";
     }
 
     if (window.state.categoryTree.find((category) => category.name === "Shopping")) {
@@ -160,6 +164,11 @@ function resetTransactionForm() {
 }
 
 function toggleForm(force) {
+    if ((typeof force === "boolean" ? force : getElement("form").hidden) && !(window.state.accounts || []).length) {
+        showStatus("transaction-feedback", "Add an account before creating transactions.", "error");
+        return;
+    }
+
     const form = getElement("form");
     form.hidden = typeof force === "boolean" ? !force : !form.hidden;
 
@@ -171,6 +180,16 @@ function toggleForm(force) {
 
 async function saveTransaction() {
     const cashflow = getElement("type").value;
+
+    if (!(window.state.accounts || []).length) {
+        showStatus("transaction-feedback", "Add an account before creating transactions.", "error");
+        return;
+    }
+
+    if (cashflow !== "none" && !(window.state.categoryTree || []).length) {
+        showStatus("transaction-feedback", "Add a category before creating non-transfer transactions.", "error");
+        return;
+    }
 
     const payload = {
         date: getElement("date").value,

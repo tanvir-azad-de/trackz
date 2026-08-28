@@ -18,8 +18,20 @@ function importData(file) {
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                if (!data.transactions || !data.accounts || !data.categories) {
-                    reject(new Error("Invalid data format. Expected transactions, accounts, and categories."));
+                if (!data || typeof data !== "object") {
+                    reject(new Error("Invalid data format. Expected a JSON object."));
+                    return;
+                }
+                if (!Array.isArray(data.transactions)) {
+                    reject(new Error("Invalid data format. transactions must be an array."));
+                    return;
+                }
+                if ("accounts" in data && !Array.isArray(data.accounts)) {
+                    reject(new Error("Invalid data format. accounts must be an array when provided."));
+                    return;
+                }
+                if ("categories" in data && !Array.isArray(data.categories)) {
+                    reject(new Error("Invalid data format. categories must be an array when provided."));
                     return;
                 }
                 window.db.importAll(data);
