@@ -11,9 +11,6 @@ function renderAccounts() {
         .map(
             (account) => {
                 const balanceClass = account.currentBalance >= 0 ? "amount-positive" : "amount-negative";
-                const eurClass = account.eurEquivalent >= 0 ? "amount-positive" : "amount-negative";
-                const eurText = typeof account.eurEquivalent === "number" ? formatMoney(account.eurEquivalent, "EUR") : "—";
-                const isEurAccount = String(account.currency || "").toUpperCase() === "EUR";
                 return `
                 <article class="record-card account-card">
                     <div class="record-main">
@@ -22,7 +19,6 @@ function renderAccounts() {
                     </div>
                     <div class="record-side">
                         <strong class="record-amount ${balanceClass}">${formatMoney(account.currentBalance, account.currency)}</strong>
-                        ${isEurAccount ? "" : `<span class="record-secondary-amount ${typeof account.eurEquivalent === "number" ? eurClass : ""}">EUR: ${eurText}</span>`}
                         <button class="table-button" onclick="deleteAccount('${encodeURIComponent(account.name)}')">Delete</button>
                     </div>
                 </article>
@@ -35,10 +31,16 @@ function renderAccounts() {
 function resetAccountForm() {
     getElement("account-name").value = "";
     getElement("opening-balance").value = "";
+}
 
-    if (window.state.currencies[0]) {
-        getElement("account-currency").value = window.state.currencies[0];
-    }
+function getDefaultAccountCurrency() {
+    const fromAccounts = (window.state.accounts || []).find((account) => String(account.currency || "").trim())?.currency;
+    if (fromAccounts) return String(fromAccounts).toUpperCase();
+
+    const fromTransactions = (window.state.transactions || []).find((transaction) => String(transaction.currency || "").trim())?.currency;
+    if (fromTransactions) return String(fromTransactions).toUpperCase();
+
+    return "EUR";
 }
 
 function toggleAccountForm(force) {
@@ -54,7 +56,7 @@ function toggleAccountForm(force) {
 async function saveAccount() {
     const payload = {
         name: getElement("account-name").value.trim(),
-        currency: getElement("account-currency").value,
+        currency: getDefaultAccountCurrency(),
         openingBalance: Number(getElement("opening-balance").value)
     };
 

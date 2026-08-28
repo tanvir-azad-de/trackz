@@ -3,11 +3,9 @@ function renderAll() {
     renderTransactions();
     renderAccounts();
     renderCategories();
-    renderDebts();
-    renderCurrencies();
 }
 
-const PAGES = ["dashboard", "transactions", "accounts", "categories", "debts", "currencies"];
+const PAGES = ["dashboard", "transactions", "accounts", "categories"];
 
 function _showPage(name) {
     if (!PAGES.includes(name)) name = "dashboard";
@@ -31,25 +29,20 @@ function page(name) {
 }
 
 async function loadData() {
-    const [transactions, accounts, categories, categoryTree, currencies, summary, debts] = [
+    const [transactions, accounts, categories, categoryTree, summary] = [
         window.db.getTransactions(),
         window.db.getAccounts(),
         window.db.getCategories(),
         window.db.getCategoryTree(),
-        window.db.getCurrencies(),
-        window.db.getSummary(),
-        window.db.getDebts()
+        window.db.getSummary()
     ];
 
     window.state.transactions = transactions;
     window.state.accounts = accounts;
     window.state.categories = categories;
     window.state.categoryTree = categoryTree;
-    window.state.currencies = currencies;
-    window.state.currencyRates = window.db.getCurrencyRates();
     window.state.summary = summary;
     window.state.dashboardSummary = null;
-    window.state.debts = debts;
 
     setOptions("account", window.state.accounts);
     setOptions("destination-account", window.state.accounts, { includeBlankLabel: "Select account" });
@@ -57,8 +50,6 @@ async function loadData() {
     setOptions("category", window.state.categoryTree);
     setOptions("subcategory", [], { includeBlankLabel: "No subcategories" });
     setOptions("subcategory-category", window.state.categoryTree);
-    setOptions("account-currency", window.state.currencies, { valueKey: null, labelKey: null });
-    setOptions("debt-currency", window.state.currencies, { valueKey: null, labelKey: null });
 
     getElement("account").onchange = syncCurrencyWithAccount;
 

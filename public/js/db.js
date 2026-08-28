@@ -3,20 +3,11 @@
 const DB_KEYS = {
     transactions: "trackz_transactions",
     accounts: "trackz_accounts",
-    categories: "trackz_categories",
-    currencies: "trackz_currencies",
-    currencyRates: "trackz_currency_rates",
-    debts: "trackz_debts"
+    categories: "trackz_categories"
 };
-
-const DEFAULT_CURRENCIES = ["EUR", "USD", "BDT", "JPY"];
-
-const DEFAULT_CURRENCY_RATES = { EUR: 1, BDT: 0.0071, JPY: 0.0054 };
 
 const DEFAULT_CATEGORIES = [
     { name: "Charges", subcategories: ["Bank Fee", "University Fee", "Credit Card Interest"] },
-    { name: "Debt Collection", subcategories: ["Loan", "Credit Card Bill", "Friends", "Family"] },
-    { name: "Debt Payment", subcategories: ["Loan", "Credit Card Bill", "Friends", "Family"] },
     { name: "Entertainment", subcategories: ["Movies", "Transport"] },
     { name: "Family and Friends", subcategories: [] },
     { name: "Groceries", subcategories: ["Supermarket"] },
@@ -34,7 +25,7 @@ const TRANSACTION_CASHFLOWS = new Set(["in", "out", "none"]);
 function normalizeTransactionRecord(transaction) {
     const source = transaction && typeof transaction === "object" ? transaction : {};
     const cashflow = String(source.cashflow || "").trim().toLowerCase();
-    const { cashflow: rawCashflow, destinationAccount, notes, ...rest } = source;
+    const { cashflow: rawCashflow, destinationAccount, notes, debtId, paymentId, ...rest } = source;
 
     return {
         ...rest,
@@ -88,10 +79,7 @@ function exportAll() {
     return {
         transactions: dbGetTransactions(),
         accounts: readStore(DB_KEYS.accounts, []),
-        categories: readStore(DB_KEYS.categories, DEFAULT_CATEGORIES),
-        currencies: readStore(DB_KEYS.currencies, DEFAULT_CURRENCIES),
-        currencyRates: readStore(DB_KEYS.currencyRates, DEFAULT_CURRENCY_RATES),
-        debts: readStore(DB_KEYS.debts, [])
+        categories: readStore(DB_KEYS.categories, DEFAULT_CATEGORIES)
     };
 }
 
@@ -105,9 +93,6 @@ function importAll(data) {
     }
     if (data.accounts) localStorage.setItem(DB_KEYS.accounts, JSON.stringify(data.accounts));
     if (data.categories) localStorage.setItem(DB_KEYS.categories, JSON.stringify(data.categories));
-    if (data.currencies) localStorage.setItem(DB_KEYS.currencies, JSON.stringify(data.currencies));
-    if (data.currencyRates) localStorage.setItem(DB_KEYS.currencyRates, JSON.stringify(data.currencyRates));
-    if (data.debts) localStorage.setItem(DB_KEYS.debts, JSON.stringify(data.debts));
 
     if (window.driveSync) {
         window.driveSync.markDirty();
@@ -122,12 +107,6 @@ function initDefaults() {
         writeStore(DB_KEYS.transactions, migrateTransactionSchema(storedTransactions));
     }
 
-    if (!localStorage.getItem(DB_KEYS.currencies)) {
-        localStorage.setItem(DB_KEYS.currencies, JSON.stringify(DEFAULT_CURRENCIES));
-    }
-    if (!localStorage.getItem(DB_KEYS.currencyRates)) {
-        localStorage.setItem(DB_KEYS.currencyRates, JSON.stringify(DEFAULT_CURRENCY_RATES));
-    }
     if (!localStorage.getItem(DB_KEYS.categories)) {
         localStorage.setItem(DB_KEYS.categories, JSON.stringify(DEFAULT_CATEGORIES));
     }
@@ -137,9 +116,11 @@ function initDefaults() {
     if (!localStorage.getItem(DB_KEYS.accounts)) {
         localStorage.setItem(DB_KEYS.accounts, JSON.stringify([]));
     }
-    if (!localStorage.getItem(DB_KEYS.debts)) {
-        localStorage.setItem(DB_KEYS.debts, JSON.stringify([]));
-    }
+
+    // Hard cleanup for removed features.
+    localStorage.removeItem("trackz_currencies");
+    localStorage.removeItem("trackz_currency_rates");
+    localStorage.removeItem("trackz_debts");
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -162,71 +143,6 @@ function toNumber(value) {
     return Number.isFinite(n) ? n : 0;
 }
 
-// ── Currency ──────────────────────────────────────────────────────────────────
-
-function getRates() {
-    return readStore(DB_KEYS.currencyRates, DEFAULT_CURRENCY_RATES);
-}
-
-function getRate(currency, rates) {
-    if (currency === "EUR") return 1;
-    const rate = rates[currency];
-    return typeof rate === "number" ? rate : null;
-}
-
-function convertAmountBetweenCurrencies(amount, fromCurrency, toCurrency, rates) {
-    if (fromCurrency === toCurrency) return amount;
-    const fromRate = getRate(fromCurrency, rates);
-    const toRate = getRate(toCurrency, rates);
-    if (fromRate === null || toRate === null || toRate === 0) return amount;
-    return (amount * fromRate) / toRate;
-}
-
-function dbGetCurrencies() {
-    return readStore(DB_KEYS.currencies, DEFAULT_CURRENCIES);
-}
-
-function dbGetCurrencyRates() {
-    return readStore(DB_KEYS.currencyRates, DEFAULT_CURRENCY_RATES);
-}
-
-function dbSaveCurrency(code, rate) {
-    const clean = String(code || "").trim().toUpperCase();
-    if (!clean || !/^[A-Z]{2,5}$/.test(clean)) throw new Error("Enter a valid currency code (e.g. USD).");
-
-    const currencies = dbGetCurrencies();
-    if (currencies.includes(clean)) throw new Error("Currency already exists.");
-
-    const rateNum = Number(rate);
-    if (clean !== "EUR" && (!Number.isFinite(rateNum) || rateNum <= 0)) {
-        throw new Error("Rate must be a positive number.");
-    }
-
-    currencies.push(clean);
-    writeStore(DB_KEYS.currencies, currencies);
-
-    const rates = dbGetCurrencyRates();
-    rates[clean] = clean === "EUR" ? 1 : rateNum;
-    writeStore(DB_KEYS.currencyRates, rates);
-}
-
-function dbUpdateCurrencyRate(code, rate) {
-    const rateNum = Number(rate);
-    if (!Number.isFinite(rateNum) || rateNum <= 0) throw new Error("Rate must be a positive number.");
-    const rates = dbGetCurrencyRates();
-    rates[code] = rateNum;
-    writeStore(DB_KEYS.currencyRates, rates);
-}
-
-function dbDeleteCurrency(code) {
-    if (code === "EUR") throw new Error("Cannot delete the base currency (EUR).");
-    const currencies = dbGetCurrencies().filter((c) => c !== code);
-    writeStore(DB_KEYS.currencies, currencies);
-    const rates = dbGetCurrencyRates();
-    delete rates[code];
-    writeStore(DB_KEYS.currencyRates, rates);
-}
-
 // ── Accounts ──────────────────────────────────────────────────────────────────
 
 function dbGetRawAccounts() {
@@ -237,8 +153,6 @@ function dbGetRawAccounts() {
 }
 
 function getTransactionImpact(transaction, accountName, context = {}) {
-    const { accountCurrencyByName = new Map(), rates = {} } = context;
-
     if (transaction.cashflow === "in" && transaction.account === accountName) {
         return transaction.amount;
     }
@@ -248,13 +162,7 @@ function getTransactionImpact(transaction, accountName, context = {}) {
     if (transaction.cashflow === "none") {
         if (transaction.account === accountName) return -transaction.amount;
         if (transaction.destinationAccount === accountName) {
-            const destCurrency = accountCurrencyByName.get(accountName);
-            return convertAmountBetweenCurrencies(
-                transaction.amount,
-                transaction.currency,
-                destCurrency,
-                rates
-            );
+            return transaction.amount;
         }
     }
     return 0;
@@ -263,23 +171,19 @@ function getTransactionImpact(transaction, accountName, context = {}) {
 function dbComputeAccountSummaries() {
     const accounts = dbGetRawAccounts();
     const transactions = dbGetTransactions();
-    const rates = getRates();
-    const accountCurrencyByName = new Map(accounts.map((a) => [a.name, a.currency]));
 
     return accounts.map((account) => {
         const matching = transactions.filter(
             (t) => t.account === account.name || t.destinationAccount === account.name
         );
         const currentBalance = matching.reduce(
-            (sum, t) => sum + getTransactionImpact(t, account.name, { accountCurrencyByName, rates }),
+            (sum, t) => sum + getTransactionImpact(t, account.name),
             account.openingBalance
         );
-        const rate = getRate(account.currency, rates);
         return {
             ...account,
             transactionCount: matching.length,
-            currentBalance,
-            eurEquivalent: rate === null ? null : currentBalance * rate
+            currentBalance
         };
     });
 }
@@ -290,8 +194,6 @@ function dbComputeAccountMonthlyBalances(accountName) {
     if (!account) return [];
 
     const transactions = dbGetTransactions();
-    const rates = getRates();
-    const accountCurrencyByName = new Map(accounts.map((a) => [a.name, a.currency]));
 
     const matching = transactions
         .filter((t) => t.account === accountName || t.destinationAccount === accountName)
@@ -307,7 +209,7 @@ function dbComputeAccountMonthlyBalances(accountName) {
     matching.forEach((t) => {
         const month = t.date.slice(0, 7);
         impactByMonth[month] =
-            (impactByMonth[month] || 0) + getTransactionImpact(t, accountName, { accountCurrencyByName, rates });
+            (impactByMonth[month] || 0) + getTransactionImpact(t, accountName);
     });
 
     const months = [];
@@ -327,19 +229,19 @@ function dbComputeAccountMonthlyBalances(accountName) {
 
 function dbValidateAccountPayload(body) {
     const accounts = dbGetRawAccounts();
-    const currencies = dbGetCurrencies();
     const name = String(body.name || "").trim();
+    const currency = String(body.currency || "").trim().toUpperCase();
 
     if (!name) throw new Error("Account name is required.");
     if (accounts.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
         throw new Error("Account name must be unique.");
     }
-    if (!currencies.includes(body.currency)) throw new Error("Select a valid currency.");
+    if (!/^[A-Z]{2,5}$/.test(currency)) throw new Error("Account currency must be a valid code (e.g. BDT).");
 
     const openingBalance = Number(body.openingBalance);
     if (!Number.isFinite(openingBalance)) throw new Error("Opening balance must be a valid number.");
 
-    return { name, currency: body.currency, openingBalance };
+    return { name, currency, openingBalance };
 }
 
 function dbSaveAccount(body) {
@@ -398,18 +300,9 @@ function dbValidateTransactionPayload(body) {
     const currency = sourceAccount?.currency;
     if (!currency) throw new Error("The selected account must have a valid currency.");
 
-    const debtId = String(body.debtId || "").trim();
     let category = String(body.category || "").trim();
     let subcategory = String(body.subcategory || "").trim();
     let destinationAccount = "";
-
-    if (debtId && !["out", "in"].includes(cashflow)) {
-        throw new Error("Debt-linked transactions must be In or Out.");
-    }
-    if (debtId) {
-        const debts = dbGetRawDebts();
-        if (!debts.some((d) => d.id === debtId)) throw new Error("Select a valid debt.");
-    }
 
     if (cashflow === "none") {
         destinationAccount = String(body.destinationAccount || "").trim();
@@ -443,8 +336,7 @@ function dbValidateTransactionPayload(body) {
         amount,
         currency,
         notes: String(body.notes || "").trim(),
-        createdAt: new Date().toISOString(),
-        ...(debtId && { debtId })
+        createdAt: new Date().toISOString()
     };
 }
 
@@ -544,168 +436,12 @@ function dbSaveSubcategory(categoryName, subcategoryName) {
     return { categoryName: categories[idx].name, subcategoryName };
 }
 
-// ── Debts ─────────────────────────────────────────────────────────────────────
-
-function dbGetRawDebts() {
-    return readStore(DB_KEYS.debts, []);
-}
-
-function dbGetDebtPaymentsFromTransactions(debtId) {
-    return dbGetTransactions()
-        .filter((t) => t.debtId === debtId)
-        .map((t) => ({
-            id: t.paymentId || t.id,
-            date: t.date,
-            amount: t.amount,
-            account: t.account,
-            currency: t.currency,
-            notes: t.notes || "",
-            createdAt: t.createdAt,
-            transactionId: t.id
-        }))
-        .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-}
-
-function dbComputeDebtSummaries() {
-    const rates = getRates();
-    return dbGetRawDebts().map((debt) => {
-        const payments = dbGetDebtPaymentsFromTransactions(debt.id);
-        const toDebtCurrency = (p) => {
-            if (p.currency === debt.currency) return p.amount;
-            const fromRate = getRate(p.currency, rates);
-            const toRate = getRate(debt.currency, rates);
-            if (!fromRate || !toRate) return 0;
-            return (p.amount * fromRate) / toRate;
-        };
-        const paidBack = payments.reduce((sum, p) => sum + toDebtCurrency(p), 0);
-        const remaining = Math.max(0, debt.originalAmount - paidBack);
-        const rate = getRate(debt.currency, rates);
-        return {
-            ...debt,
-            payments,
-            paidBack,
-            remaining,
-            eurEquivalent: rate === null ? null : remaining * rate
-        };
-    });
-}
-
-function dbValidateDebtPayload(body) {
-    const currencies = dbGetCurrencies();
-    const person = String(body.person || "").trim();
-    if (!person) throw new Error("Person name is required.");
-    if (!["owed_to_me", "i_owe"].includes(body.direction)) {
-        throw new Error("Direction must be 'owed_to_me' or 'i_owe'.");
-    }
-    const originalAmount = Number(body.originalAmount);
-    if (!Number.isFinite(originalAmount) || originalAmount <= 0) {
-        throw new Error("Original amount must be greater than zero.");
-    }
-    if (!currencies.includes(body.currency)) throw new Error("Select a valid currency.");
-    return {
-        id: createId("debt"),
-        person,
-        direction: body.direction,
-        originalAmount,
-        currency: body.currency,
-        notes: String(body.notes || "").trim(),
-        createdAt: new Date().toISOString()
-    };
-}
-
-function dbSaveDebt(body) {
-    const debt = dbValidateDebtPayload(body);
-    const debts = dbGetRawDebts();
-    debts.push(debt);
-    writeStore(DB_KEYS.debts, debts);
-    return debt;
-}
-
-function dbDeleteDebt(id) {
-    const debts = dbGetRawDebts();
-    const next = debts.filter((d) => d.id !== id);
-    if (next.length === debts.length) throw new Error("Debt not found.");
-    writeStore(DB_KEYS.debts, next);
-    // Remove linked transactions
-    const transactions = dbGetTransactions();
-    writeStore(
-        DB_KEYS.transactions,
-        transactions.filter((t) => t.debtId !== id)
-    );
-}
-
-function dbValidatePaymentPayload(body) {
-    const accounts = dbGetRawAccounts();
-    const accountNames = new Set(accounts.map((a) => a.name));
-    const amount = Number(body.amount);
-    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Payment amount must be greater than zero.");
-    if (!isValidDate(body.date)) throw new Error("Choose a valid date.");
-    const account = String(body.account || "").trim();
-    if (!account || !accountNames.has(account)) throw new Error("Select a valid account for this payment.");
-    const currency = accounts.find((a) => a.name === account).currency;
-    return {
-        id: createId("pmt"),
-        date: body.date,
-        amount,
-        account,
-        currency,
-        notes: String(body.notes || "").trim(),
-        createdAt: new Date().toISOString()
-    };
-}
-
-function dbAddPayment(debtId, body) {
-    const debts = dbGetRawDebts();
-    const debt = debts.find((d) => d.id === debtId);
-    if (!debt) throw new Error("Debt not found.");
-
-    const payment = dbValidatePaymentPayload(body);
-
-    const txn = {
-        id: createId("txn"),
-        date: payment.date,
-        account: payment.account,
-        destinationAccount: "",
-        cashflow: debt.direction === "i_owe" ? "out" : "in",
-        category: debt.direction === "i_owe" ? "Debt Payment" : "Debt Collection",
-        subcategory: "",
-        amount: payment.amount,
-        currency: payment.currency,
-        notes: payment.notes || (debt.direction === "i_owe" ? `Payment to ${debt.person}` : `Payment from ${debt.person}`),
-        debtId: debt.id,
-        paymentId: payment.id,
-        createdAt: payment.createdAt
-    };
-
-    const transactions = dbGetTransactions();
-    transactions.push(txn);
-    writeStore(DB_KEYS.transactions, transactions);
-
-    payment.transactionId = txn.id;
-    return payment;
-}
-
-function dbDeletePayment(debtId, paymentId) {
-    const transactions = dbGetTransactions();
-    const next = transactions.filter(
-        (t) => !(t.debtId === debtId && t.paymentId === paymentId)
-    );
-    if (next.length === transactions.length) throw new Error("Payment not found.");
-    writeStore(DB_KEYS.transactions, next);
-}
-
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 function dbComputeSummary(range = {}) {
     const transactions = dbGetTransactions();
     const accounts = dbComputeAccountSummaries();
-    const rates = getRates();
     const today = new Date().toISOString().slice(0, 7);
-
-    const toEUR = (amount, currency) => {
-        const rate = getRate(currency, rates);
-        return rate === null ? 0 : amount * rate;
-    };
 
     const hasRange = Boolean(range.from || range.to);
     const from = String(range.from || "").trim();
@@ -723,31 +459,31 @@ function dbComputeSummary(range = {}) {
 
     const income = scoped
         .filter((t) => t.cashflow === "in")
-        .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+        .reduce((s, t) => s + t.amount, 0);
     const expense = scoped
         .filter((t) => t.cashflow === "out")
-        .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+        .reduce((s, t) => s + t.amount, 0);
     const transfer = scoped
         .filter((t) => t.cashflow === "none")
-        .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+        .reduce((s, t) => s + t.amount, 0);
 
     const monthIncome = hasRange
         ? income
         : transactions
               .filter((t) => t.cashflow === "in" && String(t.date || "").startsWith(today))
-              .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+              .reduce((s, t) => s + t.amount, 0);
     const monthExpense = hasRange
         ? expense
         : transactions
               .filter((t) => t.cashflow === "out" && String(t.date || "").startsWith(today))
-              .reduce((s, t) => s + toEUR(t.amount, t.currency), 0);
+              .reduce((s, t) => s + t.amount, 0);
 
     const expenseByCategory = Object.entries(
         scoped
             .filter((t) => t.cashflow === "out")
             .reduce((groups, t) => {
                 const key = t.category || "Uncategorized";
-                groups[key] = (groups[key] || 0) + toEUR(t.amount, t.currency);
+                groups[key] = (groups[key] || 0) + t.amount;
                 return groups;
             }, {})
     )
@@ -756,8 +492,7 @@ function dbComputeSummary(range = {}) {
 
     return {
         totals: {
-            balance: accounts.reduce((s, a) => s + (typeof a.eurEquivalent === "number" ? a.eurEquivalent : 0), 0),
-            netWorthEUR: accounts.reduce((s, a) => s + (typeof a.eurEquivalent === "number" ? a.eurEquivalent : 0), 0),
+            balance: accounts.reduce((s, a) => s + a.currentBalance, 0),
             income,
             expense,
             transfer,
@@ -788,15 +523,5 @@ window.db = {
     getCategories: dbGetCategories,
     saveCategory: dbSaveCategory,
     saveSubcategory: dbSaveSubcategory,
-    getCurrencies: dbGetCurrencies,
-    getCurrencyRates: dbGetCurrencyRates,
-    saveCurrency: dbSaveCurrency,
-    updateCurrencyRate: dbUpdateCurrencyRate,
-    deleteCurrency: dbDeleteCurrency,
-    getDebts: dbComputeDebtSummaries,
-    saveDebt: dbSaveDebt,
-    deleteDebt: dbDeleteDebt,
-    addPayment: dbAddPayment,
-    deletePayment: dbDeletePayment,
     getSummary: dbComputeSummary
 };

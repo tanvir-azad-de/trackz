@@ -49,10 +49,6 @@ function populateTransactionSubcategories() {
     });
 }
 
-function isDebtTypeAllowed(type) {
-    return type === "out" || type === "in";
-}
-
 function filteredTransactions() {
     const search = getElement("search-filter").value.trim().toLowerCase();
     const type = getElement("type-filter").value;
@@ -85,7 +81,6 @@ function filteredTransactions() {
 function renderTransactions() {
     const rows = filteredTransactions();
     const list = getElement("list");
-    const debtNameById = new Map((window.state.debts || []).map((debt) => [debt.id, debt.person]));
 
     if (!rows.length) {
         list.innerHTML = '<div class="record-card empty-copy">No transactions match the current filters.</div>';
@@ -96,8 +91,7 @@ function renderTransactions() {
         .map((transaction) => {
             const amountClass = getTransactionSignedAmount(transaction) >= 0 ? "amount-positive" : "amount-negative";
             const amountPrefix = getTransactionSignedAmount(transaction) >= 0 ? "+" : "-";
-            const debtName = debtNameById.get(transaction.debtId);
-            const notesText = [transaction.notes, debtName ? `${debtName}` : ""].filter(Boolean).join(" / ") || "";
+            const notesText = transaction.notes || "";
             const categoryLabel = escapeHtml(transactionCategoryLabel(transaction, notesText));
             const dateText = escapeHtml(formatDate(transaction.date));
             const accountText = escapeHtml(transactionDescription(transaction));
@@ -135,25 +129,11 @@ function updateTransactionType() {
     getElement("category").disabled = isTransfer;
     getElement("subcategory").disabled = isTransfer;
     getElement("subcategory-group").hidden = isTransfer;
-    getElement("debt-group").hidden = isTransfer;
 
     if (isTransfer) {
         getElement("category").value = "";
         populateTransactionSubcategories();
     }
-}
-
-function populateDebtDropdown() {
-    const select = getElement("transaction-debt");
-    const debts = window.state.debts || [];
-    const options = ['<option value="">— None —</option>'];
-    
-    debts.forEach((debt) => {
-        const label = `${debt.person} (${debt.direction === "owed_to_me" ? "owes me" : "I owe"})`;
-        options.push(`<option value="${debt.id}">${escapeHtml(label)}</option>`);
-    });
-    
-    select.innerHTML = options.join("");
 }
 
 function resetTransactionForm() {
@@ -162,7 +142,6 @@ function resetTransactionForm() {
     getElement("notes").value = "";
     getElement("type").value = "out";
     getElement("destination-account").value = "";
-    getElement("transaction-debt").value = "";
     getElement("subcategory").value = "";
 
     if (window.state.accounts[0]) {
@@ -176,7 +155,6 @@ function resetTransactionForm() {
         getElement("category").value = window.state.categoryTree[0].name;
     }
 
-    populateDebtDropdown();
     populateTransactionSubcategories();
     updateTransactionType();
 }
@@ -192,13 +170,7 @@ function toggleForm(force) {
 }
 
 async function saveTransaction() {
-    const debtId = getElement("transaction-debt").value || "";
     const cashflow = getElement("type").value;
-
-    if (debtId && !isDebtTypeAllowed(cashflow)) {
-        showStatus("transaction-feedback", "Debt-linked transactions must be In or Out.", "error");
-        return;
-    }
 
     const payload = {
         date: getElement("date").value,
@@ -208,8 +180,7 @@ async function saveTransaction() {
         category: getElement("category").value,
         subcategory: getElement("subcategory").value,
         amount: Number(getElement("amount").value),
-        notes: getElement("notes").value.trim(),
-        debtId: debtId || undefined
+        notes: getElement("notes").value.trim()
     };
 
     try {
@@ -250,8 +221,6 @@ window.renderTransactions = renderTransactions;
 window.syncCurrencyWithAccount = syncCurrencyWithAccount;
 window.updateTransactionType = updateTransactionType;
 window.populateTransactionSubcategories = populateTransactionSubcategories;
-window.populateDebtDropdown = populateDebtDropdown;
-window.isDebtTypeAllowed = isDebtTypeAllowed;
 window.resetTransactionForm = resetTransactionForm;
 function toggleFilters() {
     const panel = getElement("filters-panel");

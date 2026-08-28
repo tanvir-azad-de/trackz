@@ -87,6 +87,16 @@ const DASHBOARD_TREND_SERIES = [
     { key: "netWorth", label: "Net Worth" }
 ];
 
+const DASHBOARD_BREAKDOWN_CONFIG = {
+    liquid: { title: "Assets: Liquid", source: "accounts" },
+    receivables: { title: "Assets: Receivables", source: "category", categoryType: "receivable" },
+    payables: { title: "Liabilities: Payables", source: "category", categoryType: "payable" },
+    expenses: { title: "Expenses", source: "category", categoryType: "expense", cashflow: "out" },
+    incomes: { title: "Incomes", source: "category", categoryType: "income", cashflow: "in" },
+    non_expenses: { title: "Non Expenses", source: "category", categoryType: "non_expense" },
+    non_incomes: { title: "Non Incomes", source: "category", categoryType: "non_income" }
+};
+
 const MONTH_NAMES = [
     "Jan",
     "Feb",
@@ -155,7 +165,6 @@ function hexToRgba(hexColor, alpha) {
 function getDashboardCurrency() {
     const accounts = window.state.accounts || [];
     const transactions = window.state.transactions || [];
-    const currencies = window.state.currencies || [];
 
     const transactionCurrency = transactions.find((transaction) => String(transaction.currency || "").trim())?.currency;
     if (transactionCurrency) {
@@ -167,31 +176,11 @@ function getDashboardCurrency() {
         return String(accountCurrency).toUpperCase();
     }
 
-    const listedCurrency = currencies.find((currency) => String(currency || "").trim());
-    if (listedCurrency) {
-        return String(listedCurrency).toUpperCase();
-    }
-
     return "EUR";
 }
 
-function convertAmountToDashboardCurrency(amount, fromCurrency) {
-    const targetCurrency = getDashboardCurrency();
-    const sourceCurrency = String(fromCurrency || targetCurrency).toUpperCase();
-
-    if (sourceCurrency === targetCurrency) {
-        return amount;
-    }
-
-    const rates = window.state.currencyRates || {};
-    const sourceRate = sourceCurrency === "EUR" ? 1 : rates[sourceCurrency];
-    const targetRate = targetCurrency === "EUR" ? 1 : rates[targetCurrency];
-
-    if (typeof sourceRate !== "number" || typeof targetRate !== "number" || targetRate === 0) {
-        return amount;
-    }
-
-    return (amount * sourceRate) / targetRate;
+function convertAmountToDashboardCurrency(amount, _fromCurrency) {
+    return Number(amount) || 0;
 }
 
 function shiftMonth(monthStr, delta) {
@@ -1285,6 +1274,215 @@ function renderQuickOverviewCard({ netWorthTotal, liquidAssetsTotal, receivables
     setAmount("quick-payables", payablesTotal, payablesTotal > 0);
 }
 
+function getDashboardDateRange() {
+    return {
+        from: getElement("dashboard-from").value,
+        to: getElement("dashboard-to").value
+    };
+}
+
+function getTransactionsInDashboardRange() {
+    const { from, to } = getDashboardDateRange();
+
+    return (window.state.transactions || []).filter((transaction) => {
+        const date = String(transaction.date || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+        if (from && date < from) return false;
+        if (to && date > to) return false;
+        return true;
+    });
+}
+
+function getLiquidAssetsBreakdownItems() {
+    const { to } = getDashboardDateRange();
+    const toMonth = to ? to.slice(0, 7) : null;
+
+    const items = getDashboardAccountNames().map((accountName) => {
+        const account = (window.state.accounts || []).find((entry) => entry.name === accountName);
+        const openingBalance = account ? Number(account.openingBalance) || 0 : 0;
+        const currency = account ? account.currency : getDashboardCurrency();
+        const monthlyBalances = window.db.getAccountMonthlyBalances(accountName) || [];
+        const endingBalance = getAccountBalanceAtMonthEnd(monthlyBalances, toMonth, openingBalance);
+        const converted = convertAmountToDashboardCurrency(endingBalance, currency);
+
+        return {
+            label: accountName,
+            amount: converted,
+            meta: `As of ${to || "today"}`,
+            drilldown: {
+                mode: "account",
+                account: accountName
+            }
+        };
+    });
+
+    return items
+        .filter((item) => Math.abs(item.amount) > 0)
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+}
+
+function getCategoryBreakdownItems({ categoryType, cashflow }) {
+    const normalizedType = String(categoryType || "").trim().toLowerCase();
+
+    const groups = {};
+    getTransactionsInDashboardRange()
+        .filter((transaction) => String(transaction.categoryType || "").trim().toLowerCase() === normalizedType)
+        .filter((transaction) => !cashflow || transaction.cashflow === cashflow)
+        .forEach((transaction) => {
+            const key = String(transaction.category || "Uncategorized").trim() || "Uncategorized";
+            if (!groups[key]) {
+                groups[key] = { label: key, amount: 0, count: 0 };
+            }
+
+            groups[key].amount += convertAmountToDashboardCurrency(transaction.amount, transaction.currency);
+            groups[key].count += 1;
+        });
+
+    return Object.values(groups)
+        .map((group) => ({
+            label: group.label,
+            amount: group.amount,
+            meta: `${group.count} tx`,
+            drilldown: {
+                mode: "category",
+                category: group.label,
+                cashflow: cashflow || ""
+            }
+        }))
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+}
+
+function getBreakdownItemsByType(type) {
+    const config = DASHBOARD_BREAKDOWN_CONFIG[type];
+    if (!config) {
+        return { title: "Breakdown", items: [] };
+    }
+
+    if (config.source === "accounts") {
+        return { title: config.title, items: getLiquidAssetsBreakdownItems() };
+    }
+
+    return {
+        title: config.title,
+        items: getCategoryBreakdownItems({ categoryType: config.categoryType, cashflow: config.cashflow })
+    };
+}
+
+function renderDashboardBreakdownList(items) {
+    const dashboardCurrency = getDashboardCurrency();
+    const list = getElement("dashboard-breakdown-list");
+
+    if (!items.length) {
+        list.innerHTML = '<p class="empty-copy">No entries for this date range.</p>';
+        return 0;
+    }
+
+    list.innerHTML = items
+        .map((item) => {
+            const amountClass = item.amount < 0 ? "amount-negative" : "amount-positive";
+            const encodedDrilldown = encodeURIComponent(JSON.stringify(item.drilldown || {}));
+            return `
+                <button class="list-row dashboard-breakdown-row" type="button" onclick="openDashboardBreakdownTransactions('${encodedDrilldown}')">
+                    <div>
+                        <strong>${escapeHtml(item.label)}</strong>
+                        <div class="dashboard-breakdown-meta">${escapeHtml(item.meta || "")}</div>
+                    </div>
+                    <strong class="${amountClass}">${escapeHtml(formatMoney(item.amount, dashboardCurrency))}</strong>
+                </button>
+            `;
+        })
+        .join("");
+
+    return items.reduce((sum, item) => sum + item.amount, 0);
+}
+
+function openDashboardBreakdownModal(type) {
+    const modal = getElement("dashboard-breakdown-modal");
+    const titleElement = getElement("dashboard-breakdown-title");
+    const subtitleElement = getElement("dashboard-breakdown-subtitle");
+    const totalElement = getElement("dashboard-breakdown-total");
+
+    const { title, items } = getBreakdownItemsByType(type);
+    const total = renderDashboardBreakdownList(items);
+    const dashboardCurrency = getDashboardCurrency();
+    const { from, to } = getDashboardDateRange();
+
+    titleElement.textContent = title;
+    subtitleElement.textContent = from && to ? `${formatDate(from)} → ${formatDate(to)}` : "All dates";
+    totalElement.textContent = formatMoney(total, dashboardCurrency);
+    totalElement.classList.toggle("amount-negative", total < 0);
+    totalElement.classList.toggle("amount-positive", total >= 0);
+
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+}
+
+function openDashboardBreakdownTransactions(encodedDrilldown) {
+    let drilldown = {};
+    try {
+        drilldown = JSON.parse(decodeURIComponent(String(encodedDrilldown || "")));
+    } catch {
+        return;
+    }
+
+    const searchInput = getElement("search-filter");
+    const typeFilter = getElement("type-filter");
+    const accountFilter = getElement("account-filter");
+    const fromFilter = getElement("tx-from");
+    const toFilter = getElement("tx-to");
+    const { from, to } = getDashboardDateRange();
+
+    if (searchInput) searchInput.value = "";
+    if (typeFilter) typeFilter.value = "";
+    if (accountFilter) accountFilter.value = "";
+
+    if (drilldown.mode === "account") {
+        if (accountFilter) accountFilter.value = drilldown.account || "";
+    } else if (drilldown.mode === "category") {
+        if (searchInput) searchInput.value = drilldown.category || "";
+        if (typeFilter && drilldown.cashflow) typeFilter.value = drilldown.cashflow;
+    }
+
+    if (fromFilter) fromFilter.value = from || "";
+    if (toFilter) toFilter.value = to || "";
+
+    closeDashboardBreakdownModal();
+    page("transactions");
+
+    const filtersPanel = getElement("filters-panel");
+    if (filtersPanel && filtersPanel.hidden) {
+        filtersPanel.hidden = false;
+    }
+
+    renderTransactions();
+}
+
+function closeDashboardBreakdownModal() {
+    const modal = getElement("dashboard-breakdown-modal");
+    modal.hidden = true;
+    document.body.style.overflow = "";
+}
+
+function handleDashboardBreakdownBackdropClick(event) {
+    if (event.target && event.target.id === "dashboard-breakdown-modal") {
+        closeDashboardBreakdownModal();
+    }
+}
+
+function handleDashboardDrilldownCardKey(event, type) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openDashboardBreakdownModal(type);
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const modal = getElement("dashboard-breakdown-modal");
+    if (modal && !modal.hidden) {
+        closeDashboardBreakdownModal();
+    }
+});
+
 function renderOverviewCard({ incomeTotal, netExpenseTotal, netWorthTotal, reconciliationGap }) {
     const dashboardCurrency = getDashboardCurrency();
     const incomeElement = getElement("overview-income-total");
@@ -1677,3 +1875,8 @@ window.initializeDashboardRange = initializeDashboardRange;
 window.onDashboardRangeChange = onDashboardRangeChange;
 window.renderDashboard = renderDashboard;
 window.toggleDashboardFilters = toggleDashboardFilters;
+window.openDashboardBreakdownModal = openDashboardBreakdownModal;
+window.openDashboardBreakdownTransactions = openDashboardBreakdownTransactions;
+window.closeDashboardBreakdownModal = closeDashboardBreakdownModal;
+window.handleDashboardBreakdownBackdropClick = handleDashboardBreakdownBackdropClick;
+window.handleDashboardDrilldownCardKey = handleDashboardDrilldownCardKey;

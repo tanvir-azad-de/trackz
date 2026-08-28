@@ -216,17 +216,6 @@ body {
 	color: var(--color-text);
 }
 
-.inline-input {
-	width: 120px;
-	padding: 4px 8px;
-	font-size: 0.875rem;
-	border: 1px solid var(--color-border, #ccc);
-	border-radius: 4px;
-	background: var(--color-input-bg, transparent);
-	color: var(--color-text);
-	text-align: right;
-}
-
 main {
 	flex: 1;
 	padding: 32px;
@@ -343,6 +332,21 @@ small {
 	box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
 }
 
+.dashboard-drilldown-card {
+	cursor: pointer;
+	transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dashboard-drilldown-card:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+}
+
+.dashboard-drilldown-card:focus-visible {
+	outline: 2px solid var(--color-primary-focus-ring);
+	outline-offset: 2px;
+}
+
 .quick-overview-card {
 	padding-top: 16px;
 }
@@ -457,10 +461,70 @@ small {
 	border-bottom: 0;
 }
 
-#asset-liability-chart,
-#debt-overview {
+.dashboard-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.45);
+	backdrop-filter: blur(2px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	z-index: 120;
+}
+
+.dashboard-modal-card {
+	width: min(680px, 100%);
+	max-height: calc(100vh - 40px);
+	overflow: auto;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border-light);
+	border-radius: 16px;
+	padding: 16px;
+	box-shadow: 0 24px 48px rgba(15, 23, 42, 0.24);
 	display: grid;
-	gap: 14px;
+	gap: 12px;
+}
+
+.dashboard-modal-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px;
+}
+
+.dashboard-modal-total-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 0;
+	border-top: 1px solid var(--color-border-light);
+	border-bottom: 1px solid var(--color-border-light);
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.dashboard-breakdown-meta {
+	font-size: 12px;
+	color: var(--color-text-muted);
+}
+
+.dashboard-breakdown-row {
+	width: 100%;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.dashboard-breakdown-row:hover {
+	background: var(--color-surface-muted);
+}
+
+.dashboard-breakdown-row:focus-visible {
+	outline: 2px solid var(--color-primary-focus-ring);
+	outline-offset: 1px;
 }
 
 .empty-copy,
@@ -624,11 +688,6 @@ small {
 	color: var(--color-text-muted);
 }
 
-.currency-card .inline-input {
-	width: 132px;
-	text-align: right;
-}
-
 .category-card {
 	grid-template-columns: 1fr;
 }
@@ -716,8 +775,7 @@ select:focus {
 }
 
 #subcategory-group[hidden],
-#destination-account-group[hidden],
-#debt-group[hidden] {
+#destination-account-group[hidden] {
 	display: none;
 }
 
@@ -860,66 +918,6 @@ select:focus {
 	font-weight: 700;
 }
 
-/* Debts page */
-
-.debts-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 24px;
-}
-
-.debts-section-title {
-	margin: 0 0 14px;
-	color: var(--color-text-subtle);
-	font-size: 13px;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-}
-
-.debt-list {
-	display: grid;
-	gap: 16px;
-}
-
-.debt-card {
-	padding: 18px;
-}
-
-.debt-settled {
-	opacity: 0.6;
-}
-
-.debt-card-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: flex-start;
-	margin-bottom: 14px;
-}
-
-.debt-person {
-	font-size: 16px;
-}
-
-.debt-amounts {
-	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: 12px;
-	margin-bottom: 14px;
-}
-
-.debt-amounts div {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.debt-progress {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	margin-bottom: 14px;
-}
-
 .progress-bar {
 	flex: 1;
 	height: 6px;
@@ -935,13 +933,6 @@ select:focus {
 	transition: width 0.3s ease;
 }
 
-.debt-payments summary {
-	cursor: pointer;
-	font-size: 13px;
-	color: var(--color-text-subtle);
-	padding: 4px 0;
-}
-
 .payments-list {
 	margin-top: 10px;
 }
@@ -954,23 +945,6 @@ select:focus {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-}
-
-.payment-form-inline {
-	display: grid;
-	grid-template-columns: 140px 120px 1fr 1fr auto;
-	gap: 8px;
-	margin-top: 12px;
-	align-items: end;
-}
-
-.payment-form-inline input,
-.payment-form-inline select {
-	margin: 0;
-}
-
-.debts-grid {
-	grid-template-columns: 1fr;
 }
 
 .nav {
@@ -1207,12 +1181,6 @@ small {
 	border-bottom: 0;
 }
 
-#asset-liability-chart,
-#debt-overview {
-	display: grid;
-	gap: 14px;
-}
-
 .empty-copy,
 .empty-cell {
 	color: #64748b;
@@ -1301,8 +1269,7 @@ select:focus {
 }
 
 #subcategory-group[hidden],
-#destination-account-group[hidden],
-#debt-group[hidden] {
+#destination-account-group[hidden] {
 	display: none;
 }
 
@@ -1444,66 +1411,6 @@ select:focus {
 	font-weight: 700;
 }
 
-/* Debts page */
-
-.debts-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 24px;
-}
-
-.debts-section-title {
-	margin: 0 0 14px;
-	color: #475569;
-	font-size: 13px;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-}
-
-.debt-list {
-	display: grid;
-	gap: 16px;
-}
-
-.debt-card {
-	padding: 18px;
-}
-
-.debt-settled {
-	opacity: 0.6;
-}
-
-.debt-card-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: flex-start;
-	margin-bottom: 14px;
-}
-
-.debt-person {
-	font-size: 16px;
-}
-
-.debt-amounts {
-	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: 12px;
-	margin-bottom: 14px;
-}
-
-.debt-amounts div {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.debt-progress {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	margin-bottom: 14px;
-}
-
 .progress-bar {
 	flex: 1;
 	height: 6px;
@@ -1517,13 +1424,6 @@ select:focus {
 	background: #2563eb;
 	border-radius: 999px;
 	transition: width 0.3s ease;
-}
-
-.debt-payments summary {
-	cursor: pointer;
-	font-size: 13px;
-	color: #475569;
-	padding: 4px 0;
 }
 
 .payments-list {
@@ -1540,18 +1440,6 @@ select:focus {
 	gap: 8px;
 }
 
-.payment-form-inline {
-	display: grid;
-	grid-template-columns: 140px 120px 1fr 1fr auto;
-	gap: 8px;
-	margin-top: 12px;
-	align-items: end;
-}
-
-.payment-form-inline input,
-.payment-form-inline select {
-	margin: 0;
-}
 /* ── Mobile (≤768px) ─────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
 	.layout {
@@ -1628,10 +1516,6 @@ select:focus {
 		grid-template-columns: 1fr;
 	}
 
-	.payment-form-inline {
-		grid-template-columns: 1fr 1fr;
-	}
-
 	.card {
 		padding: 14px;
 		border-radius: 14px;
@@ -1642,14 +1526,6 @@ select:focus {
 	}
 
 	.stats-grid {
-		grid-template-columns: 1fr 1fr;
-	}
-
-	.debts-grid {
-		grid-template-columns: 1fr;
-	}
-
-	.debt-amounts {
 		grid-template-columns: 1fr 1fr;
 	}
 
@@ -1677,10 +1553,6 @@ select:focus {
 		padding: 8px 10px;
 	}
 
-	.currency-card .inline-input {
-		width: 118px;
-	}
-
 	.tx-filters {
 		gap: 6px;
 	}
@@ -1696,14 +1568,6 @@ select:focus {
 
 /* ── Small phones (≤480px) ───────────────────────────────────────────────── */
 @media (max-width: 360px) {
-	.payment-form-inline {
-		grid-template-columns: 1fr;
-	}
-
-	.debt-amounts {
-		grid-template-columns: 1fr;
-	}
-
 	.record-card {
 		grid-template-columns: 1fr;
 	}
@@ -1715,11 +1579,6 @@ select:focus {
 
 	.record-amount {
 		font-size: 14px;
-	}
-
-	.currency-card .inline-input {
-		width: 100%;
-		max-width: 180px;
 	}
 
 	.stats-grid {

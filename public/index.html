@@ -47,14 +47,6 @@
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg>
                     Categories
                 </button>
-                <button class="nav-button" data-page="debts" onclick="page('debts')">
-                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                    Debts
-                </button>
-                <button class="nav-button" data-page="currencies" onclick="page('currencies')">
-                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                    Currencies
-                </button>
             </nav>
             <div class="sidebar-footer">
                 <div class="sidebar-footer-actions">
@@ -154,7 +146,7 @@
                     </article>
 
                     <div class="dashboard-row">
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('liquid')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'liquid')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Assets: Liquid</h3>
@@ -163,7 +155,7 @@
                             </div>
                             <div id="source-accounts-balance-chart" class="line-chart"></div>
                         </article>
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('receivables')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'receivables')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Assets: Receivables</h3>
@@ -172,7 +164,7 @@
                             </div>
                             <div id="loan-kaution-balance-chart" class="line-chart"></div>
                         </article>
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('payables')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'payables')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Liabilities: Payables</h3>
@@ -184,7 +176,7 @@
                     </div>
 
                     <div class="dashboard-row">
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('expenses')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'expenses')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Expenses</h3>
@@ -193,7 +185,7 @@
                             </div>
                             <div id="expense-category-chart" class="line-chart"></div>
                         </article>
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('incomes')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'incomes')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Incomes</h3>
@@ -202,7 +194,7 @@
                             </div>
                             <div id="income-category-chart" class="line-chart"></div>
                         </article>
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('non_expenses')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'non_expenses')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Non Expenses</h3>
@@ -213,7 +205,7 @@
                         </article>
 
 
-                        <article class="card">
+                        <article class="card dashboard-drilldown-card" onclick="openDashboardBreakdownModal('non_incomes')" role="button" tabindex="0" onkeydown="handleDashboardDrilldownCardKey(event, 'non_incomes')">
                             <div class="panel-head">
                                 <div>
                                     <h3>Non Incomes</h3>
@@ -267,6 +259,23 @@
                     
                 </div>
             </section>
+
+            <div id="dashboard-breakdown-modal" class="dashboard-modal-overlay" hidden onclick="handleDashboardBreakdownBackdropClick(event)">
+                <div class="dashboard-modal-card" role="dialog" aria-modal="true" aria-labelledby="dashboard-breakdown-title">
+                    <div class="dashboard-modal-head">
+                        <div>
+                            <h3 id="dashboard-breakdown-title">Breakdown</h3>
+                            <small id="dashboard-breakdown-subtitle" class="muted"></small>
+                        </div>
+                        <button class="ghost-button" type="button" onclick="closeDashboardBreakdownModal()">Close</button>
+                    </div>
+                    <div class="dashboard-modal-total-row">
+                        <span>Total</span>
+                        <strong id="dashboard-breakdown-total" class="amount-positive">€0.00</strong>
+                    </div>
+                    <div id="dashboard-breakdown-list" class="list-stack"></div>
+                </div>
+            </div>
 
             <section id="transactions" hidden>
                 <div class="page-header">
@@ -349,13 +358,6 @@
                             <select id="subcategory"></select>
                         </label>
 
-                        <label id="debt-group" hidden>
-                            <span>Debt (opt.)</span>
-                            <select id="transaction-debt">
-                                <option value="">— None —</option>
-                            </select>
-                        </label>
-
                         <label>
                             <span>Notes</span>
                             <input id="notes" placeholder="Optional notes">
@@ -394,11 +396,6 @@
                         <label>
                             <span>Account name</span>
                             <input id="account-name" placeholder="Account name">
-                        </label>
-
-                        <label>
-                            <span>Currency</span>
-                            <select id="account-currency"></select>
                         </label>
 
                         <label>
@@ -469,106 +466,6 @@
                 </div>
             </section>
 
-            <section id="debts" hidden>
-                <div class="page-header">
-                    <div class="page-header-main">
-                        <div>
-                            <h1>Debts</h1>
-                        </div>
-                        <div class="page-header-actions">
-                            <button class="icon-button primary-button" title="Add Debt" onclick="toggleDebtForm(true)">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="debt-feedback" class="status" hidden></div>
-
-                <div id="debt-form" class="card form-panel" hidden>
-                    <div class="form-grid">
-                        <label>
-                            <span>Person</span>
-                            <input id="debt-person" placeholder="Name">
-                        </label>
-
-                        <label>
-                            <span>Direction</span>
-                            <select id="debt-direction">
-                                <option value="owed_to_me">They owe me</option>
-                                <option value="i_owe">I owe them</option>
-                            </select>
-                        </label>
-
-                        <label>
-                            <span>Amount</span>
-                            <input id="debt-amount" type="number" min="0.01" step="0.01" placeholder="Amount">
-                        </label>
-
-                        <label>
-                            <span>Currency</span>
-                            <select id="debt-currency"></select>
-                        </label>
-
-                        <label>
-                            <span>Notes</span>
-                            <input id="debt-notes" placeholder="Optional notes">
-                        </label>
-                    </div>
-
-                    <div class="form-actions">
-                        <button class="primary-button" onclick="saveDebt()">Save debt</button>
-                        <button class="ghost-button" onclick="toggleDebtForm(false)">Cancel</button>
-                    </div>
-                </div>
-
-                <div class="debts-grid">
-                    <div>
-                        <h3 class="debts-section-title">They owe me</h3>
-                        <div id="debts-owed-to-me" class="debt-list"></div>
-                    </div>
-                    <div>
-                        <h3 class="debts-section-title">I owe them</h3>
-                        <div id="debts-i-owe" class="debt-list"></div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="currencies" hidden>
-                <div class="page-header">
-                    <div class="page-header-main">
-                        <div><h1>Currencies</h1></div>
-                        <div class="page-header-actions">
-                            <button class="icon-button primary-button" title="Add Currency" onclick="toggleCurrencyForm(true)">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="currency-feedback" class="status" hidden></div>
-
-                <div id="currency-form" class="card form-panel" hidden>
-                    <div class="form-grid">
-                        <label>
-                            <span>Currency Code</span>
-                            <input id="currency-code" placeholder="e.g. USD" maxlength="5" style="text-transform:uppercase">
-                        </label>
-                        <label>
-                            <span>Rate (per 1 EUR)</span>
-                            <input id="currency-rate" type="number" min="0.000001" step="any" placeholder="e.g. 1.08">
-                        </label>
-                    </div>
-                    <div class="form-actions">
-                        <button class="primary-button" onclick="saveCurrency()">Save currency</button>
-                        <button class="ghost-button" onclick="toggleCurrencyForm(false)">Cancel</button>
-                    </div>
-                </div>
-
-                <div class="record-list-panel card">
-                    <div id="currency-list" class="records-grid"></div>
-                </div>
-            </section>
         </main>
     </div>
     </div><!-- /app-root -->
@@ -584,10 +481,8 @@
     <script src="js/transactions.js"></script>
     <script src="js/accounts.js"></script>
     <script src="js/categories.js"></script>
-    <script src="js/currencies.js"></script>
     <script src="vendor/chart.umd.min.js"></script>
     <script src="js/dashboard.js"></script>
-    <script src="js/debts.js"></script>
     <script src="js/app-shell.js"></script>
     <script src="app.js"></script>
     <script>document.getElementById('app-version').textContent = 'v' + (window.TRACKZ_VERSION || 'unknown');</script>
