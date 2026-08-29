@@ -505,7 +505,7 @@ function getNetWorthPoints({ granularity, mode = "absolute" }) {
 function getDashboardTrendData() {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
-    const granularity = getDashboardRangeGranularity(from, to);
+    const granularity = "month";
 
     if (!from || !to) {
         return null;
@@ -586,14 +586,19 @@ function renderDashboardTrendChart() {
     chart.innerHTML = '<canvas id="dashboard-trend-chart-canvas"></canvas>';
 
     const canvas = getElement("dashboard-trend-chart-canvas");
-    const incomeColor = getThemeColor("--color-positive-mid", "#16a34a");
-    const expenseColor = getThemeColor("--color-negative-mid", "#dc2626");
+    const incomeColor = getThemeColor("--color-info-mid", "#16a34a20");
+    const expenseColor = getThemeColor("--color-warning-mid", "#dc262620");
+    const balancePositiveColor = getThemeColor("--color-positive-mid", "#16a34a");
+    const balanceNegativeColor = getThemeColor("--color-negative-mid", "#dc2626");
     const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
     const textColor = getThemeColor("--color-text-muted", "#64748b");
     const axisColor = getThemeColor("--color-border", "#cbd5e1");
 
     const incomeTotal = Object.values(trendData.series.income).reduce((sum, amount) => sum + amount, 0);
     const netExpenseTotal = Object.values(trendData.series.netExpenses).reduce((sum, amount) => sum + amount, 0);
+    const monthlyBalance = trendData.labels.map(
+        (month) => (trendData.series.income[month] || 0) - (trendData.series.netExpenses[month] || 0)
+    );
     const netWorthValues = Object.values(trendData.series.netWorth);
     const netWorthTotal = netWorthValues.length ? netWorthValues[netWorthValues.length - 1] : 0;
     const netWorthAbsoluteValues = Object.values(trendData.series.netWorthAbsolute || {});
@@ -608,30 +613,53 @@ function renderDashboardTrendChart() {
             labels: trendData.labels.map((period) => formatDashboardPeriodLabel(period, trendData.granularity)),
             datasets: [
                 {
-                    label: `Net Expenses: ${formatMoney(netExpenseTotal, dashboardCurrency)}`,
-                    data: trendData.labels.map((month) => trendData.series.netExpenses[month] ?? null),
+                    label: "Net Expenses",
+                    type: "bar",
+                    grouped: false,
+                    data: trendData.labels.map((month) => {
+                        const value = trendData.series.netExpenses[month];
+                        return value == null ? null : -value;
+                    }),
                     borderColor: expenseColor,
-                    backgroundColor: hexToRgba(expenseColor, 0.1),
+                    backgroundColor: hexToRgba(expenseColor, 0.45),
                     pointBackgroundColor: expenseColor,
                     pointBorderColor: expenseColor,
-                    pointRadius: 0,
-                    pointHoverRadius: 3,
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: true
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.72,
+                    categoryPercentage: 0.76
                 },
                 {
-                    label: `Income: ${formatMoney(incomeTotal, dashboardCurrency)}`,
+                    label: "Income",
+                    type: "bar",
+                    grouped: false,
                     data: trendData.labels.map((month) => trendData.series.income[month] ?? null),
                     borderColor: incomeColor,
-                    backgroundColor: hexToRgba(incomeColor, 0.1),
+                    backgroundColor: hexToRgba(incomeColor, 0.45),
                     pointBackgroundColor: incomeColor,
                     pointBorderColor: incomeColor,
-                    pointRadius: 0,
-                    pointHoverRadius: 3,
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.72,
+                    categoryPercentage: 0.76
+                },
+                {
+                    label: "Surplus / Deficit",
+                    type: "bar",
+                    grouped: false,
+                    data: monthlyBalance,
+                    borderColor(context) {
+                        const value = context.parsed?.y ?? 0;
+                        return value >= 0 ? balancePositiveColor : balanceNegativeColor;
+                    },
+                    backgroundColor(context) {
+                        const value = context.parsed?.y ?? 0;
+                        return hexToRgba(value >= 0 ? balancePositiveColor : balanceNegativeColor, 0.65);
+                    },
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.36,
+                    categoryPercentage: 0.76
                 },
                 
             ]
@@ -686,7 +714,7 @@ function renderDashboardTrendChart() {
                     }
                 },
                 y: {
-                    beginAtZero: false,
+                    beginAtZero: true,
                     ticks: {
                         color: textColor,
                         callback(value) {
