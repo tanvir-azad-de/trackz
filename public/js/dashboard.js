@@ -19,6 +19,14 @@ function ensureDashboardRangeDefaults() {
     const fromInput = getElement("dashboard-from");
     const toInput = getElement("dashboard-to");
 
+    if (!fromInput.value && !toInput.value) {
+        const defaultRange = getDashboardRangeByPreset("last_3_months");
+        if (defaultRange) {
+            fromInput.value = defaultRange.from;
+            toInput.value = defaultRange.to;
+        }
+    }
+
     if (!fromInput.value) {
         fromInput.value = defaultDashboardFromDate();
     }
@@ -26,6 +34,88 @@ function ensureDashboardRangeDefaults() {
     if (!toInput.value) {
         toInput.value = toISODate(new Date());
     }
+
+    syncDashboardRangePresetFromInputs();
+}
+
+function getDashboardAvailableDateBounds() {
+    const transactions = window.state.transactions || [];
+    const validDates = transactions
+        .map((transaction) => String(transaction?.date || "").trim())
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date));
+
+    if (!validDates.length) {
+        const today = toISODate(new Date());
+        return { from: today, to: today };
+    }
+
+    const from = validDates.reduce((earliest, date) => (date < earliest ? date : earliest));
+    const to = validDates.reduce((latest, date) => (date > latest ? date : latest));
+    return { from, to };
+}
+
+function getDashboardThisMonthRange() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    return {
+        from: `${year}-${month}-01`,
+        to: toISODate(today)
+    };
+}
+
+function getDashboardLastMonthsRange(monthCount) {
+    const today = new Date();
+    const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (monthCount - 1), 1));
+    return {
+        from: start.toISOString().slice(0, 10),
+        to: toISODate(today)
+    };
+}
+
+function getDashboardYearToDateRange() {
+    const today = new Date();
+    const start = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+    return {
+        from: start.toISOString().slice(0, 10),
+        to: toISODate(today)
+    };
+}
+
+function getDashboardRangeByPreset(preset) {
+    switch (preset) {
+        case "this_month":
+            return getDashboardThisMonthRange();
+        case "last_3_months":
+            return getDashboardLastMonthsRange(3);
+        case "last_6_months":
+            return getDashboardLastMonthsRange(6);
+        case "year_to_date":
+            return getDashboardYearToDateRange();
+        case "all_time":
+            return getDashboardAvailableDateBounds();
+        default:
+            return null;
+    }
+}
+
+function syncDashboardRangePresetFromInputs() {
+    const presetInput = getElement("dashboard-range-preset");
+    if (!presetInput) return;
+
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+
+    const orderedPresets = ["this_month", "last_3_months", "last_6_months", "year_to_date", "all_time"];
+    for (const preset of orderedPresets) {
+        const range = getDashboardRangeByPreset(preset);
+        if (range && from === range.from && to === range.to) {
+            presetInput.value = preset;
+            return;
+        }
+    }
+
+    presetInput.value = "custom";
 }
 
 function updateDashboardRangeCaptions() {
@@ -62,6 +152,33 @@ function initializeDashboardRange() {
 }
 
 function onDashboardRangeChange() {
+    syncDashboardRangePresetFromInputs();
+    refreshDashboardSummaryForRange();
+}
+
+function onDashboardRangePresetChange() {
+    const presetInput = getElement("dashboard-range-preset");
+    if (!presetInput) {
+        refreshDashboardSummaryForRange();
+        return;
+    }
+
+    if (presetInput.value === "custom") {
+        refreshDashboardSummaryForRange();
+        return;
+    }
+
+    const fromInput = getElement("dashboard-from");
+    const toInput = getElement("dashboard-to");
+
+    const range = getDashboardRangeByPreset(presetInput.value);
+    if (!range) {
+        refreshDashboardSummaryForRange();
+        return;
+    }
+
+    fromInput.value = range.from;
+    toInput.value = range.to;
     refreshDashboardSummaryForRange();
 }
 
@@ -179,6 +296,29 @@ function getDashboardCurrency() {
     return "EUR";
 }
 
+function getTransactionCategoryType(transaction) {
+    const explicitType = String(transaction?.categoryType || "").trim().toLowerCase();
+    if (explicitType) {
+        return explicitType;
+    }
+
+    const categoryName = String(transaction?.category || "").trim().toLowerCase();
+    if (categoryName) {
+        const categories = window.state.categories || [];
+        const matchedCategory = categories.find((item) => String(item?.name || "").trim().toLowerCase() === categoryName);
+        const mappedType = String(matchedCategory?.categoryType || "").trim().toLowerCase();
+        if (mappedType) {
+            return mappedType;
+        }
+    }
+
+    const cashflow = String(transaction?.cashflow || "").trim().toLowerCase();
+    if (cashflow === "in") return "income";
+    if (cashflow === "out") return "expense";
+    if (cashflow === "none") return "transfer";
+    return "";
+}
+
 function convertAmountToDashboardCurrency(amount, _fromCurrency) {
     return Number(amount) || 0;
 }
@@ -187,6 +327,92 @@ function shiftMonth(monthStr, delta) {
     const [y, m] = monthStr.split("-").map(Number);
     const d = new Date(Date.UTC(y, m - 1 + delta, 1));
     return d.toISOString().slice(0, 7);
+}
+
+function getMonthEndDate(monthStr) {
+    const [year, month] = String(monthStr || "").split("-").map(Number);
+    if (!Number.isFinite(year) || !Number.isFinite(month)) {
+        return null;
+    }
+
+    return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
+
+function minISODate(left, right) {
+    if (!left) return right;
+    if (!right) return left;
+    return left < right ? left : right;
+}
+
+function getPreviousISODate(date) {
+    if (!date) return "";
+
+    const cursor = new Date(`${date}T00:00:00Z`);
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    return cursor.toISOString().slice(0, 10);
+}
+
+function getDashboardRangeGranularity(from, to) {
+    if (!from || !to) return "month";
+
+    const [fromYear, fromMonth] = from.slice(0, 7).split("-").map(Number);
+    const [toYear, toMonth] = to.slice(0, 7).split("-").map(Number);
+    if (!Number.isFinite(fromYear) || !Number.isFinite(fromMonth) || !Number.isFinite(toYear) || !Number.isFinite(toMonth)) {
+        return "month";
+    }
+
+    const monthSpanInclusive = (toYear - fromYear) * 12 + (toMonth - fromMonth) + 1;
+    return monthSpanInclusive <= 3 ? "day" : "month";
+}
+
+function getDayRange(from, to) {
+    if (!from || !to) return [];
+
+    const days = [];
+    let cursor = new Date(`${from}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
+
+    while (cursor <= end) {
+        days.push(cursor.toISOString().slice(0, 10));
+        cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() + 1));
+    }
+
+    return days;
+}
+
+function getDashboardPeriodRange({ from, to, granularity }) {
+    if (!from || !to) return [];
+    if (granularity === "day") {
+        return getDayRange(from, to);
+    }
+
+    return getMonthRange(from.slice(0, 7), to.slice(0, 7));
+}
+
+function getPeriodKeyFromDate(date, granularity) {
+    return granularity === "day" ? String(date || "") : String(date || "").slice(0, 7);
+}
+
+function formatDashboardPeriodLabel(periodKey, granularity) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(periodKey || ""))) {
+        return formatDate(periodKey);
+    }
+
+    return formatMonthLabel(periodKey);
+}
+
+function getBaselinePeriodKey({ from, baselineDate, granularity }) {
+    if (!baselineDate) return "";
+    if (granularity === "day") return baselineDate;
+
+    const fromDay = Number(String(from || "").slice(8, 10));
+    if (fromDay === 1) {
+        return shiftMonth(String(from || "").slice(0, 7), -1);
+    }
+
+    // For monthly charts starting mid-month, keep the baseline keyed by exact date
+    // so the starting value is not incorrectly displayed under the previous month label.
+    return baselineDate;
 }
 
 function getMonthRange(fromMonth, toMonth) {
@@ -238,10 +464,10 @@ function getNetBalancePoints({ subtractPoints, fromPoints }) {
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
 }
 
-function getNetWorthPoints() {
-    const liquidPoints = getLiquidAssetsPoints();
-    const receivablePoints = getCategoryTypeBalancePoints({ categoryType: "receivable", positiveCashflow: "out" });
-    const payablePoints = getCategoryTypeBalancePoints({ categoryType: "payable", positiveCashflow: "in" });
+function getNetWorthPoints({ granularity, mode = "absolute" }) {
+    const liquidPoints = getLiquidAssetsPoints({ granularity, mode });
+    const receivablePoints = getCategoryTypeBalancePoints({ categoryType: "receivable", positiveCashflow: "out", granularity, mode });
+    const payablePoints = getCategoryTypeBalancePoints({ categoryType: "payable", positiveCashflow: "in", granularity, mode });
 
     const liquidByMonth = {};
     liquidPoints.forEach((point) => {
@@ -279,17 +505,16 @@ function getNetWorthPoints() {
 function getDashboardTrendData() {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
-    const fromMonth = from ? from.slice(0, 7) : null;
-    const toMonth = to ? to.slice(0, 7) : null;
+    const granularity = getDashboardRangeGranularity(from, to);
 
-    if (!fromMonth || !toMonth) {
+    if (!from || !to) {
         return null;
     }
 
-    const incomePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["income"] });
-    const expensePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["expense"], cashflow: "out" });
-    const nonExpensePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["non_expense"] });
-    const nonIncomePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["non_income"] });
+    const incomePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["income"], granularity });
+    const expensePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["expense"], cashflow: "out", granularity });
+    const nonExpensePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["non_expense"], granularity });
+    const nonIncomePoints = getMonthlyPointsByCategoryType({ categoryTypes: ["non_income"], granularity });
     const expensesByMonth = {};
     expensePoints.forEach((point) => {
         expensesByMonth[point.month] = (expensesByMonth[point.month] || 0) + point.amount;
@@ -312,7 +537,7 @@ function getDashboardTrendData() {
         month,
         amount: (expensesByMonth[month] || 0) - (nonIncomeByMonth[month] || 0)
     }));
-    const netWorthPoints = getNetWorthPoints();
+    const netWorthAbsolutePoints = getNetWorthPoints({ granularity, mode: "absolute" });
 
     const seriesToMap = (points) => {
         const lookup = {};
@@ -322,20 +547,23 @@ function getDashboardTrendData() {
         return lookup;
     };
 
-    const labels = Array.from(
-        new Set([
-            ...incomePoints.map((point) => point.month),
-            ...netExpensePoints.map((point) => point.month),
-            ...netWorthPoints.map((point) => point.month)
-        ])
-    ).sort();
+    const labels = getDashboardPeriodRange({ from, to, granularity });
+    const incomeByMonth = seriesToMap(incomePoints);
+    const netExpenseByMonth = seriesToMap(netExpensePoints);
+    const netWorthAbsoluteByMonth = seriesToMap(netWorthAbsolutePoints);
+
+    const netWorthByMonth = Object.fromEntries(
+        labels.map((period) => [period, (incomeByMonth[period] || 0) - (netExpenseByMonth[period] || 0)])
+    );
 
     return {
+        granularity,
         labels,
         series: {
-            income: seriesToMap(incomePoints),
-            netExpenses: seriesToMap(netExpensePoints),
-            netWorth: seriesToMap(netWorthPoints)
+            income: Object.fromEntries(labels.map((month) => [month, incomeByMonth[month] || 0])),
+            netExpenses: Object.fromEntries(labels.map((month) => [month, netExpenseByMonth[month] || 0])),
+            netWorth: netWorthByMonth,
+            netWorthAbsolute: Object.fromEntries(labels.map((month) => [month, netWorthAbsoluteByMonth[month] || 0]))
         }
     };
 }
@@ -352,7 +580,7 @@ function renderDashboardTrendChart() {
 
     if (!trendData || !trendData.labels.length) {
         chart.innerHTML = '<p class="empty-copy">Select a date range.</p>';
-        return { incomeTotal: 0, netExpenseTotal: 0, netWorthTotal: 0 };
+        return { incomeTotal: 0, netExpenseTotal: 0, netWorthTotal: 0, netWorthAbsoluteTotal: 0 };
     }
 
     chart.innerHTML = '<canvas id="dashboard-trend-chart-canvas"></canvas>';
@@ -360,7 +588,6 @@ function renderDashboardTrendChart() {
     const canvas = getElement("dashboard-trend-chart-canvas");
     const incomeColor = getThemeColor("--color-positive-mid", "#16a34a");
     const expenseColor = getThemeColor("--color-negative-mid", "#dc2626");
-    const assetColor = getThemeColor("--color-primary", "#2563eb");
     const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
     const textColor = getThemeColor("--color-text-muted", "#64748b");
     const axisColor = getThemeColor("--color-border", "#cbd5e1");
@@ -369,27 +596,17 @@ function renderDashboardTrendChart() {
     const netExpenseTotal = Object.values(trendData.series.netExpenses).reduce((sum, amount) => sum + amount, 0);
     const netWorthValues = Object.values(trendData.series.netWorth);
     const netWorthTotal = netWorthValues.length ? netWorthValues[netWorthValues.length - 1] : 0;
+    const netWorthAbsoluteValues = Object.values(trendData.series.netWorthAbsolute || {});
+    const netWorthAbsoluteTotal = netWorthAbsoluteValues.length
+        ? netWorthAbsoluteValues[netWorthAbsoluteValues.length - 1]
+        : 0;
 
     dashboardTrendChart = new Chart(canvas, {
         plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
-            labels: trendData.labels.map((month) => formatMonthLabel(month)),
+            labels: trendData.labels.map((period) => formatDashboardPeriodLabel(period, trendData.granularity)),
             datasets: [
-                
-                {
-                    label: `Net Worth: ${formatMoney(netWorthTotal, dashboardCurrency)}`,
-                    data: trendData.labels.map((month) => trendData.series.netWorth[month] ?? null),
-                    borderColor: assetColor,
-                    backgroundColor: hexToRgba(assetColor, 0.1),
-                    pointBackgroundColor: assetColor,
-                    pointBorderColor: assetColor,
-                    pointRadius: 0,
-                    pointHoverRadius: 3,
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false
-                },
                 {
                     label: `Net Expenses: ${formatMoney(netExpenseTotal, dashboardCurrency)}`,
                     data: trendData.labels.map((month) => trendData.series.netExpenses[month] ?? null),
@@ -461,7 +678,8 @@ function renderDashboardTrendChart() {
                     ticks: {
                         color: textColor,
                         maxRotation: 0,
-                        autoSkip: true
+                        autoSkip: true,
+                        maxTicksLimit: trendData.granularity === "day" ? 10 : 6
                     },
                     border: {
                         color: axisColor
@@ -489,7 +707,8 @@ function renderDashboardTrendChart() {
     return {
         incomeTotal,
         netExpenseTotal,
-        netWorthTotal
+        netWorthTotal,
+        netWorthAbsoluteTotal
     };
 }
 
@@ -536,13 +755,14 @@ function getAccountBalanceDelta(accountName) {
     return convertAmountToDashboardCurrency(endBalance - startBalance, currency);
 }
 
-function getMonthlyTotalsByCategoryType({ categoryTypes, cashflow }) {
+function getMonthlyTotalsByCategoryType({ categoryTypes, cashflow, granularity }) {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
     const typeSet = new Set((categoryTypes || []).map((t) => String(t || "").trim().toLowerCase()));
+    const rangeGranularity = granularity || getDashboardRangeGranularity(from, to);
 
     const matchingTransactions = (window.state.transactions || []).filter((transaction) => {
-        const categoryType = String(transaction.categoryType || "").trim().toLowerCase();
+        const categoryType = getTransactionCategoryType(transaction);
         if (!typeSet.has(categoryType)) return false;
         if (cashflow && transaction.cashflow !== cashflow) return false;
 
@@ -554,30 +774,29 @@ function getMonthlyTotalsByCategoryType({ categoryTypes, cashflow }) {
 
     const totalsByMonth = {};
     matchingTransactions.forEach((transaction) => {
-        const month = String(transaction.date || "").slice(0, 7);
+        const month = getPeriodKeyFromDate(transaction.date, rangeGranularity);
         totalsByMonth[month] = (totalsByMonth[month] || 0) + convertAmountToDashboardCurrency(transaction.amount, transaction.currency);
     });
 
     return totalsByMonth;
 }
 
-function getMonthlyPointsByCategoryType({ categoryTypes, cashflow }) {
-    const totalsByMonth = getMonthlyTotalsByCategoryType({ categoryTypes, cashflow });
+function getMonthlyPointsByCategoryType({ categoryTypes, cashflow, granularity }) {
+    const totalsByMonth = getMonthlyTotalsByCategoryType({ categoryTypes, cashflow, granularity });
 
     return Object.entries(totalsByMonth)
         .map(([month, amount]) => ({ month, amount }))
         .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0));
 }
 
-function getCategoryTypeBalancePoints({ categoryType, positiveCashflow }) {
+function getCategoryTypeBalancePoints({ categoryType, positiveCashflow, granularity, mode = "absolute" }) {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
-    const fromMonth = from ? from.slice(0, 7) : null;
-    const toMonth = to ? to.slice(0, 7) : null;
+    const rangeGranularity = granularity || getDashboardRangeGranularity(from, to);
     const normalizedType = String(categoryType || "").trim().toLowerCase();
 
     const transactions = (window.state.transactions || [])
-        .filter((transaction) => String(transaction.categoryType || "").trim().toLowerCase() === normalizedType)
+        .filter((transaction) => getTransactionCategoryType(transaction) === normalizedType)
         .filter((transaction) => {
             const date = String(transaction.date || "");
             return /^\d{4}-\d{2}-\d{2}$/.test(date);
@@ -611,27 +830,127 @@ function getCategoryTypeBalancePoints({ categoryType, positiveCashflow }) {
         return true;
     });
 
-    const months = fromMonth && toMonth
-        ? getMonthRange(fromMonth, toMonth)
+    const months = from && to
+        ? getDashboardPeriodRange({ from, to, granularity: rangeGranularity })
         : (() => {
-              const firstMonth = transactions[0].date.slice(0, 7);
-              const lastMonth = transactions[transactions.length - 1].date.slice(0, 7);
-              return getMonthRange(firstMonth, lastMonth);
+              const firstDay = transactions[0].date;
+              const lastDay = transactions[transactions.length - 1].date;
+              return getDashboardPeriodRange({ from: firstDay, to: lastDay, granularity: rangeGranularity });
           })();
 
     if (!months.length) return [];
 
     const impactByMonth = {};
     inRangeTransactions.forEach((transaction) => {
-        const month = transaction.date.slice(0, 7);
+        const month = getPeriodKeyFromDate(transaction.date, rangeGranularity);
         impactByMonth[month] = (impactByMonth[month] || 0) + impactFor(transaction);
     });
 
-    let runningBalance = openingBalance;
+    let runningBalance = mode === "delta" ? 0 : openingBalance;
     return months.map((month) => {
         runningBalance += impactByMonth[month] || 0;
         return { month, amount: runningBalance };
     });
+}
+
+function getCategoryTypeBalanceAtDate({ categoryType, positiveCashflow, date, categoryName = "" }) {
+    if (!date) return 0;
+
+    const normalizedType = String(categoryType || "").trim().toLowerCase();
+    const normalizedCategoryName = String(categoryName || "").trim().toLowerCase();
+    const oppositeCashflow = positiveCashflow === "in" ? "out" : "in";
+
+    const impactFor = (transaction) => {
+        const convertedAmount = convertAmountToDashboardCurrency(transaction.amount, transaction.currency);
+
+        if (transaction.cashflow === positiveCashflow) {
+            return convertedAmount;
+        }
+
+        if (transaction.cashflow === oppositeCashflow) {
+            return -convertedAmount;
+        }
+
+        return 0;
+    };
+
+    return (window.state.transactions || [])
+        .filter((transaction) => getTransactionCategoryType(transaction) === normalizedType)
+        .filter((transaction) => {
+            if (!normalizedCategoryName) return true;
+            return String(transaction.category || "").trim().toLowerCase() === normalizedCategoryName;
+        })
+        .filter((transaction) => {
+            const transactionDate = String(transaction.date || "");
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) return false;
+            return transactionDate <= date;
+        })
+        .reduce((sum, transaction) => sum + impactFor(transaction), 0);
+}
+
+function getCategoryTypeCategoryNames(categoryType) {
+    const normalizedType = String(categoryType || "").trim().toLowerCase();
+    const names = new Set();
+
+    (window.state.transactions || []).forEach((transaction) => {
+        const transactionDate = String(transaction.date || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) return;
+        if (getTransactionCategoryType(transaction) !== normalizedType) return;
+
+        const category = String(transaction.category || "").trim() || "Uncategorized";
+        names.add(category);
+    });
+
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+function getCategoryTypeSeriesByCategory({ categoryType, positiveCashflow, from, to, granularity }) {
+    const baselineDate = from ? getPreviousISODate(from) : "";
+    const baselinePeriod = getBaselinePeriodKey({ from, baselineDate, granularity });
+    const rangePeriods = getDashboardPeriodRange({ from, to, granularity });
+    const periods = baselineDate && baselinePeriod ? [baselinePeriod, ...rangePeriods] : [...rangePeriods];
+    const categoryNames = getCategoryTypeCategoryNames(categoryType);
+    const seriesByCategory = {};
+
+    categoryNames.forEach((categoryName) => {
+        const byPeriod = {};
+
+        periods.forEach((period) => {
+            const pointDate = period === baselinePeriod
+                ? baselineDate
+                : granularity === "day"
+                    ? period
+                    : minISODate(getMonthEndDate(period), to);
+
+            byPeriod[period] = getCategoryTypeBalanceAtDate({
+                categoryType,
+                positiveCashflow,
+                date: pointDate,
+                categoryName
+            });
+        });
+
+        seriesByCategory[categoryName] = byPeriod;
+    });
+
+    const endingBalance = categoryNames.reduce((sum, categoryName) => {
+        const byPeriod = seriesByCategory[categoryName] || {};
+        const latestPeriod = rangePeriods[rangePeriods.length - 1];
+        return sum + (latestPeriod ? byPeriod[latestPeriod] || 0 : 0);
+    }, 0);
+
+    const startingBalance = categoryNames.reduce((sum, categoryName) => {
+        const byPeriod = seriesByCategory[categoryName] || {};
+        return sum + (baselineDate ? byPeriod[baselinePeriod] || 0 : 0);
+    }, 0);
+
+    return {
+        periods,
+        categoryNames,
+        seriesByCategory,
+        endingBalance,
+        rangeChange: endingBalance - startingBalance
+    };
 }
 
 function renderTotalAssetsChart() {
@@ -752,16 +1071,28 @@ const getNetBalanceSeries = (subtractSeries, fromSeries) => {
 };
 
 function renderLoanKautionBalanceChart() {
-    const receivablePoints = getCategoryTypeBalancePoints({ categoryType: "receivable", positiveCashflow: "out" });
-    const combinedTotal = receivablePoints.length ? receivablePoints[receivablePoints.length - 1].amount : 0;
+    const { from, to } = getDashboardDateRange();
+    const granularity = getDashboardRangeGranularity(from, to);
+    const {
+        periods,
+        categoryNames,
+        seriesByCategory,
+        endingBalance,
+        rangeChange
+    } = getCategoryTypeSeriesByCategory({
+        categoryType: "receivable",
+        positiveCashflow: "out",
+        from,
+        to,
+        granularity
+    });
     const combinedTotalElement = getElement("loan-kaution-balance-total");
     const dashboardCurrency = getDashboardCurrency();
 
-    combinedTotalElement.textContent = formatMoney(combinedTotal, dashboardCurrency);
-    combinedTotalElement.classList.toggle("amount-negative", combinedTotal < 0);
-    combinedTotalElement.classList.toggle("amount-positive", combinedTotal >= 0);
+    combinedTotalElement.textContent = formatMoney(endingBalance, dashboardCurrency);
+    combinedTotalElement.classList.toggle("amount-negative", endingBalance < 0);
+    combinedTotalElement.classList.toggle("amount-positive", endingBalance >= 0);
 
-    const months = receivablePoints.map((point) => point.month);
     const chartElementId = "loan-kaution-balance-chart";
     const chartHost = getElement(chartElementId);
 
@@ -770,9 +1101,9 @@ function renderLoanKautionBalanceChart() {
         dashboardMiniLineCharts[chartElementId] = null;
     }
 
-    if (!months.length) {
+    if (!periods.length || !categoryNames.length) {
         chartHost.innerHTML = '<p class="empty-copy">No receivable activity in this range.</p>';
-        return { combinedTotal };
+        return { total: endingBalance, endingBalance, rangeChange };
     }
 
     chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
@@ -780,28 +1111,46 @@ function renderLoanKautionBalanceChart() {
     const textColor = getThemeColor("--color-text-muted", "#64748b");
     const axisColor = getThemeColor("--color-border", "#cbd5e1");
     const gridColor = getThemeColor("--color-border-light", "#e2e8f0");
-    const receivableColor = getThemeColor("--color-positive-mid", "#16a34a");
+    const palette = [
+        "#16a34a",
+        "#1d4ed8",
+        "#0f766e",
+        "#ca8a04",
+        "#9333ea",
+        "#dc2626",
+        "#0891b2",
+        "#b45309",
+        "#4f46e5",
+        "#047857"
+    ];
+
+    const datasets = categoryNames.map((categoryName, index) => {
+        const color = palette[index % palette.length];
+        const byPeriod = seriesByCategory[categoryName] || {};
+        const values = periods.map((period) => (byPeriod[period] == null ? null : byPeriod[period]));
+        const lastValue = [...values].reverse().find((value) => value != null) || 0;
+
+        return {
+            label: `${categoryName}: ${formatMoney(lastValue, dashboardCurrency)}`,
+            data: values,
+            borderColor: color,
+            backgroundColor: "transparent",
+            pointBackgroundColor: color,
+            pointBorderColor: color,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 2,
+            tension: 0.3,
+            fill: false
+        };
+    });
 
     dashboardMiniLineCharts[chartElementId] = new Chart(canvas, {
         plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
-            labels: months.map((month) => formatMonthLabel(month)),
-            datasets: [
-                {
-                    label: `Receivables: ${formatMoney(combinedTotal, dashboardCurrency)}`,
-                    data: receivablePoints.map((point) => point.amount),
-                    borderColor: receivableColor,
-                    backgroundColor: "transparent",
-                    pointBackgroundColor: receivableColor,
-                    pointBorderColor: receivableColor,
-                    pointRadius: 0,
-                    pointHoverRadius: 3,
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: false
-                }
-            ]
+            labels: periods.map((period) => formatDashboardPeriodLabel(period, granularity)),
+            datasets
         },
         options: {
             responsive: true,
@@ -847,7 +1196,7 @@ function renderLoanKautionBalanceChart() {
                         color: textColor,
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 6
+                        maxTicksLimit: granularity === "day" ? 10 : 6
                     },
                     border: {
                         color: axisColor
@@ -871,20 +1220,45 @@ function renderLoanKautionBalanceChart() {
         }
     });
 
-    return { combinedTotal };
+    return { total: endingBalance, endingBalance, rangeChange };
 }
 
 function renderPayablesBalanceChart() {
-    const payablesPoints = getCategoryTypeBalancePoints({ categoryType: "payable", positiveCashflow: "in" });
-    const total = payablesPoints.length ? payablesPoints[payablesPoints.length - 1].amount : 0;
+    const { from, to } = getDashboardDateRange();
+    const granularity = getDashboardRangeGranularity(from, to);
+    const baselineDate = from ? getPreviousISODate(from) : "";
+    const baselinePeriod = granularity === "day" ? baselineDate : shiftMonth(from.slice(0, 7), -1);
+    const rangePeriods = getDashboardPeriodRange({ from, to, granularity });
+    const periods = baselineDate ? [baselinePeriod, ...rangePeriods] : [...rangePeriods];
+
+    const points = periods.map((period) => {
+        const pointDate = period === baselinePeriod
+            ? baselineDate
+            : granularity === "day"
+                ? period
+                : minISODate(getMonthEndDate(period), to);
+
+        return {
+            month: period,
+            amount: getCategoryTypeBalanceAtDate({
+                categoryType: "payable",
+                positiveCashflow: "in",
+                date: pointDate
+            })
+        };
+    });
+
+    const endingBalance = rangePeriods.length ? points[points.length - 1].amount : 0;
+    const startingBalance = baselineDate && points.length ? points[0].amount : 0;
+    const rangeChange = endingBalance - startingBalance;
     const totalElement = getElement("payables-balance-total");
     const dashboardCurrency = getDashboardCurrency();
 
-    totalElement.textContent = formatMoney(total, dashboardCurrency);
-    totalElement.classList.toggle("amount-negative", total >= 0);
-    totalElement.classList.toggle("amount-positive", total < 0);
+    totalElement.textContent = formatMoney(endingBalance, dashboardCurrency);
+    totalElement.classList.toggle("amount-negative", endingBalance >= 0);
+    totalElement.classList.toggle("amount-positive", endingBalance < 0);
 
-    const months = payablesPoints.map((point) => point.month);
+    const months = points.map((point) => point.month);
     const chartElementId = "payables-balance-chart";
     const chartHost = getElement(chartElementId);
 
@@ -895,7 +1269,7 @@ function renderPayablesBalanceChart() {
 
     if (!months.length) {
         chartHost.innerHTML = '<p class="empty-copy">No payable activity in this range.</p>';
-        return { total };
+        return { total: endingBalance, endingBalance, rangeChange };
     }
 
     chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
@@ -909,11 +1283,11 @@ function renderPayablesBalanceChart() {
         plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
-            labels: months.map((month) => formatMonthLabel(month)),
+            labels: months.map((month) => formatDashboardPeriodLabel(month, granularity)),
             datasets: [
                 {
-                    label: `Payables: ${formatMoney(total, dashboardCurrency)}`,
-                    data: payablesPoints.map((point) => point.amount),
+                    label: `Payables: ${formatMoney(endingBalance, dashboardCurrency)}`,
+                    data: points.map((point) => point.amount),
                     borderColor: payablesColor,
                     backgroundColor: "transparent",
                     pointBackgroundColor: payablesColor,
@@ -969,7 +1343,7 @@ function renderPayablesBalanceChart() {
                         color: textColor,
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 6
+                        maxTicksLimit: granularity === "day" ? 10 : 6
                     },
                     border: {
                         color: axisColor
@@ -993,36 +1367,35 @@ function renderPayablesBalanceChart() {
         }
     });
 
-    return { total };
+    return { total: endingBalance, endingBalance, rangeChange };
 }
 
-function getSourceAccountsSeriesData() {
+function getSourceAccountsSeriesData({ mode = "absolute" } = {}) {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
-    const fromMonth = from ? from.slice(0, 7) : null;
-    const toMonth = to ? to.slice(0, 7) : null;
+    const granularity = getDashboardRangeGranularity(from, to);
+
+    if (!from || !to) {
+        return {
+            accountNames: getDashboardAccountNames(),
+            seriesByAccount: {},
+            months: [],
+            granularity
+        };
+    }
+
+    const months = getDashboardPeriodRange({ from, to, granularity });
 
     const seriesByAccount = {};
-    const monthsSet = new Set();
 
     const accountNames = getDashboardAccountNames();
 
     accountNames.forEach((accountName) => {
-        const points = (window.db.getAccountMonthlyBalances(accountName) || [])
-            .filter((entry) => {
-                if (fromMonth && entry.month < fromMonth) return false;
-                if (toMonth && entry.month > toMonth) return false;
-                return true;
-            })
-            .map((entry) => ({
-                month: entry.month,
-                amount: convertAmountToDashboardCurrency(entry.balance, entry.currency)
-            }));
+        const points = getAccountMonthlyRangePoints({ accountName, from, to, granularity, mode });
 
         const byMonth = {};
         points.forEach((point) => {
             byMonth[point.month] = point.amount;
-            monthsSet.add(point.month);
         });
 
         seriesByAccount[accountName] = byMonth;
@@ -1031,13 +1404,68 @@ function getSourceAccountsSeriesData() {
     return {
         accountNames,
         seriesByAccount,
-        months: Array.from(monthsSet).sort()
+        months,
+        granularity
     };
 }
 
-function getLiquidAssetsPoints() {
-    const { accountNames, seriesByAccount, months } = getSourceAccountsSeriesData();
-    return months.map((month) => ({
+function getAccountBalanceAtDate({ accountName, date }) {
+    if (!accountName || !date) {
+        return 0;
+    }
+
+    const account = (window.state.accounts || []).find((entry) => entry.name === accountName);
+    if (!account) {
+        return 0;
+    }
+
+    const openingBalance = Number(account.openingBalance) || 0;
+    const currency = account.currency || getDashboardCurrency();
+
+    const balance = (window.state.transactions || [])
+        .filter((transaction) => {
+            const transactionDate = String(transaction.date || "");
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) return false;
+            if (transactionDate > date) return false;
+            return transaction.account === accountName || transaction.destinationAccount === accountName;
+        })
+        .reduce((sum, transaction) => sum + getTransactionImpact(transaction, accountName), openingBalance);
+
+    return convertAmountToDashboardCurrency(balance, currency);
+}
+
+function getAccountMonthlyRangePoints({ accountName, from, to, granularity, mode = "absolute" }) {
+    const rangeGranularity = granularity || getDashboardRangeGranularity(from, to);
+
+    if (!from || !to) {
+        return [];
+    }
+
+    const baseline = mode === "delta"
+        ? getAccountBalanceAtDate({ accountName, date: getPreviousISODate(from) })
+        : 0;
+
+    return getDashboardPeriodRange({ from, to, granularity: rangeGranularity }).map((month) => {
+        const dateForPoint = rangeGranularity === "day"
+            ? month
+            : minISODate(getMonthEndDate(month), to);
+        return {
+            month,
+            amount: getAccountBalanceAtDate({ accountName, date: dateForPoint }) - baseline
+        };
+    });
+}
+
+function getLiquidAssetsPoints({ granularity, mode = "absolute" } = {}) {
+    const { from, to } = getDashboardDateRange();
+    const effectiveGranularity = granularity || getDashboardRangeGranularity(from, to);
+    const { accountNames, seriesByAccount, months } = getSourceAccountsSeriesData({ mode });
+
+    const periodKeys = months.length
+        ? months
+        : getDashboardPeriodRange({ from, to, granularity: effectiveGranularity });
+
+    return periodKeys.map((month) => ({
         month,
         amount: accountNames.reduce((sum, accountName) => {
             const byMonth = seriesByAccount[accountName] || {};
@@ -1047,23 +1475,54 @@ function getLiquidAssetsPoints() {
 }
 
 function renderSourceAccountsBalanceChart() {
-    const { accountNames, seriesByAccount, months } = getSourceAccountsSeriesData();
+    const { from, to } = getDashboardDateRange();
+    const granularity = getDashboardRangeGranularity(from, to);
+    const accountNames = getDashboardAccountNames();
     const chartElementId = "source-accounts-balance-chart";
     const chartHost = getElement(chartElementId);
     const totalElement = getElement("source-accounts-balance-total");
     const dashboardCurrency = getDashboardCurrency();
+
+    if (!from || !to) {
+        totalElement.textContent = formatMoney(0, dashboardCurrency);
+        totalElement.classList.toggle("amount-negative", false);
+        totalElement.classList.toggle("amount-positive", true);
+        chartHost.innerHTML = '<p class="empty-copy">No account balance data found in this range.</p>';
+        return { total: 0, endingBalance: 0, rangeChange: 0 };
+    }
+
+    const baselineDate = getPreviousISODate(from);
+    const baselinePeriod = getBaselinePeriodKey({ from, baselineDate, granularity });
+    const rangePeriods = getDashboardPeriodRange({ from, to, granularity });
+    const periods = baselineDate && baselinePeriod ? [baselinePeriod, ...rangePeriods] : [...rangePeriods];
+
+    const seriesByAccount = {};
+    accountNames.forEach((accountName) => {
+        const byPeriod = {};
+
+        if (baselineDate) {
+            byPeriod[baselinePeriod] = getAccountBalanceAtDate({ accountName, date: baselineDate });
+        }
+
+        rangePeriods.forEach((period) => {
+            const pointDate = granularity === "day" ? period : minISODate(getMonthEndDate(period), to);
+            byPeriod[period] = getAccountBalanceAtDate({ accountName, date: pointDate });
+        });
+
+        seriesByAccount[accountName] = byPeriod;
+    });
 
     if (dashboardMiniLineCharts[chartElementId]) {
         dashboardMiniLineCharts[chartElementId].destroy();
         dashboardMiniLineCharts[chartElementId] = null;
     }
 
-    if (!months.length) {
+    if (!periods.length) {
         totalElement.textContent = formatMoney(0, dashboardCurrency);
         totalElement.classList.toggle("amount-negative", false);
         totalElement.classList.toggle("amount-positive", true);
         chartHost.innerHTML = '<p class="empty-copy">No account balance data found in this range.</p>';
-        return { total: 0 };
+        return { total: 0, endingBalance: 0, rangeChange: 0 };
     }
 
     const textColor = getThemeColor("--color-text-muted", "#64748b");
@@ -1085,7 +1544,7 @@ function renderSourceAccountsBalanceChart() {
 
     const datasets = accountNames.map((accountName, index) => {
         const byMonth = seriesByAccount[accountName] || {};
-        const values = months.map((month) => (byMonth[month] == null ? null : byMonth[month]));
+        const values = periods.map((month) => (byMonth[month] == null ? null : byMonth[month]));
         const lastValue = [...values].reverse().find((value) => value != null) || 0;
         const color = palette[index % palette.length];
 
@@ -1104,16 +1563,23 @@ function renderSourceAccountsBalanceChart() {
         };
     });
 
-    const total = accountNames.reduce((sum, accountName) => {
+    const endingBalance = accountNames.reduce((sum, accountName) => {
         const byMonth = seriesByAccount[accountName] || {};
-        const latestMonth = months[months.length - 1];
+        const latestMonth = rangePeriods[rangePeriods.length - 1];
         const latestValue = byMonth[latestMonth] || 0;
         return sum + latestValue;
     }, 0);
 
-    totalElement.textContent = formatMoney(total, dashboardCurrency);
-    totalElement.classList.toggle("amount-negative", total < 0);
-    totalElement.classList.toggle("amount-positive", total >= 0);
+    const startingBalance = accountNames.reduce((sum, accountName) => {
+        const byMonth = seriesByAccount[accountName] || {};
+        const startValue = baselineDate ? byMonth[baselinePeriod] || 0 : 0;
+        return sum + startValue;
+    }, 0);
+    const rangeChange = endingBalance - startingBalance;
+
+    totalElement.textContent = formatMoney(endingBalance, dashboardCurrency);
+    totalElement.classList.toggle("amount-negative", endingBalance < 0);
+    totalElement.classList.toggle("amount-positive", endingBalance >= 0);
 
     chartHost.innerHTML = `<canvas id="${chartElementId}-canvas"></canvas>`;
     const canvas = getElement(`${chartElementId}-canvas`);
@@ -1122,7 +1588,7 @@ function renderSourceAccountsBalanceChart() {
         plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
-            labels: months.map((month) => formatMonthLabel(month)),
+            labels: periods.map((month) => formatDashboardPeriodLabel(month, granularity)),
             datasets
         },
         options: {
@@ -1168,7 +1634,7 @@ function renderSourceAccountsBalanceChart() {
                         color: textColor,
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 6
+                        maxTicksLimit: granularity === "day" ? 10 : 6
                     },
                     border: {
                         color: axisColor
@@ -1192,7 +1658,7 @@ function renderSourceAccountsBalanceChart() {
         }
     });
 
-    return { total };
+    return { total: endingBalance, endingBalance, rangeChange };
 }
 
 function renderDashboard() {
@@ -1234,11 +1700,16 @@ function renderDashboard() {
     const liquidAssetsResult = renderSourceAccountsBalanceChart();
 
     const netWorthTotal =
+        liquidAssetsResult.endingBalance +
+        receivablesResult.endingBalance -
+        payablesResult.endingBalance;
+
+    const netWorthQuickOverviewTotal =
         liquidAssetsResult.total +
-        receivablesResult.combinedTotal -
+        receivablesResult.total -
         payablesResult.total;
 
-    const balanceNetWorth = trendTotals.netWorthTotal;
+    const balanceNetWorth = trendTotals.netWorthAbsoluteTotal;
 
     renderOverviewCard({
         incomeTotal: trendTotals.incomeTotal,
@@ -1248,9 +1719,9 @@ function renderDashboard() {
     });
 
     renderQuickOverviewCard({
-        netWorthTotal,
+        netWorthTotal: netWorthQuickOverviewTotal,
         liquidAssetsTotal: liquidAssetsResult.total,
-        receivablesTotal: receivablesResult.combinedTotal,
+        receivablesTotal: receivablesResult.total,
         payablesTotal: payablesResult.total
     });
 
@@ -1295,20 +1766,16 @@ function getTransactionsInDashboardRange() {
 
 function getLiquidAssetsBreakdownItems() {
     const { to } = getDashboardDateRange();
-    const toMonth = to ? to.slice(0, 7) : null;
+    const effectiveTo = to || toISODate(new Date());
 
     const items = getDashboardAccountNames().map((accountName) => {
         const account = (window.state.accounts || []).find((entry) => entry.name === accountName);
-        const openingBalance = account ? Number(account.openingBalance) || 0 : 0;
-        const currency = account ? account.currency : getDashboardCurrency();
-        const monthlyBalances = window.db.getAccountMonthlyBalances(accountName) || [];
-        const endingBalance = getAccountBalanceAtMonthEnd(monthlyBalances, toMonth, openingBalance);
-        const converted = convertAmountToDashboardCurrency(endingBalance, currency);
+        const converted = getAccountBalanceAtDate({ accountName, date: effectiveTo });
 
         return {
             label: accountName,
             amount: converted,
-            meta: `As of ${to || "today"}`,
+            meta: `As of ${effectiveTo}`,
             drilldown: {
                 mode: "account",
                 account: accountName
@@ -1326,7 +1793,7 @@ function getCategoryBreakdownItems({ categoryType, cashflow }) {
 
     const groups = {};
     getTransactionsInDashboardRange()
-        .filter((transaction) => String(transaction.categoryType || "").trim().toLowerCase() === normalizedType)
+        .filter((transaction) => getTransactionCategoryType(transaction) === normalizedType)
         .filter((transaction) => !cashflow || transaction.cashflow === cashflow)
         .forEach((transaction) => {
             const key = String(transaction.category || "Uncategorized").trim() || "Uncategorized";
@@ -1528,7 +1995,21 @@ function getMonthlyTotalsForTransactions({ cashflow, categories }) {
 }
 
 function renderMonthlyLineChartByCategoryType({ categoryTypes, cashflow, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
-    const points = getMonthlyPointsByCategoryType({ categoryTypes, cashflow });
+    const from = getElement("dashboard-from").value;
+    const to = getElement("dashboard-to").value;
+    const granularity = getDashboardRangeGranularity(from, to);
+    const points = getMonthlyPointsByCategoryType({ categoryTypes, cashflow, granularity });
+    const rangePeriods = getDashboardPeriodRange({ from, to, granularity });
+    const byPeriod = {};
+    points.forEach((point) => {
+        byPeriod[point.month] = point.amount;
+    });
+    const chartPeriods = rangePeriods.length ? rangePeriods : points.map((point) => point.month);
+    const chartPoints = chartPeriods.map((period) => ({
+        month: period,
+        amount: byPeriod[period] || 0
+    }));
+
     const total = points.reduce((sum, point) => sum + point.amount, 0);
     const totalElement = getElement(totalElementId);
     const dashboardCurrency = getDashboardCurrency();
@@ -1543,7 +2024,7 @@ function renderMonthlyLineChartByCategoryType({ categoryTypes, cashflow, totalEl
         dashboardMiniLineCharts[chartElementId] = null;
     }
 
-    if (!points.length) {
+    if (!chartPoints.length || !points.length) {
         chartHost.innerHTML = `<p class="empty-copy">${escapeHtml(emptyMessage)}</p>`;
         return { points, total };
     }
@@ -1562,10 +2043,10 @@ function renderMonthlyLineChartByCategoryType({ categoryTypes, cashflow, totalEl
         plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
-            labels: points.map((point) => formatMonthLabel(point.month)),
+            labels: chartPoints.map((point) => formatDashboardPeriodLabel(point.month, granularity)),
             datasets: [
                 {
-                    data: points.map((point) => point.amount),
+                    data: chartPoints.map((point) => point.amount),
                     borderColor: lineColor,
                     backgroundColor: hexToRgba(lineColor, 0.15),
                     pointBackgroundColor: lineColor,
@@ -1609,7 +2090,7 @@ function renderMonthlyLineChartByCategoryType({ categoryTypes, cashflow, totalEl
                         color: textColor,
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 6
+                        maxTicksLimit: granularity === "day" ? 10 : 6
                     },
                     border: {
                         color: axisColor
@@ -1654,6 +2135,8 @@ function renderMonthlyBarChart({ cashflow, categories, totalElementId, chartElem
 
 function renderMonthlyLineChart({ cashflow, categories, totalElementId, chartElementId, emptyMessage, tone = "positive" }) {
     const points = getMonthlyPoints({ cashflow, categories });
+    const { from, to } = getDashboardDateRange();
+    const granularity = getDashboardRangeGranularity(from, to);
     const total = points.reduce((sum, point) => sum + point.amount, 0);
     const totalElement = getElement(totalElementId);
     const dashboardCurrency = getDashboardCurrency();
@@ -1687,7 +2170,7 @@ function renderMonthlyLineChart({ cashflow, categories, totalElementId, chartEle
         plugins: [verticalHoverLinePlugin],
         type: "line",
         data: {
-            labels: points.map((point) => formatMonthLabel(point.month)),
+            labels: points.map((point) => formatDashboardPeriodLabel(point.month, granularity)),
             datasets: [
                 {
                     data: points.map((point) => point.amount),
@@ -1734,7 +2217,7 @@ function renderMonthlyLineChart({ cashflow, categories, totalElementId, chartEle
                         color: textColor,
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: 6
+                        maxTicksLimit: granularity === "day" ? 10 : 6
                     },
                     border: {
                         color: axisColor
@@ -1840,19 +2323,7 @@ function renderBarChartCard({ points, totalElementId, chartElementId, emptyMessa
 function renderAccountBalanceChart({ accountName, totalElementId, chartElementId, emptyMessage }) {
     const from = getElement("dashboard-from").value;
     const to = getElement("dashboard-to").value;
-    const fromMonth = from ? from.slice(0, 7) : null;
-    const toMonth = to ? to.slice(0, 7) : null;
-
-    const monthlyBalances = (window.db.getAccountMonthlyBalances(accountName) || []).filter((entry) => {
-        if (fromMonth && entry.month < fromMonth) return false;
-        if (toMonth && entry.month > toMonth) return false;
-        return true;
-    });
-
-    const points = monthlyBalances.map((entry) => ({
-        month: entry.month,
-        amount: convertAmountToDashboardCurrency(entry.balance, entry.currency)
-    }));
+    const points = getAccountMonthlyRangePoints({ accountName, from, to });
 
     const total = renderBarChartCard({
         points,
@@ -1873,6 +2344,7 @@ function toggleDashboardFilters() {
 
 window.initializeDashboardRange = initializeDashboardRange;
 window.onDashboardRangeChange = onDashboardRangeChange;
+window.onDashboardRangePresetChange = onDashboardRangePresetChange;
 window.renderDashboard = renderDashboard;
 window.toggleDashboardFilters = toggleDashboardFilters;
 window.openDashboardBreakdownModal = openDashboardBreakdownModal;

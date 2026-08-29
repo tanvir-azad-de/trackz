@@ -76,6 +76,16 @@
 
                 <div id="dashboard-filters-panel" class="card form-panel tx-filters" hidden>
                     <label>
+                        <select id="dashboard-range-preset" onchange="onDashboardRangePresetChange()">
+                            <option value="custom">Custom</option>
+                            <option value="this_month">This Month</option>
+                            <option value="last_3_months">Last 3 Months</option>
+                            <option value="last_6_months">Last 6 Months</option>
+                            <option value="year_to_date">Year to Date</option>
+                            <option value="all_time">All time</option>
+                        </select>
+                    </label>
+                    <label>
                         <input id="dashboard-from" type="date" onchange="onDashboardRangeChange()">
                     </label>
                     <span class="date-arrow">→</span>
