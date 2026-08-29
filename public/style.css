@@ -216,6 +216,17 @@ body {
 	color: var(--color-text);
 }
 
+.danger-button {
+	background: var(--color-negative-bg);
+	color: var(--color-negative-dark);
+	border: 1px solid rgba(185, 28, 28, 0.2);
+}
+
+.danger-button:hover {
+	background: #fecaca;
+	color: var(--color-negative);
+}
+
 main {
 	flex: 1;
 	padding: 32px;
@@ -527,6 +538,84 @@ small {
 	outline-offset: 1px;
 }
 
+.transaction-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.45);
+	backdrop-filter: blur(2px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	z-index: 125;
+}
+
+.transaction-modal-card {
+	width: min(560px, 100%);
+	max-height: calc(100vh - 40px);
+	overflow: auto;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border-light);
+	border-radius: 16px;
+	padding: 18px;
+	box-shadow: 0 24px 48px rgba(15, 23, 42, 0.24);
+	display: grid;
+	gap: 14px;
+}
+
+.transaction-modal-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 14px;
+}
+
+.transaction-modal-head h3 {
+	margin: 0;
+}
+
+.transaction-modal-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+
+.transaction-modal-item {
+	display: grid;
+	gap: 6px;
+	padding: 10px;
+	border-radius: 10px;
+	background: var(--color-surface-muted);
+	border: 1px solid var(--color-border-light);
+	min-width: 0;
+}
+
+.transaction-modal-item span {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.transaction-modal-item strong {
+	font-size: 14px;
+	color: var(--color-text-dark);
+	line-height: 1.35;
+	word-break: break-word;
+}
+
+.transaction-modal-item-wide {
+	grid-column: 1 / -1;
+}
+
+.transaction-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	padding-top: 4px;
+}
+
 .empty-copy,
 .empty-cell {
 	color: var(--color-text-muted);
@@ -629,6 +718,15 @@ small {
 	box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
 }
 
+.transaction-card {
+	cursor: pointer;
+}
+
+.transaction-card:focus-visible {
+	outline: 2px solid var(--color-primary-focus-ring);
+	outline-offset: 2px;
+}
+
 .record-main {
 	display: grid;
 	gap: 6px;
@@ -673,6 +771,7 @@ small {
 	align-items: flex-end;
 	gap: 8px;
 	text-align: right;
+	flex-shrink: 0;
 }
 
 .record-amount {
@@ -915,6 +1014,11 @@ select:focus {
 
 .amount-negative {
 	color: var(--color-negative-dark);
+	font-weight: 700;
+}
+
+.amount-neutral {
+	color: var(--color-text-muted);
 	font-weight: 700;
 }
 
@@ -1564,12 +1668,24 @@ select:focus {
 		font-size: 12px;
 		height: 34px;
 	}
+
+	.transaction-modal-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.transaction-modal-actions {
+		justify-content: stretch;
+	}
+
+	.transaction-modal-actions button {
+		flex: 1;
+	}
 }
 
 /* ── Small phones (≤480px) ───────────────────────────────────────────────── */
 @media (max-width: 360px) {
 	.record-card {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr) auto;
 	}
 
 	.record-side {
@@ -1589,4 +1705,15 @@ select:focus {
 		font-size: 7px;
 		padding: 4px 7px;
 	}
+}
+
+.ghost-button.danger-button {
+	background: var(--color-negative-bg);
+	color: var(--color-negative-dark);
+	border: 1px solid rgba(185, 28, 28, 0.2);
+}
+
+.ghost-button.danger-button:hover {
+	background: #fecaca;
+	color: var(--color-negative);
 }

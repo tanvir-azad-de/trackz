@@ -375,13 +375,50 @@
                     </div>
 
                     <div class="form-actions">
-                        <button class="primary-button" onclick="saveTransaction()">Save transaction</button>
+                        <button id="transaction-save-button" class="primary-button" onclick="saveTransaction()">Save transaction</button>
                         <button class="ghost-button" onclick="toggleForm(false)">Cancel</button>
                     </div>
                 </div>
 
                 <div class="record-list-panel card">
                     <div id="list" class="records-grid"></div>
+                </div>
+
+                <div id="transaction-details-modal" class="transaction-modal-overlay" hidden onclick="handleTransactionDetailsBackdropClick(event)">
+                    <div class="transaction-modal-card" role="dialog" aria-modal="true" aria-labelledby="transaction-details-title">
+                        <div class="transaction-modal-head">
+                            <h3 id="transaction-details-title">Transaction Details</h3>
+                            <span id="transaction-details-date" class="record-date"></span>
+                        </div>
+
+                        <div class="transaction-modal-grid">
+                            <div class="transaction-modal-item">
+                                <span>Account</span>
+                                <strong id="transaction-details-account"></strong>
+                            </div>
+                            <div class="transaction-modal-item">
+                                <span>Cash flow</span>
+                                <strong id="transaction-details-cashflow"></strong>
+                            </div>
+                            <div class="transaction-modal-item">
+                                <span>Category</span>
+                                <strong id="transaction-details-category"></strong>
+                            </div>
+                            <div class="transaction-modal-item">
+                                <span>Amount</span>
+                                <strong id="transaction-details-amount"></strong>
+                            </div>
+                            <div class="transaction-modal-item transaction-modal-item-wide">
+                                <span>Notes</span>
+                                <strong id="transaction-details-notes"></strong>
+                            </div>
+                        </div>
+
+                        <div class="transaction-modal-actions">
+                            <button type="button" class="primary-button" onclick="editTransactionFromModal()">Edit</button>
+                            <button type="button" class="ghost-button danger-button" onclick="deleteTransactionFromModal()">Delete</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 

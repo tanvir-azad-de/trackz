@@ -474,6 +474,27 @@ function dbSaveTransaction(body) {
     return transaction;
 }
 
+function dbUpdateTransaction(id, body) {
+    const transactions = dbGetTransactions();
+    const index = transactions.findIndex((transaction) => transaction.id === id);
+
+    if (index === -1) {
+        throw new Error("Transaction not found.");
+    }
+
+    const existing = transactions[index];
+    const validated = dbValidateTransactionPayload(body);
+    const updated = {
+        ...validated,
+        id: existing.id,
+        createdAt: existing.createdAt
+    };
+
+    transactions[index] = updated;
+    writeStore(DB_KEYS.transactions, transactions);
+    return updated;
+}
+
 function dbDeleteTransaction(id) {
     const transactions = dbGetTransactions();
     const next = transactions.filter((t) => t.id !== id);
@@ -653,6 +674,7 @@ window.db = {
     importAll,
     getTransactions: dbGetTransactions,
     saveTransaction: dbSaveTransaction,
+    updateTransaction: dbUpdateTransaction,
     deleteTransaction: dbDeleteTransaction,
     getAccounts: dbComputeAccountSummaries,
     getAccountMonthlyBalances: dbComputeAccountMonthlyBalances,
