@@ -1,13 +1,156 @@
-// Data import/export utility for migration and backup
+// Data import/export utility for migration and backup, using CSV as the file format
+
+const CSV_HEADERS = [
+    "date",
+    "account",
+    "destinationAccount",
+    "cashflow",
+    "category",
+    "category_type",
+    "subcategory",
+    "amount",
+    "currency",
+    "notes"
+];
+
+function csvEscapeField(value) {
+    const str = value === null || value === undefined ? "" : String(value);
+    return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+function transactionsToCsv(transactions) {
+    const lines = [CSV_HEADERS.join(",")];
+    transactions.forEach((t) => {
+        lines.push([
+            t.date,
+            t.account,
+            t.destinationAccount,
+            t.cashflow,
+            t.category,
+            t.categoryType,
+            t.subcategory,
+            t.amount,
+            t.currency,
+            t.notes
+        ].map(csvEscapeField).join(","));
+    });
+    return lines.join("\r\n");
+}
+
+function parseCsvLine(line) {
+    const result = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+
+        if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i += 1;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+
+        if (ch === "," && !inQuotes) {
+            result.push(current);
+            current = "";
+            continue;
+        }
+
+        current += ch;
+    }
+
+    result.push(current);
+    return result;
+}
+
+function toIsoDate(date) {
+    const parsed = new Date(`${date}T00:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+// Parses raw CSV text into normalized trackz transaction records
+function parseTransactionsCsv(text) {
+    const rows = text
+        .split(/\r?\n/)
+        .map((line) => line.trimEnd())
+        .filter((line) => line.length > 0);
+
+    if (!rows.length) {
+        throw new Error("CSV file is empty.");
+    }
+
+    const headers = parseCsvLine(rows[0]).map((h) => h.trim());
+    const missingHeaders = CSV_HEADERS.filter((header) => !headers.includes(header));
+    if (missingHeaders.length) {
+        throw new Error(`Missing required CSV columns: ${missingHeaders.join(", ")}`);
+    }
+
+    const transactions = [];
+    for (let i = 1; i < rows.length; i += 1) {
+        const lineNumber = i + 1;
+        const values = parseCsvLine(rows[i]);
+        const row = {};
+        headers.forEach((header, idx) => {
+            row[header] = (values[idx] || "").trim();
+        });
+
+        const date = toIsoDate(row.date);
+        const account = row.account;
+        const destinationAccount = row.destinationAccount || "";
+        const cashflow = String(row.cashflow || "").toLowerCase();
+        const category = row.category;
+        const categoryType = String(row.category_type || "").toLowerCase();
+        const subcategory = row.subcategory || "";
+        const amount = Number(row.amount);
+        const currency = String(row.currency || "").toUpperCase();
+        const notes = row.notes || "";
+
+        if (!date) throw new Error(`Invalid date at line ${lineNumber}: ${row.date}`);
+        if (!account) throw new Error(`Missing account at line ${lineNumber}`);
+        if (!["in", "out", "none"].includes(cashflow)) {
+            throw new Error(`Invalid cashflow at line ${lineNumber}: ${row.cashflow}`);
+        }
+        if (!category) throw new Error(`Missing category at line ${lineNumber}`);
+        if (!categoryType) throw new Error(`Missing category_type at line ${lineNumber}`);
+        if (!Number.isFinite(amount)) throw new Error(`Invalid amount at line ${lineNumber}: ${row.amount}`);
+        if (!currency) throw new Error(`Missing currency at line ${lineNumber}`);
+        if (cashflow === "none" && !destinationAccount) {
+            throw new Error(`Missing destinationAccount for transfer at line ${lineNumber}`);
+        }
+
+        transactions.push({
+            id: `txn_${crypto.randomUUID()}`,
+            date,
+            account,
+            destinationAccount,
+            cashflow,
+            category,
+            categoryType,
+            subcategory,
+            amount,
+            currency,
+            notes,
+            createdAt: `${date}T00:00:00.000Z`
+        });
+    }
+
+    return transactions;
+}
 
 async function exportAllData() {
     const data = window.db.exportAll();
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
+    // db.exportAll() returns transactions latest-first; CSV should read oldest-first
+    const csv = transactionsToCsv([...data.transactions].reverse());
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `trackz-backup-${new Date().toISOString().split("T")[0]}.json`;
+    a.download = `trackz-backup-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 }
@@ -17,24 +160,8 @@ function importData(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                const data = JSON.parse(e.target.result);
-                if (!data || typeof data !== "object") {
-                    reject(new Error("Invalid data format. Expected a JSON object."));
-                    return;
-                }
-                if (!Array.isArray(data.transactions)) {
-                    reject(new Error("Invalid data format. transactions must be an array."));
-                    return;
-                }
-                if ("accounts" in data && !Array.isArray(data.accounts)) {
-                    reject(new Error("Invalid data format. accounts must be an array when provided."));
-                    return;
-                }
-                if ("categories" in data && !Array.isArray(data.categories)) {
-                    reject(new Error("Invalid data format. categories must be an array when provided."));
-                    return;
-                }
-                window.db.importAll(data);
+                const transactions = parseTransactionsCsv(e.target.result);
+                window.db.importAll({ transactions });
                 window.loadData().then(resolve).catch(reject);
             } catch (err) {
                 reject(err);
@@ -75,8 +202,8 @@ function showDataUtilityDialog() {
                 Download Backup
             </button>
             <label class="primary-button" style="width:100%;padding:10px;text-align:center;cursor:pointer;display:block;margin:0">
-                Import from File
-                <input type="file" accept=".json" onchange="handleImport(this)" style="display:none">
+                Import from CSV
+                <input type="file" accept=".csv,text/csv" onchange="handleImport(this)" style="display:none">
             </label>
             <button onclick="closeDataUtilityDialog()" class="ghost-button" style="width:100%;padding:10px">
                 Close

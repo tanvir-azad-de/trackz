@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "prepare": "sh scripts/setup-git-hooks.sh",
-    "start": "npx serve public",
-    "convert": "node scripts/csv-to-trackz-json.js"
+    "start": "npx serve public"
   },
   "dependencies": {
     "chart.js": "^4.5.1"
