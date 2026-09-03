@@ -21,11 +21,32 @@ function _showPage(name) {
 }
 
 function page(name) {
+    closeMobileFooter();
     if (location.hash !== `#${name}`) {
         location.hash = name;
     } else {
         _showPage(name);
     }
+}
+
+function toggleMobileFooter() {
+    const menu = getElement("mobile-footer-menu");
+    const tab = getElement("mobile-footer-tab");
+    const isOpen = menu.hidden;
+
+    menu.hidden = !isOpen;
+    tab.setAttribute("aria-expanded", String(isOpen));
+    tab.classList.toggle("active", isOpen);
+}
+
+function closeMobileFooter() {
+    const menu = getElement("mobile-footer-menu");
+    const tab = getElement("mobile-footer-tab");
+    if (!menu || !tab) return;
+
+    menu.hidden = true;
+    tab.setAttribute("aria-expanded", "false");
+    tab.classList.remove("active");
 }
 
 async function loadData() {
@@ -74,5 +95,7 @@ window.addEventListener("hashchange", () => {
 
 window.renderAll = renderAll;
 window.page = page;
+window.toggleMobileFooter = toggleMobileFooter;
+window.closeMobileFooter = closeMobileFooter;
 window.loadData = loadData;
 window.initializeApp = initializeApp;

@@ -21,6 +21,15 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const TRANSACTION_CASHFLOWS = new Set(["in", "out", "none"]);
+const CATEGORY_TYPES = new Set([
+    "income",
+    "non_income",
+    "expense",
+    "non_expense",
+    "receivable",
+    "payable",
+    "transfer"
+]);
 
 function normalizeTransactionRecord(transaction) {
     const source = transaction && typeof transaction === "object" ? transaction : {};
@@ -421,8 +430,16 @@ function dbValidateTransactionPayload(body) {
     let subcategory = String(body.subcategory || "").trim();
     let destinationAccount = "";
     let categoryType = cashflow === "in" ? "income" : cashflow === "none" ? "transfer" : "expense";
+    const requestedCategoryType = String(body.categoryType || "").trim().toLowerCase();
+
+    if (requestedCategoryType && !CATEGORY_TYPES.has(requestedCategoryType)) {
+        throw new Error("Select a valid category type.");
+    }
 
     if (cashflow === "none") {
+        if (requestedCategoryType && requestedCategoryType !== "transfer") {
+            throw new Error("Transfers must use the transfer category type.");
+        }
         destinationAccount = String(body.destinationAccount || "").trim();
         if (!destinationAccount || !accountNames.has(destinationAccount)) {
             throw new Error("Select a destination account for transfers.");
@@ -437,10 +454,16 @@ function dbValidateTransactionPayload(body) {
         }
         subcategory = "";
     } else {
+        if (requestedCategoryType === "transfer") {
+            throw new Error("The transfer category type requires transfer cash flow.");
+        }
         const selectedCategory = dbGetCategoryByName(category);
         if (!selectedCategory) throw new Error("Select a valid category.");
         if (selectedCategory.categoryType) {
             categoryType = String(selectedCategory.categoryType).trim().toLowerCase();
+        }
+        if (requestedCategoryType && requestedCategoryType !== categoryType) {
+            throw new Error("Category type must match the selected category.");
         }
         if (
             subcategory &&

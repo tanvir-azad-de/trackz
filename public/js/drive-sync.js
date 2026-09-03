@@ -164,8 +164,9 @@ function startSyncTimer() {
 }
 
 function updateSyncStatus(message) {
-    const el = document.getElementById("sync-status");
-    if (el) el.textContent = message;
+    document.querySelectorAll("#sync-status, #mobile-sync-status").forEach((element) => {
+        element.textContent = message;
+    });
 }
 
 // ── Login screen ──────────────────────────────────────────────────────────────

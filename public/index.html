@@ -47,6 +47,10 @@
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg>
                     Categories
                 </button>
+                <button id="mobile-footer-tab" class="nav-button mobile-footer-tab" type="button" onclick="toggleMobileFooter()" aria-expanded="false" aria-controls="mobile-footer-menu">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    More
+                </button>
             </nav>
             <div class="sidebar-footer">
                 <div class="sidebar-footer-actions">
@@ -57,6 +61,13 @@
                 <span id="app-version" class="sidebar-version"></span>
             </div>
         </aside>
+
+        <div id="mobile-footer-menu" class="mobile-footer-menu" hidden>
+            <button class="mobile-footer-action" type="button" onclick="showDataUtilityDialog(); closeMobileFooter()">Import/Export</button>
+            <button class="mobile-footer-action mobile-footer-signout" type="button" onclick="driveSync.signOut(); closeMobileFooter()">Sign out</button>
+            <span id="mobile-sync-status" class="mobile-footer-status"></span>
+            <span id="mobile-app-version" class="mobile-footer-version"></span>
+        </div>
 
         <main>
             <section id="dashboard">
@@ -305,73 +316,125 @@
                 </div>
 
                 <div id="filters-panel" class="card form-panel tx-filters" hidden>
-                    <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
-                    <select id="type-filter" onchange="renderTransactions()">
-                        <option value="">All cash flows</option>
-                        <option value="in">In</option>
-                        <option value="out">Out</option>
-                        <option value="none">None</option>
-                    </select>
-                    <select id="account-filter" onchange="renderTransactions()">
-                        <option value="">All accounts</option>
-                    </select>
-                    <label class="filter-date-label">
-                        <input id="tx-from" type="date" onchange="renderTransactions()">
-                    </label>
-                    <span class="date-arrow">→</span>
-                    <label class="filter-date-label">
-                        <input id="tx-to" type="date" onchange="renderTransactions()">
-                    </label>
+                        <fieldset class="filter-form-block filter-search-block">
+                            <legend>Search</legend>
+                            <label>
+                                <span>Notes or category</span>
+                                <input id="search-filter" placeholder="Search notes or category" oninput="renderTransactions()">
+                            </label>
+                        </fieldset>
+                        <fieldset class="filter-form-block filter-options-block">
+                            <legend>Filters</legend>
+                            <div class="filter-form-grid">
+                                <label>
+                                    <span>Cash flow</span>
+                                    <select id="type-filter" onchange="renderTransactions()">
+                                        <option value="">All cash flows</option>
+                                        <option value="in">In</option>
+                                        <option value="out">Out</option>
+                                        <option value="none">None</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Account</span>
+                                    <select id="account-filter" onchange="renderTransactions()">
+                                        <option value="">All accounts</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </fieldset>
+                        <fieldset class="filter-form-block filter-date-block">
+                            <legend>Date range</legend>
+                            <div class="filter-form-grid filter-date-grid">
+                                <label>
+                                    <span>From</span>
+                                    <input id="tx-from" type="date" onchange="renderTransactions()">
+                                </label>
+                                <label>
+                                    <span>To</span>
+                                    <input id="tx-to" type="date" onchange="renderTransactions()">
+                                </label>
+                            </div>
+                        </fieldset>
                 </div>
 
                 <div id="transaction-feedback" class="status" hidden></div>
 
-                <div id="form" class="card form-panel" hidden>
+                <div id="form" class="card form-panel transaction-form-panel" hidden>
+                    <div class="form-intro">
+                        <div>
+                            <h2>New transaction</h2>
+                        </div>
+                    </div>
 
-                    <div class="form-grid">
-                        <label>
-                            <span>Date</span>
-                            <input id="date" type="date">
-                        </label>
+                    <div class="transaction-form-blocks">
+                        <fieldset class="transaction-form-block transaction-data-block">
+                            <legend>Data</legend>
+                            <label class="transaction-date-field">
+                                <span>Date <b aria-hidden="true">*</b></span>
+                                <input id="date" type="date">
+                            </label>
+                        </fieldset>
 
-                        <label>
-                            <span>Account</span>
-                            <select id="account"></select>
-                        </label>
+                        <fieldset class="transaction-form-block transaction-cashflow-block">
+                            <legend>Cash flow</legend>
+                            <div class="transaction-form-grid transaction-cashflow-grid">
+                                <label class="transaction-flow-field">
+                                    <span>Cash flow <b aria-hidden="true">*</b></span>
+                                    <select id="type" onchange="updateTransactionType()">
+                                        <option value="in">In</option>
+                                        <option value="out">Out</option>
+                                        <option value="none">Transfer</option>
+                                    </select>
+                                </label>
+                                <label class="transaction-amount-field">
+                                    <span id="currency-display">Amount</span>
+                                    <input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount">
+                                </label>
+                                <label class="transaction-account-field">
+                                    <span>From account <b aria-hidden="true">*</b></span>
+                                    <select id="account"></select>
+                                </label>
+                                <label id="destination-account-group" class="transaction-destination-field" hidden>
+                                    <span>To account <b aria-hidden="true">*</b></span>
+                                    <select id="destination-account"></select>
+                                </label>
+                            </div>
+                        </fieldset>
 
-                        <label>
-                            <span>Cash flow</span>
-                            <select id="type" onchange="updateTransactionType()">
-                                <option value="in">In</option>
-                                <option value="out">Out</option>
-                                <option value="none">None</option>
-                            </select>
-                        </label>
+                        <fieldset class="transaction-form-block transaction-category-block">
+                            <legend>Category</legend>
+                            <div class="transaction-form-grid transaction-category-grid">
+                                <label class="transaction-category-type-field">
+                                    <span>Category type <b aria-hidden="true">*</b></span>
+                                    <select id="category-type" name="category_type" onchange="onTransactionCategoryTypeChange()">
+                                        <option value="expense">Expense</option>
+                                        <option value="income">Income</option>
+                                        <option value="non_expense">Non expense</option>
+                                        <option value="non_income">Non income</option>
+                                        <option value="receivable">Receivable</option>
+                                        <option value="payable">Payable</option>
+                                        <option value="transfer">Transfer</option>
+                                    </select>
+                                </label>
+                                <label class="transaction-category-field">
+                                    <span>Category <b aria-hidden="true">*</b></span>
+                                    <select id="category" onchange="populateTransactionSubcategories()"></select>
+                                </label>
+                                <label id="subcategory-group" class="transaction-subcategory-field">
+                                    <span>Subcategory <em>Optional</em></span>
+                                    <select id="subcategory"></select>
+                                </label>
+                            </div>
+                        </fieldset>
 
-                        <label>
-                            <span id="currency-display">—</span>
-                            <input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount">
-                        </label>
-
-                         <label id="destination-account-group" hidden>
-                            <span>Destination account</span>
-                            <select id="destination-account"></select>
-                        </label>
-
-                        <label>
-                            <span>Main category</span>
-                            <select id="category" onchange="populateTransactionSubcategories()"></select>
-                        </label>
-
-                        <label id="subcategory-group">
-                            <span>Subcat. (opt)</span>
-                            <select id="subcategory"></select>
-                        </label>
-
-                        <label>
-                            <span>Notes</span>
-                            <input id="notes" placeholder="Optional notes">
-                        </label>
+                        <fieldset class="transaction-form-block transaction-notes-block">
+                            <legend>Notes</legend>
+                            <label class="wide-field">
+                                <span>Notes <em>Optional</em></span>
+                                <input id="notes" placeholder="Optional notes">
+                            </label>
+                        </fieldset>
                     </div>
 
                     <div class="form-actions">
@@ -448,6 +511,10 @@
                         <label>
                             <span>Opening Balance</span>
                             <input type="number" id="opening-balance" placeholder="Amount"></input>
+                        </label>
+                        <label>
+                            <span>Currency</span>
+                            <input id="account-currency" type="text" value="EUR" maxlength="5" autocapitalize="characters" placeholder="e.g. EUR">
                         </label>
                     </div>
 
@@ -532,6 +599,10 @@
     <script src="js/dashboard.js"></script>
     <script src="js/app-shell.js"></script>
     <script src="app.js"></script>
-    <script>document.getElementById('app-version').textContent = 'v' + (window.TRACKZ_VERSION || 'unknown');</script>
+    <script>
+        const appVersion = 'v' + (window.TRACKZ_VERSION || 'unknown');
+        document.getElementById('app-version').textContent = appVersion;
+        document.getElementById('mobile-app-version').textContent = appVersion;
+    </script>
 </body>
 </html>

@@ -184,6 +184,11 @@ body {
 	opacity: 1;
 }
 
+.mobile-footer-tab,
+.mobile-footer-menu {
+	display: none;
+}
+
 .icon-button {
 	display: inline-flex;
 	align-items: center;
@@ -869,6 +874,70 @@ select:focus {
 	color: var(--color-text-muted);
 }
 
+.form-intro h2 {
+	margin: 0 0 4px;
+	font-size: 18px;
+}
+
+.transaction-form-grid {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.transaction-form-blocks {
+	display: grid;
+	gap: 16px;
+}
+
+.transaction-form-block {
+	width: 100%;
+	margin: 0;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	min-width: 0;
+}
+
+.transaction-form-block legend {
+	padding: 0 6px;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--color-text-muted);
+}
+
+.transaction-cashflow-grid,
+.transaction-category-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 16px;
+}
+
+.transaction-cashflow-grid .transaction-destination-field,
+.transaction-category-grid .transaction-subcategory-field {
+	grid-column: span 1;
+}
+
+.transaction-date-field,
+.transaction-flow-field,
+.transaction-category-type-field,
+.transaction-amount-field,
+.transaction-destination-field,
+.transaction-category-field,
+.transaction-subcategory-field {
+	grid-column: span 1;
+}
+
+label span b {
+	color: var(--color-negative-mid);
+}
+
+label span em {
+	margin-left: 4px;
+	font-size: 9px;
+	font-style: normal;
+	font-weight: 500;
+	color: var(--color-text-muted);
+}
+
 .highlighted-readonly {
 	justify-content: center;
 }
@@ -901,15 +970,48 @@ select:focus {
 }
 
 .tx-filters {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 16px;
 }
 
-.tx-filters>input,
-.tx-filters>select {
-	width: auto;
+
+.filter-form-block {
+	width: 100%;
+	margin: 0;
+	padding: 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+}
+
+.filter-form-block legend {
+	padding: 0 6px;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--color-text-muted);
+}
+
+.filter-form-block label,
+.filter-form-grid {
+	display: grid;
+	gap: 6px;
+}
+
+.filter-form-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.filter-form-block label span {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+}
+
+.filter-form-block input,
+.filter-form-block select {
+	box-sizing: border-box;
+	width: 100%;
 	height: 38px;
 	padding: 0 10px;
 	border: 1px solid var(--color-border);
@@ -920,45 +1022,8 @@ select:focus {
 	outline: none;
 }
 
-.tx-filters>input {
-	flex: 1 1 180px;
-	min-width: 160px;
-}
-
-.tx-filters>select {
-	flex: 0 1 140px;
-	min-width: 110px;
-}
-
-.tx-filters .filter-date-label input[type="date"] {
-	height: 38px;
-}
-
-.date-arrow {
-	color: var(--color-arrow);
-	flex-shrink: 0;
-}
-
-.filter-date-label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	white-space: nowrap;
-}
-
-.filter-date-label span {
-	font-size: 13px;
-	color: var(--color-text-muted);
-	font-weight: 500;
-}
-
-.filter-date-label input[type="date"] {
-	padding: 8px 10px;
-	border: 1px solid var(--color-border-light);
-	border-radius: 8px;
-	font-size: 13px;
-	background: var(--color-surface);
-	color: var(--color-text-dark);
+.filter-form-block input[type="date"] {
+	padding: 0 8px;
 }
 
 .status {
@@ -1594,8 +1659,56 @@ select:focus {
 		border-top: 2px solid #60a5fa;
 	}
 
+	.mobile-footer-tab {
+		display: flex;
+	}
+
 	.sidebar-footer {
 		display: none;
+	}
+
+	.mobile-footer-menu {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		position: fixed;
+		left: 12px;
+		right: 12px;
+		bottom: calc(66px + env(safe-area-inset-bottom));
+		z-index: 101;
+		padding: 12px;
+		background: var(--color-sidebar-bg);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28);
+	}
+
+	.mobile-footer-action {
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		padding: 10px 8px;
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--color-sidebar-muted);
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.mobile-footer-signout {
+		color: #fecaca;
+	}
+
+	.mobile-footer-status,
+	.mobile-footer-version {
+		grid-column: 1 / -1;
+		text-align: center;
+		font-size: 10px;
+		color: var(--color-sidebar-nav-text);
+		min-height: 1em;
+	}
+
+	.mobile-footer-version {
+		color: rgba(148, 163, 184, 0.5);
 	}
 
 	/* Main content clears the bottom nav */
@@ -1618,6 +1731,53 @@ select:focus {
 
 	.form-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.transaction-form-panel {
+		padding: 18px 14px;
+	}
+
+	.transaction-form-grid {
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+	}
+
+	.transaction-form-blocks {
+		gap: 12px;
+	}
+
+	.transaction-form-block {
+		padding: 14px 12px;
+	}
+
+	.transaction-data-block {
+		max-width: none;
+	}
+
+	.transaction-cashflow-grid,
+	.transaction-category-grid {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	.transaction-date-field,
+	.transaction-flow-field,
+	.transaction-category-type-field,
+	.transaction-account-field,
+	.transaction-amount-field {
+		grid-column: span 1;
+	}
+
+	.transaction-destination-field,
+	.transaction-category-field,
+	.transaction-subcategory-field,
+	.transaction-form-grid .wide-field {
+		grid-column: 1 / -1;
+	}
+
+	.transaction-form-grid input,
+	.transaction-form-grid select {
+		min-width: 0;
 	}
 
 	.card {
@@ -1658,15 +1818,21 @@ select:focus {
 	}
 
 	.tx-filters {
-		gap: 6px;
+		grid-template-columns: 1fr;
+		gap: 12px;
 	}
 
-	.tx-filters > input,
-	.tx-filters > select {
-		flex: 1 1 120px;
-		min-width: 0;
-		font-size: 12px;
-		height: 34px;
+	.filter-form-block {
+		padding: 12px;
+	}
+
+	.filter-form-grid {
+		gap: 10px;
+	}
+
+	.filter-form-block input,
+	.filter-form-block select {
+		height: 40px;
 	}
 
 	.transaction-modal-grid {

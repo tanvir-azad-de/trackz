@@ -31,6 +31,7 @@ function renderAccounts() {
 function resetAccountForm() {
     getElement("account-name").value = "";
     getElement("opening-balance").value = "";
+    getElement("account-currency").value = getDefaultAccountCurrency();
 }
 
 function getDefaultAccountCurrency() {
@@ -56,7 +57,7 @@ function toggleAccountForm(force) {
 async function saveAccount() {
     const payload = {
         name: getElement("account-name").value.trim(),
-        currency: getDefaultAccountCurrency(),
+        currency: getElement("account-currency").value.trim().toUpperCase(),
         openingBalance: Number(getElement("opening-balance").value)
     };
 

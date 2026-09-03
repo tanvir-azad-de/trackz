@@ -83,6 +83,26 @@ function getSelectedCategory() {
   );
 }
 
+function getCategoryTypeForCashflow(cashflow) {
+  if (cashflow === "in") return "income";
+  if (cashflow === "none") return "transfer";
+  return "expense";
+}
+
+function populateTransactionCategories(categoryType, selectedName = "") {
+  const categories = (window.state.categoryTree || []).filter(
+    (category) => category.categoryType === categoryType,
+  );
+
+  setOptions("category", categories, { includeBlankLabel: "Select category" });
+
+  if (selectedName && categories.some((category) => category.name === selectedName)) {
+    getElement("category").value = selectedName;
+  }
+
+  populateTransactionSubcategories();
+}
+
 function populateTransactionSubcategories() {
   const selectedCategory = getSelectedCategory();
   const subcategories = selectedCategory?.subcategories || [];
@@ -225,19 +245,14 @@ function startEditingTransaction(id) {
   getElement("date").value = transaction.date || "";
   getElement("account").value = transaction.account || "";
   getElement("type").value = transaction.cashflow || "out";
+  getElement("category-type").value = transaction.categoryType || getCategoryTypeForCashflow(transaction.cashflow);
   updateTransactionType();
 
   if (transaction.cashflow === "none") {
     getElement("destination-account").value =
       transaction.destinationAccount || "";
   } else {
-    const hasCategory = (window.state.categoryTree || []).some(
-      (category) => category.name === transaction.category,
-    );
-    if (hasCategory) {
-      getElement("category").value = transaction.category;
-    }
-    populateTransactionSubcategories();
+    populateTransactionCategories(getElement("category-type").value, transaction.category);
     getElement("subcategory").value = transaction.subcategory || "";
   }
 
@@ -276,9 +291,22 @@ function updateTransactionType() {
   getElement("subcategory-group").hidden = isTransfer;
 
   if (isTransfer) {
+    getElement("category-type").value = "transfer";
     getElement("category").value = "";
     populateTransactionSubcategories();
+  } else {
+    populateTransactionCategories(getElement("category-type").value);
   }
+}
+
+function onTransactionCategoryTypeChange() {
+  const categoryType = getElement("category-type").value;
+  if (categoryType === "transfer") {
+    getElement("type").value = "none";
+  } else if (getElement("type").value === "none") {
+    getElement("type").value = "out";
+  }
+  updateTransactionType();
 }
 
 function resetTransactionForm() {
@@ -287,6 +315,7 @@ function resetTransactionForm() {
   getElement("amount").value = "";
   getElement("notes").value = "";
   getElement("type").value = "out";
+  getElement("category-type").value = "expense";
   getElement("destination-account").value = "";
   getElement("subcategory").value = "";
 
@@ -297,16 +326,11 @@ function resetTransactionForm() {
     getElement("currency-display").textContent = "Amount";
   }
 
-  if (
-    window.state.categoryTree.find((category) => category.name === "Shopping")
-  ) {
-    getElement("category").value = "Shopping";
-  } else if (window.state.categoryTree[0]) {
-    getElement("category").value = window.state.categoryTree[0].name;
-  }
-
-  populateTransactionSubcategories();
   updateTransactionType();
+  if (window.state.categoryTree.find((category) => category.name === "Shopping")) {
+    getElement("category").value = "Shopping";
+    populateTransactionSubcategories();
+  }
   setTransactionFormMode();
 }
 
@@ -363,6 +387,7 @@ async function saveTransaction() {
     destinationAccount: getElement("destination-account").value,
     cashflow,
     category: getElement("category").value,
+    categoryType: getElement("category-type").value,
     subcategory: getElement("subcategory").value,
     amount: Number(getElement("amount").value),
     notes: getElement("notes").value.trim(),
@@ -440,6 +465,7 @@ window.editTransactionFromModal = editTransactionFromModal;
 window.deleteTransactionFromModal = deleteTransactionFromModal;
 window.syncCurrencyWithAccount = syncCurrencyWithAccount;
 window.updateTransactionType = updateTransactionType;
+window.onTransactionCategoryTypeChange = onTransactionCategoryTypeChange;
 window.populateTransactionSubcategories = populateTransactionSubcategories;
 window.resetTransactionForm = resetTransactionForm;
 function toggleFilters() {
