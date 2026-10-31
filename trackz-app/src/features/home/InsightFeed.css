@@ -1,0 +1,66 @@
+.insight-feed__empty {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.insight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.insight__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lg);
+  flex: 0 0 auto;
+}
+
+.insight__icon--up {
+  background: var(--negative-bg);
+  color: var(--negative);
+}
+
+.insight__icon--down {
+  background: var(--positive-bg);
+  color: var(--positive);
+}
+
+.insight__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.insight__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.insight__detail {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.insight__amount {
+  font-size: var(--text-base);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.insight__amount--neg {
+  color: var(--negative);
+}
+
+.insight__amount--pos {
+  color: var(--positive);
+}

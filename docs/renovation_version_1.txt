@@ -1,0 +1,361 @@
+TRACKZ — FULL RENOVATION PLAN (v1)
+Written: 2026-10-31
+Status: APPROVED — in progress
+
+===============================================================================
+0. DECISIONS LOCKED IN (from the grill session — do not relitigate these)
+===============================================================================
+
+- Currency:        EUR-only. Strip all per-account currency / FX plumbing.
+- Architecture:     Vite + Preact + TypeScript. Build step is fine (Vercel).
+- Quick entry:      Center FAB -> keypad-first bottom sheet with smart recall
+                    chips (recency + frequency ranked), 3-tap happy path.
+- Dashboard shape:  Hero number (this month vs usual + net worth) + ranked
+                    insight feed below it + account strip. No more than
+                    ~1.5 screens before you're into "tap for detail".
+- Visual direction: Dark fintech. Dark-ONLY (no light mode, no toggle).
+                    System fonts, tabular figures for amounts, bold numbers,
+                    accent gradients, 44px min touch targets.
+- Category types:   Keep all 6 (income, expense, transfer, non_income,
+                    non_expense, receivable, payable) but relabel in UI:
+                      non_income -> "Money back"
+                      non_expense -> "Paying someone back"
+                      receivable -> "Lent out"
+                      payable    -> "I owe"
+- Merchants:        Rename subcategory -> merchant. Free-text + autocomplete.
+                    One-time guided merge screen for duplicates
+                    (EDEKA/Edeka/KAUFLAND HAMBURG BRAMF etc) — user approves
+                    every merge, nothing auto-merged silently.
+- Sync:             Fix Google Drive sync properly: token refresh via GIS,
+                    debounce uploads (~5s), revision/ETag conflict detection,
+                    honest status UI (Synced/Pending/Offline/Conflict).
+                    NOT replaced with a backend. NOT downgraded to manual
+                    backup-only.
+- Budgets:          None. Insight feed compares against the user's own
+                    3/6-month historical average per category. No caps,
+                    no nagging.
+- PWA:               Full: manifest, icons, service worker, installable,
+                    offline-capable app shell.
+- Charts:           Drop Chart.js (200KB vendored). Use uPlot (~10-45KB,
+                    SVG/canvas tiny chart lib) for the few charts that
+                    survive: sparkline, ranked bars, net worth line.
+- Navigation:       4 tabs + center FAB: Home | Activity | [+] | Accounts |
+                    Settings.
+- Rollout:          Hard cutover of the CODE (delete public/* at the end,
+                    single new app). But DATA is never overwritten blind —
+                    new app reads from new storage keys / new Drive filename,
+                    migrating read-only from the old ones. Old data stays
+                    intact and recoverable until the user deletes it
+                    manually. See Phase 0 and Phase 5.
+- Design review gate: Static Home-screen mockups (2-3 variants) must be
+                    shown and approved BEFORE any component code is written.
+                    This is a hard gate — Phase 3.
+
+===============================================================================
+1. CURRENT STATE — WHAT WE'RE REPLACING
+===============================================================================
+
+Stack: vanilla JS, no build step, localStorage, Google Drive (appDataFolder)
+sync, Chart.js 4.5.1 vendored, deployed via Vercel static hosting.
+~6,973 LOC across public/*.js + index.html + style.css.
+
+Real usage data (dummyData/trackz-backup-2026-10-31.csv, 1,455 rows,
+2024-11-18 -> 2026-10-17, 100% EUR):
+  - 1,174 expense / 118 income / 130 transfer / 78 non_income /
+    25 non_expense / 13 receivable / 0 payable
+  - 6 accounts, 3 carry 99% of traffic (CMRZ 717, ADVZ 360, REVO 358)
+  - Groceries = 578 txns (40% of all expenses)
+  - 828 of 1,174 expenses are under EUR 20 -> high-frequency small-amount
+    logging is the dominant use case
+  - Top spend: Rent 14,902 / Family Support 10,643 / Groceries 7,969 /
+    Shopping 6,867
+  - Top income: Salary 42,191 / Fintiba 11,921
+  - Subcategory field is a merchant-name graveyard: 60+ variants under
+    Groceries alone (Edeka/EDEKA, Aldi/ALDI, Kaufland/KAUFLAND HAMBURG
+    BRAMF, Niemerszein/NIEMERSZEIN & CO.KG, raw bank strings like
+    "THYO00000 0000000005CZUCO")
+
+Dashboard today: 11 cards, 8 fixed-320px-tall Chart.js charts, one long
+scroll (~12 phone screens). 4 cards are accounting internals (Discrepancies,
+Non Expenses, Non Incomes, Untracked Categories) — not decisions a human
+needs to see first.
+
+CONFIRMED BUGS (file:line references from the current public/ tree, for the
+record — these do not need individual fixes since the code is being
+replaced, but the new implementation must not reintroduce them):
+
+  B1  Granularity key mismatch: getSourceAccountsSeriesData drops the
+      passed granularity and recomputes it from DOM inputs
+      (dashboard.js:1404). Makes the "Discrepancies" card meaningless at
+      the default date range (netWorthAbsoluteTotal always 0).
+  B2  convertAmountToDashboardCurrency is an identity function
+      (dashboard.js:322-324) — multi-currency totals are silently wrong
+      whenever currencies differ (not triggered today since data is
+      100% EUR, but the plumbing exists and is broken).
+  B3  dbComputeSummary / window.state.summary / dashboardSummary are
+      computed every keystroke and never read by anything (dead work).
+  B4  getTransactionCategoryType's category-type lookup can never
+      succeed — window.state.categories entries only have `name`, no
+      `categoryType` (dashboard.js:306-313 vs db.js:573-583).
+  B5  renderPayablesBalanceChart throws RangeError when `from` is empty
+      (dashboard.js:1257-1258) — shiftMonth("") is invalid.
+  B6  encodeURIComponent used inside a single-quoted onclick attribute
+      without escapeHtml — apostrophes in names break the attribute /
+      open an injection vector (dashboard.js:1878-1880, accounts.js:22).
+  B7  Missing GOOGLE_CLIENT_ID path never calls loadData() — fresh clone
+      without config.js shows a blank app with zero data, no error
+      (drive-sync.js:186-193).
+  B8  OAuth access token persisted in localStorage with no refresh and
+      no expiry tracking — sync dies silently after ~1h
+      (drive-sync.js:23-32).
+  B9  SYNC_INTERVAL_MS = 1000, full-dataset re-upload on any dirty flag,
+      no debounce, no ETag, no conflict detection — last-writer-wins,
+      silent cross-device data loss (drive-sync.js:10,163).
+  B10 CSV export writes transactions only; import re-derives accounts
+      with openingBalance: 0, destroying real opening balances
+      (data-utility.js:145-173, db.js:100,104).
+  B11 All 4 pages render on every loadData() regardless of which is
+      hidden -> 8 Chart.js instances constructed against zero-size
+      canvases when the active page isn't #dashboard (app-shell.js:1-6).
+  B12 renderTotalAssetsChart targets DOM ids that don't exist in
+      index.html — dead code, throws if ever called (dashboard.js:984-1029).
+
+  Also: money stored as IEEE-754 doubles with bare `+` reduction (float
+  drift), dates mixing local-time and UTC-time Date construction
+  (off-by-one-day near midnight for users east of UTC), style.css is
+  ~45% dead/duplicated (lines ~1119-1610 re-paste ~138-1117 with hardcoded
+  hex overriding CSS variables), no manifest/service worker/apple-touch-icon
+  (not installable), inputs have no font-size (iOS zooms on focus),
+  .icon-button is 36x36px (below Apple's 44px HIG minimum), 100vh used
+  instead of 100dvh (content hides under Safari's dynamic toolbar).
+
+===============================================================================
+2. TARGET ARCHITECTURE
+===============================================================================
+
+  trackz/
+    src/
+      app/            routing (4 tabs + FAB), shell, safe-area layout
+      domain/         types, money (integer cents), dates (UTC-safe),
+                      signed-amount (single source of truth)
+      storage/        repository layer, v1->v2 migration, localStorage
+      insights/       pure functions: baseline comparison, anomaly
+                      detection, net worth movement — unit tested
+      sync/           Drive sync v2: token refresh, debounce, conflict
+                      detection
+      features/
+        home/         hero + insight feed + account strip
+        activity/     transaction list, search, filters, detail sheet
+        entry/        quick-entry keypad sheet + recall chips
+        accounts/     balance cards, sparklines, opening balance edit
+        settings/     categories, merchant merge, CSV import/export
+      components/     shared UI primitives (buttons, sheets, chips, charts)
+      styles/         design tokens (dark fintech palette), globals
+    public/           static assets only (icons, manifest) — NOT the app
+    dist/             Vite build output
+    scripts/          migration-proof script, CSV tools
+    docs/             this file + any ADRs
+
+  Money: integer cents (number, safe up to ~9e15 — plenty for personal
+  finance), formatted at the edge only. Eliminates float drift class of
+  bugs (reduce() sums become exact integer arithmetic).
+
+  Dates: all internal comparisons on UTC-anchored YYYY-MM-DD strings or
+  Date.UTC(...) construction. No new Date().toISOString() for "today" —
+  use a single getLocalToday() that respects the user's actual timezone
+  for "today" boundaries (fixes the Dhaka-at-01:31 bug) while keeping
+  storage/comparison lexicographic.
+
+===============================================================================
+3. PHASE PLAN (also tracked live in the TodoWrite list)
+===============================================================================
+
+Phase  0  Data safety net
+          CONFIRMED: the CSV (dummyData/trackz-backup-2026-10-31.csv) is the
+          ONE true source of data. Accounts and categories are always
+          derived from transactions — there is no separately-persisted
+          opening-balance feature in use, and no localStorage state that
+          isn't itself derivable from this CSV. This removes the
+          "migrate from live localStorage" concern entirely.
+          - Snapshot the CSV into dummyData/snapshot-2026-10-31/ (done).
+          - Write scripts/verify-import.* : parses the CSV with the new
+            domain model (integer cents, derived accounts/categories/
+            merchants), and asserts: row count = 1455, per-account
+            running balances match an independent awk/reference
+            computation, per-category totals match, no row dropped or
+            mis-typed. This fixture doubles as test data for the
+            insight engine (Phase 9).
+
+Phase  1  Scaffold
+          - Vite + Preact + TypeScript, strict mode, path aliases.
+          - vercel.json rewritten for the Vite build.
+          - GOOGLE_CLIENT_ID handled via Vite env, with a visible error
+            state instead of B7's silent blank app.
+
+Phase  2  Design tokens
+          - Dark-only semantic CSS custom properties (bg/surface/text/
+            accent/positive/negative scales), tabular-figure numeric type
+            scale, 4pt spacing scale, 44px touch minimum, safe-area and
+            100dvh primitives.
+
+Phase  3  *** DESIGN REVIEW GATE — CLEARED ***
+          - 3 static Home-screen mockups built with real Sept 2026 data
+            from the CSV (docs/mockups/home-{a,b,c}-*.html).
+          - DECISION (locked): Mockup B — "Flat Minimal" chosen. No
+            gradient hero card. Flat var(--surface-1) card, income/expense
+            as two raised var(--surface-2) stat tiles side by side, flat
+            (non-gradient) accent-colored FAB. This is the user's taste —
+            apply consistently across every screen, not just Home:
+              - no gradients anywhere in the UI unless explicitly revisited
+              - calm flat dark cards with a 1px var(--border-subtle) edge
+              - color is reserved for meaning (positive/negative/neutral),
+                not decoration
+          - --gradient-accent token is DEAD as of this decision. Left
+            defined in tokens.css in case it's wanted later, but nothing
+            should reference it going forward.
+
+STATUS AS OF THIS WRITE-UP: Phases 0-5 and 9-10 (partial) are built and
+verified. Real app code lives in trackz-app/ (Vite + Preact + TS). Key
+things done:
+  - trackz-app/src/domain/{money,dates,transaction}.ts — integer-cent
+    money, UTC-safe dates, single getSignedAmountCents() replacing the
+    4 old divergent sign-derivation copies. Unit tested.
+  - trackz-app/src/storage/csv.ts — CSV parser matching the real backup
+    format, EUR-only enforced as a hard parse error.
+  - trackz-app/src/storage/derive.ts — accounts/categories/merchants
+    derived from transactions (confirmed: no separate opening-balance
+    feature, CSV is the sole source of truth).
+  - trackz-app/src/storage/repository.ts — new namespaced localStorage
+    key (trackz.v2.transactions), never touches the old app's keys.
+  - trackz-app/src/insights/engine.ts — month summary, net worth,
+    category deltas vs N-month baseline WITH DAY-OF-MONTH PRORATION.
+    This proration was added after a real bug was caught live: a
+    headless-Chrome smoke test against October 2026 (a 17-day partial
+    month) showed every category as a false "80-90% crash" because the
+    unprorated baseline compared 17 days of spend against a full
+    month's average. Fixed in engine.ts's getCategoryDeltasForMonth
+    (asOfDate parameter + elapsedFraction scaling), with a regression
+    test (engine.test.ts) and a passing live re-check.
+  - trackz-app/src/app/TabBar.tsx + app.tsx — real 4-tab + FAB shell.
+  - trackz-app/src/features/home/* — real Home screen (HeroCard,
+    AccountStrip, InsightFeed) matching locked Mockup B, wired to live
+    data via the insight engine. Verified against real CSV totals in a
+    headless Chrome DOM dump (net worth, account balances, deltas all
+    checked against independently-computed numbers).
+  - Dev-only CSV auto-seed (trackz-app/src/dev/seed.ts) so `npm run dev`
+    has real data; guarded by import.meta.env.DEV, never ships to prod.
+  - 31 unit tests passing (vitest), tsc -b clean, production build ~22KB
+    JS gzipped to ~8.7KB (vs. old app's 200KB Chart.js alone).
+  - Activity / Accounts / Settings tabs are still placeholders (Phase
+    11-13). Quick-entry FAB currently shows an alert (Phase 8).
+
+
+          - TS types: Transaction, Account, Category, Merchant.
+          - EUR-only — delete currency field plumbing entirely.
+          - Money as integer cents.
+          - Single getSignedAmountCents(tx, perspective) replacing the
+            4 divergent copies found in the old code.
+
+Phase  5  Storage layer
+          - New keys: trackz.v2.transactions / .accounts / .categories /
+            .merchants (localStorage).
+          - Read-only migration from trackz_transactions / trackz_accounts
+            / trackz_categories (old keys untouched, never deleted by the
+            new app).
+          - Repository API (get/save/delete) with unit tests.
+          - UTC-safe date range utilities (fixes B1/B5 class of bugs).
+
+Phase  6  Merchant model
+          - subcategory -> merchant rename across the model.
+          - Free-text input with autocomplete from existing merchants.
+          - Normalization (trim, case-fold for matching, keep display
+            case) + similarity scoring to power the Settings merge screen
+            (Phase 13).
+
+Phase  7  App shell
+          - 4 tabs + center FAB, iOS safe-area insets on all 4 edges,
+            100dvh, keyboard-avoidance for the entry sheet.
+
+Phase  8  Quick-entry sheet
+          - Numeric keypad, amount-first.
+          - Recall chips: top N (category, merchant, account) combos
+            ranked by recency + frequency, computed from history.
+          - 3-tap happy path: FAB -> amount -> chip -> saved.
+          - Optimistic save, haptic feedback (navigator.vibrate fallback).
+
+Phase  9  Insight engine
+          - Pure, unit-tested functions: current-month vs 3/6-month
+            average per category, net worth delta, merchant concentration,
+            simple anomaly flags (this category/merchant is unusually
+            high/low this month).
+          - Tested directly against the real 1,455-row CSV as fixture data.
+
+Phase 10  Home screen
+          - Hero: net worth + this-month spend vs usual, above the fold.
+          - Ranked insight feed below (cards sorted by magnitude of
+            deviation).
+          - Account balance strip.
+          - Every insight card taps through to a filtered Activity view.
+
+Phase 11  Activity screen
+          - Virtualized, date-grouped list with sticky month headers.
+          - Instant search, filter sheet (account/category/date range).
+          - Swipe actions, tap for edit/delete detail sheet.
+
+Phase 12  Accounts screen
+          - Balance cards with sparklines.
+          - Opening balance is editable (impossible in v1).
+          - Receivables/payables surfaced as "Lent out" / "I owe".
+
+Phase 13  Settings
+          - Categories: edit + delete (both missing in v1), plain-English
+            type labels per the Decisions section.
+          - Guided merchant merge screen using Phase 6's similarity
+            scoring — every merge is an explicit user confirmation.
+          - CSV import/export that round-trips accounts + categories too
+            (fixes B10 — opening balances must survive a round trip).
+
+Phase 14  Charts
+          - Replace Chart.js with uPlot.
+          - Sparkline, ranked-bar, net-worth-line components, dark-theme
+            native, sized for phone screens (no fixed 320px blocks).
+
+Phase 15  Drive sync rewrite
+          - Google Identity Services with token refresh.
+          - Debounce uploads (~5s after last local change), not 1s polling.
+          - Revision number + ETag/If-Match for conflict detection.
+          - Honest status UI: Synced / Pending / Offline / Conflict.
+          - New Drive filename (e.g. trackz-data-v2.json) — old sync file
+            untouched.
+
+Phase 16  PWA
+          - manifest.webmanifest, maskable + apple-touch icons,
+            theme-color, color-scheme meta.
+          - Service worker: app-shell precache, offline fallback page,
+            install prompt handling.
+
+Phase 17  iOS hardening pass
+          - All inputs >=16px font-size (no zoom-on-focus).
+          - -webkit-tap-highlight-color: transparent, hover guarded by
+            (hover: hover), overscroll-behavior containment on sheets,
+            prefers-reduced-motion respected.
+          - Real-device test: iPhone Safari (browser tab) + standalone
+            (installed PWA).
+
+Phase 18  Cutover
+          - Delete old public/* (after Phase 0's snapshot + Phase 5's
+            migration are both verified against the real data).
+          - Tag a rollback commit before deleting.
+          - Deploy via Vercel.
+
+===============================================================================
+4. OPEN ITEMS TO CONFIRM BEFORE PHASE 3 MOCKUPS ARE SHOWN
+===============================================================================
+
+  - Exact accent color(s) for the dark fintech palette (will propose 2-3
+    options in the mockups themselves rather than asking in the abstract).
+  - Icon/branding: logo.svg exists today — reuse, restyle, or replace?
+    (Default assumption: restyle for dark background unless told
+    otherwise.)
+
+===============================================================================

@@ -1,0 +1,74 @@
+@import "./tokens.css";
+
+/**
+ * Global resets + iOS safety baseline. Several of these directly fix bugs
+ * documented in docs/renovation_version_1.txt:
+ *   - 100vh -> 100dvh (content no longer hides under Safari's dynamic toolbar)
+ *   - input/select font-size >= 16px (no more zoom-on-focus on iOS)
+ *   - -webkit-tap-highlight-color: transparent (no blue flash on tappable cards)
+ *   - overscroll-behavior containment (sheets no longer rubber-band the body)
+ */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  color-scheme: dark;
+  height: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+
+#app {
+  min-height: 100dvh;
+}
+
+/* Every numeric amount in the app should opt into this class so columns
+   of money align and digits don't jiggle width as they change. */
+.tnum {
+  font-feature-settings: var(--font-feature-numeric);
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* Only apply hover affordances on devices that actually have hover
+   (old app's translateY hover effects stuck after tap on iOS). */
+@media (hover: hover) and (pointer: fine) {
+  .hoverable:hover {
+    filter: brightness(1.08);
+  }
+}
+
+input,
+select,
+textarea {
+  font-size: var(--text-base); /* >=16px: prevents iOS Safari's zoom-on-focus */
+  font-family: inherit;
+}

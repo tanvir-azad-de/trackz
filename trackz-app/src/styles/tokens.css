@@ -1,0 +1,102 @@
+/**
+ * Design tokens — dark fintech, dark-ONLY (no light mode, see decisions in
+ * docs/renovation_version_1.txt). Semantic names so components never read
+ * a raw hex value. This replaces the old style.css's 36 color-only tokens
+ * (no spacing/radius/type scale existed before, and half the color tokens
+ * were dead or shadowed by a duplicated hardcoded block — see the old
+ * code's bug list).
+ */
+
+:root {
+  /* ---- Surfaces (darkest -> lightest, fintech apps layer dark grays) ---- */
+  --surface-0: #0a0b0f; /* app background */
+  --surface-1: #14151b; /* cards, sheets */
+  --surface-2: #1d1f28; /* raised elements within a card, inputs */
+  --surface-3: #282a35; /* hover/pressed state of surface-2 */
+
+  /* ---- Text ---- */
+  --text-primary: #f5f6f8;
+  --text-secondary: #9aa0ad;
+  --text-tertiary: #636a78;
+  --text-on-accent: #0a0b0f;
+
+  /* ---- Borders / separators ---- */
+  --border-subtle: #262830;
+  --border-strong: #363947;
+
+  /* ---- Accent (brand) ---- */
+  --accent: #6e56f8; /* primary interactive color */
+  --accent-strong: #8b76ff;
+  --accent-bg: rgba(110, 86, 248, 0.16);
+
+  /* ---- Semantic status: money in / money out / neutral ---- */
+  --positive: #30d98a; /* income, surplus */
+  --positive-bg: rgba(48, 217, 138, 0.14);
+  --negative: #ff6b6b; /* expense, deficit */
+  --negative-bg: rgba(255, 107, 107, 0.14);
+  --neutral: #ffb454; /* transfers, lent/owed, attention */
+  --neutral-bg: rgba(255, 180, 84, 0.14);
+
+  /* ---- Gradients ----
+     DEAD per the Phase 3 design decision: user picked Mockup B
+     ("Flat Minimal") over the gradient-hero variant. Nothing in the
+     component layer should reference --gradient-accent going forward —
+     left defined only in case a future screen explicitly wants it. */
+  --gradient-accent: linear-gradient(135deg, #6e56f8 0%, #a06bff 100%);
+
+  /* ---- Spacing scale (4pt base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  /* ---- Touch targets (Apple HIG minimum is 44px — old app's
+     .icon-button was 36px, this is the fix) ---- */
+  --touch-target-min: 44px;
+
+  /* ---- Typography ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  /* Tabular figures on every amount so columns of numbers align — the old
+     app had no numeric font-feature handling at all. */
+  --font-feature-numeric: "tnum" 1, "lnum" 1;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px; /* also the iOS input-zoom threshold floor, see Phase 17 */
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-hero: 40px; /* the Home screen's one big number */
+
+  /* ---- Motion ---- */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- Safe-area + viewport primitives (iOS) ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}

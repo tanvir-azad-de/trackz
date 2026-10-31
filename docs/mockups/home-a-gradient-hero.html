@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>trackz — Home mockup A (Gradient Hero)</title>
+<style>
+:root {
+  --surface-0: #0a0b0f;
+  --surface-1: #14151b;
+  --surface-2: #1d1f28;
+  --surface-3: #282a35;
+  --text-primary: #f5f6f8;
+  --text-secondary: #9aa0ad;
+  --text-tertiary: #636a78;
+  --text-on-accent: #0a0b0f;
+  --border-subtle: #262830;
+  --border-strong: #363947;
+  --accent: #6e56f8;
+  --accent-strong: #8b76ff;
+  --accent-bg: rgba(110, 86, 248, 0.16);
+  --positive: #30d98a;
+  --positive-bg: rgba(48, 217, 138, 0.14);
+  --negative: #ff6b6b;
+  --negative-bg: rgba(255, 107, 107, 0.14);
+  --neutral: #ffb454;
+  --neutral-bg: rgba(255, 180, 84, 0.14);
+  --gradient-accent: linear-gradient(135deg, #6e56f8 0%, #a06bff 100%);
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px; --radius-full: 999px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  margin: 0; background: #000; font-family: var(--font-sans); color: var(--text-primary);
+  display: flex; justify-content: center; padding: 24px 0;
+}
+.phone {
+  width: 390px; min-height: 844px; background: var(--surface-0);
+  border-radius: 48px; overflow: hidden; position: relative;
+  box-shadow: 0 0 0 1px #222, 0 40px 80px rgba(0,0,0,0.6);
+}
+.statusbar { height: 54px; display:flex; align-items:flex-end; justify-content: space-between; padding: 0 28px 6px; font-size: 15px; font-weight: 600; }
+.screen { padding: 4px 20px 100px; overflow-y: auto; height: calc(844px - 54px); }
+h1 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin: 8px 0 16px; letter-spacing: 0.2px; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Hero */
+.hero {
+  background: var(--gradient-accent);
+  border-radius: var(--radius-xl);
+  padding: 24px 20px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: ""; position: absolute; width: 220px; height: 220px; border-radius: 50%;
+  background: rgba(255,255,255,0.08); top: -80px; right: -60px;
+}
+.hero-label { font-size: 13px; color: rgba(255,255,255,0.75); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.hero-amount { font-size: 40px; font-weight: 700; color: #fff; margin: 6px 0 2px; }
+.hero-sub { font-size: 14px; color: rgba(255,255,255,0.85); }
+.hero-row { display:flex; justify-content: space-between; align-items: flex-end; margin-top: 18px; }
+.hero-stat { }
+.hero-stat .k { font-size: 12px; color: rgba(255,255,255,0.7); }
+.hero-stat .v { font-size: 18px; font-weight: 700; color: #fff; }
+
+/* Account strip */
+.accounts { display:flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 4px; }
+.accounts::-webkit-scrollbar { display: none; }
+.acct-card {
+  flex: 0 0 auto; background: var(--surface-1); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); padding: 10px 14px; min-width: 110px;
+}
+.acct-card .name { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+.acct-card .amt { font-size: 15px; font-weight: 700; }
+
+/* Insight feed */
+.section-title { font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin: 22px 0 10px; }
+.insight {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface-1); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg); padding: 14px; margin-bottom: 10px;
+}
+.insight .icon {
+  width: 40px; height: 40px; border-radius: var(--radius-full);
+  display:flex; align-items:center; justify-content:center; font-size: 18px; flex: 0 0 auto;
+}
+.insight .icon.up { background: var(--negative-bg); color: var(--negative); }
+.insight .icon.down { background: var(--positive-bg); color: var(--positive); }
+.insight .icon.neutral { background: var(--neutral-bg); color: var(--neutral); }
+.insight .body { flex: 1; min-width: 0; }
+.insight .title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.insight .detail { font-size: 12px; color: var(--text-tertiary); }
+.insight .amount { font-size: 15px; font-weight: 700; flex: 0 0 auto; }
+.insight .amount.neg { color: var(--negative); }
+.insight .amount.pos { color: var(--positive); }
+
+/* Tab bar */
+.tabbar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 84px;
+  background: rgba(20,21,27,0.92); backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-subtle);
+  display: flex; align-items: center; justify-content: space-around;
+  padding-bottom: 20px;
+}
+.tab { display:flex; flex-direction: column; align-items:center; gap:3px; color: var(--text-tertiary); font-size: 10px; font-weight: 600; }
+.tab.active { color: var(--accent-strong); }
+.tab .dot { width: 22px; height: 22px; display:flex; align-items:center; justify-content:center; font-size: 16px; }
+.fab {
+  width: 52px; height: 52px; border-radius: 50%; background: var(--gradient-accent);
+  display:flex; align-items:center; justify-content:center; font-size: 24px; color: #fff;
+  margin-top: -28px; box-shadow: 0 8px 20px rgba(110,86,248,0.5);
+}
+.caption { color: #888; font-size: 13px; text-align: center; margin-top: 12px; width: 390px; }
+</style>
+</head>
+<body>
+<div>
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>●●● 5G 🔋</span></div>
+  <div class="screen">
+    <h1>Home</h1>
+
+    <div class="hero">
+      <div class="hero-label">Net worth</div>
+      <div class="hero-amount tnum">€3,531.03</div>
+      <div class="hero-sub">↑ €411.52 surplus this month</div>
+      <div class="hero-row">
+        <div class="hero-stat"><div class="k">Income</div><div class="v tnum">€3,125.84</div></div>
+        <div class="hero-stat"><div class="k">Spent</div><div class="v tnum">€2,714.32</div></div>
+      </div>
+    </div>
+
+    <div class="accounts">
+      <div class="acct-card"><div class="name">CMRZ</div><div class="amt tnum">€1,695.10</div></div>
+      <div class="acct-card"><div class="name">SCLB</div><div class="amt tnum">€2,000.00</div></div>
+      <div class="acct-card"><div class="name">REVO</div><div class="amt tnum">€190.05</div></div>
+      <div class="acct-card"><div class="name">ADVZ</div><div class="amt tnum" style="color:var(--negative)">-€459.66</div></div>
+    </div>
+
+    <div class="section-title">What changed this month</div>
+
+    <div class="insight">
+      <div class="icon up">↑</div>
+      <div class="body">
+        <div class="title">Shopping is up 80%</div>
+        <div class="detail">€768 this month vs €427 usual</div>
+      </div>
+      <div class="amount neg tnum">+€342</div>
+    </div>
+
+    <div class="insight">
+      <div class="icon down">↓</div>
+      <div class="body">
+        <div class="title">Family Support is down 53%</div>
+        <div class="detail">€311 this month vs €655 usual</div>
+      </div>
+      <div class="amount pos tnum">−€344</div>
+    </div>
+
+    <div class="insight">
+      <div class="icon up">↑</div>
+      <div class="body">
+        <div class="title">Electricity tripled</div>
+        <div class="detail">€72 this month vs €24 usual</div>
+      </div>
+      <div class="amount neg tnum">+€48</div>
+    </div>
+
+    <div class="insight">
+      <div class="icon neutral">⇄</div>
+      <div class="body">
+        <div class="title">Groceries steady</div>
+        <div class="detail">€361 — right at your usual</div>
+      </div>
+      <div class="amount tnum" style="color:var(--text-tertiary)">€361</div>
+    </div>
+
+  </div>
+  <div class="tabbar">
+    <div class="tab active"><div class="dot">⌂</div>Home</div>
+    <div class="tab"><div class="dot">☰</div>Activity</div>
+    <div class="fab">+</div>
+    <div class="tab"><div class="dot">▦</div>Accounts</div>
+    <div class="tab"><div class="dot">⚙</div>Settings</div>
+  </div>
+</div>
+</div>
+<div class="caption">Mockup A — Gradient Hero</div>
+</body>
+</html>

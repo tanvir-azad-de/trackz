@@ -1,0 +1,26 @@
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  text-align: left;
+  width: 100%;
+  display: block;
+  font: inherit;
+  cursor: default;
+}
+
+button.card {
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.card:hover {
+    border-color: var(--border-strong);
+  }
+}
+
+button.card:active {
+  background: var(--surface-2);
+}
