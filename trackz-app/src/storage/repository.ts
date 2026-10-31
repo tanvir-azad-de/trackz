@@ -13,6 +13,24 @@ import type { Transaction } from "@/domain/transaction";
  */
 const STORAGE_KEY = "trackz.v2.transactions";
 
+/**
+ * Subscribers notified after every write (add/update/delete/replace) so UI
+ * can re-read without polling. Hand-rolled instead of a state library —
+ * this repository is the only mutable store in the app, and the surface
+ * is tiny (get the list, get notified it changed). See
+ * storage/useTransactions.ts for the Preact-side consumer.
+ */
+const listeners = new Set<() => void>();
+
+export function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
 function readRaw(): Transaction[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -39,12 +57,14 @@ export function isEmpty(): boolean {
 /** Replace the entire transaction list — used by CSV import (Phase 13) and the one-time dev seed. */
 export function replaceAllTransactions(transactions: Transaction[]): void {
   writeRaw(transactions);
+  notify();
 }
 
 export function addTransaction(tx: Transaction): void {
   const all = readRaw();
   all.push(tx);
   writeRaw(all);
+  notify();
 }
 
 export function updateTransaction(tx: Transaction): void {
@@ -53,9 +73,11 @@ export function updateTransaction(tx: Transaction): void {
   if (index === -1) throw new Error(`updateTransaction: no transaction with id ${tx.id}`);
   all[index] = tx;
   writeRaw(all);
+  notify();
 }
 
 export function deleteTransaction(id: string): void {
   const all = readRaw();
   writeRaw(all.filter((t) => t.id !== id));
+  notify();
 }

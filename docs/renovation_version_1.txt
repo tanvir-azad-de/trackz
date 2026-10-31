@@ -214,19 +214,26 @@ Phase  3  *** DESIGN REVIEW GATE — CLEARED ***
             defined in tokens.css in case it's wanted later, but nothing
             should reference it going forward.
 
-STATUS AS OF THIS WRITE-UP: Phases 0-5 and 9-10 (partial) are built and
+STATUS AS OF THIS WRITE-UP: Phases 0-5, 8, and 9-10 (partial) are built and
 verified. Real app code lives in trackz-app/ (Vite + Preact + TS). Key
 things done:
-  - trackz-app/src/domain/{money,dates,transaction}.ts — integer-cent
-    money, UTC-safe dates, single getSignedAmountCents() replacing the
-    4 old divergent sign-derivation copies. Unit tested.
+  - trackz-app/src/domain/{money,dates,transaction,id}.ts — integer-cent
+    money, UTC-safe dates (now also daysBetween, for recall ranking),
+    single getSignedAmountCents() replacing the 4 old divergent
+    sign-derivation copies, single newTransactionId() replacing csv.ts's
+    former private id counter. Unit tested.
   - trackz-app/src/storage/csv.ts — CSV parser matching the real backup
     format, EUR-only enforced as a hard parse error.
   - trackz-app/src/storage/derive.ts — accounts/categories/merchants
     derived from transactions (confirmed: no separate opening-balance
     feature, CSV is the sole source of truth).
   - trackz-app/src/storage/repository.ts — new namespaced localStorage
-    key (trackz.v2.transactions), never touches the old app's keys.
+    key (trackz.v2.transactions), never touches the old app's keys. Now
+    also a subscribe() hook so writes (quick-entry, future CSV import)
+    trigger a live re-render instead of needing a page reload — see
+    storage/useTransactions.ts. Retrofitted into HomeScreen, which
+    previously read the repository once via useMemo(...,[]) and never
+    again (would NOT have reflected a saved quick-entry transaction).
   - trackz-app/src/insights/engine.ts — month summary, net worth,
     category deltas vs N-month baseline WITH DAY-OF-MONTH PRORATION.
     This proration was added after a real bug was caught live: a
@@ -236,18 +243,63 @@ things done:
     month's average. Fixed in engine.ts's getCategoryDeltasForMonth
     (asOfDate parameter + elapsedFraction scaling), with a regression
     test (engine.test.ts) and a passing live re-check.
-  - trackz-app/src/app/TabBar.tsx + app.tsx — real 4-tab + FAB shell.
+  - trackz-app/src/app/TabBar.tsx + app.tsx — real 4-tab + FAB shell. FAB
+    now opens the real quick-entry sheet (see Phase 8 below) instead of
+    an alert().
   - trackz-app/src/features/home/* — real Home screen (HeroCard,
     AccountStrip, InsightFeed) matching locked Mockup B, wired to live
     data via the insight engine. Verified against real CSV totals in a
     headless Chrome DOM dump (net worth, account balances, deltas all
     checked against independently-computed numbers).
+  - trackz-app/src/features/entry/* (PHASE 8, done) — quick-entry sheet:
+      - amount.ts: ATM-style cent accumulator for the keypad (no decimal
+        key — digits shift in from the right, so "1,2,4,0" -> 12,40 €;
+        structurally impossible to produce a malformed amount). Chosen
+        over a decimal-point keypad because 921 of 1,174 real expense
+        rows carry non-zero cents (median Groceries/Edeka = 12,40 €).
+      - recall.ts: ranks (category, merchant, account[, destination])
+        combos by RECENCY-WEIGHTED frequency (90-day window, 21-day
+        half-life), not raw count — verified against the real CSV that
+        this deliberately ranks a combo used 4 days ago above one with
+        2x the occurrences but unused for 18 days. Powers the up-to-6
+        recall chips.
+      - draft.ts: single buildTransaction()/validateDraft() pair so a
+        quick-entry save and a CSV-imported row are held to the exact
+        same validity rules (positive amount, transfer needs a distinct
+        destination account, etc.) — a quick-entry transaction survives
+        a CSV export/import round trip. Cashflow is DERIVED from
+        categoryType for the 5 unambiguous types (confirmed against the
+        real CSV's category_type->cashflow crosstab: expense/non_expense
+        always "out", income/non_income always "in", transfer always
+        "none"); only receivable/payable (genuinely bidirectional in the
+        real data) get an explicit direction toggle in the form.
+      - EntrySheet.tsx: the locked 3-tap happy path — FAB -> amount ->
+        chip -> saved, with an "Undo" toast (5s) rather than no undo at
+        all, since Activity (Phase 11, where you'd otherwise fix a
+        mis-tap) is still a placeholder. "More options" opens EntryForm
+        for any category/merchant/account combo with no history yet.
+      - Haptic feedback is feature-detected (navigator.vibrate) on chip
+        save but is honestly a no-op on iOS Safari — there is no web API
+        for real iOS haptics; left in for Android/desktop Chrome.
+    Also added: components/Sheet.tsx + components/Toast.tsx as shared
+    primitives (Phase 11's detail sheet and Phase 13's merge screen are
+    expected to reuse Sheet rather than re-implement it).
+    Verified end-to-end against a live `npm run dev` instance via Chrome
+    DevTools Protocol (real clicks, not just a static DOM dump): FAB ->
+    keypad digits -> chip tap -> transaction written to localStorage ->
+    Home's net worth updates live -> Undo removes it and net worth
+    reverts exactly; separately, the manual form path (new
+    category/merchant/account, inline validation, Save) was verified the
+    same way; Escape-key close and body-scroll-lock were verified too.
   - Dev-only CSV auto-seed (trackz-app/src/dev/seed.ts) so `npm run dev`
     has real data; guarded by import.meta.env.DEV, never ships to prod.
-  - 31 unit tests passing (vitest), tsc -b clean, production build ~22KB
-    JS gzipped to ~8.7KB (vs. old app's 200KB Chart.js alone).
+  - 62 unit tests passing (vitest), tsc -b clean, production build is now
+    ~34KB JS gzipped to ~12.1KB (was ~22KB/~8.7KB before Phase 8 — still
+    far below the old app's 200KB Chart.js alone, but the entry feature's
+    +12KB raw / +3.4KB gzip is bigger than this doc's earlier "+6KB"
+    estimate; noting that honestly rather than quietly revising it down).
   - Activity / Accounts / Settings tabs are still placeholders (Phase
-    11-13). Quick-entry FAB currently shows an alert (Phase 8).
+    11-13).
 
 
           - TS types: Transaction, Account, Category, Merchant.

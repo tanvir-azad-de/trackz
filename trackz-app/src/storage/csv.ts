@@ -1,5 +1,6 @@
 import { toCents } from "@/domain/money";
 import { isValidISODate } from "@/domain/dates";
+import { newTransactionId } from "@/domain/id";
 import type { CategoryType, Cashflow, Transaction } from "@/domain/transaction";
 import { CATEGORY_TYPES } from "@/domain/transaction";
 
@@ -75,12 +76,6 @@ function isCategoryType(value: string): value is CategoryType {
 
 function isCashflow(value: string): value is Cashflow {
   return (CASHFLOWS as readonly string[]).includes(value);
-}
-
-let idCounter = 0;
-function nextId(): string {
-  idCounter += 1;
-  return `txn_${idCounter}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function parseTransactionsCsv(csvText: string): CsvParseResult {
@@ -161,7 +156,7 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
     }
 
     transactions.push({
-      id: nextId(),
+      id: newTransactionId(),
       date,
       account,
       destinationAccount: cashflowRaw === "none" ? destinationAccount : "",

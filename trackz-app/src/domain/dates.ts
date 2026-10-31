@@ -83,3 +83,19 @@ export function getYearToDateRange(today: ISODate = getLocalToday()): DateRange 
 export function isWithinRange(date: ISODate, range: DateRange): boolean {
   return date >= range.from && date <= range.to;
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Whole calendar days between two ISODates, UTC-anchored so DST can't shift
+ * the result by an hour and flip the rounding. Used by the quick-entry
+ * recall ranking (features/entry/recall.ts) to decay older combos.
+ * Positive when `later` is after `earlier`.
+ */
+export function daysBetween(earlier: ISODate, later: ISODate): number {
+  const [ey, em, ed] = earlier.split("-").map(Number) as [number, number, number];
+  const [ly, lm, ld] = later.split("-").map(Number) as [number, number, number];
+  const earlierMs = Date.UTC(ey, em - 1, ed);
+  const laterMs = Date.UTC(ly, lm - 1, ld);
+  return Math.round((laterMs - earlierMs) / MS_PER_DAY);
+}

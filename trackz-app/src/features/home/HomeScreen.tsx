@@ -1,5 +1,5 @@
 import { useMemo } from "preact/hooks";
-import { getTransactions } from "@/storage/repository";
+import { useTransactions } from "@/storage/useTransactions";
 import {
   getAccountBalances,
   getCategoryDeltasForMonth,
@@ -17,8 +17,9 @@ import "./InsightFeed.css";
 import "./HomeScreen.css";
 
 export function HomeScreen() {
+  const transactions = useTransactions();
+
   const data = useMemo(() => {
-    const transactions = getTransactions();
     const latestDate = getLatestDate(transactions);
     if (!latestDate) return null;
     const monthKey = latestDate.slice(0, 7);
@@ -29,7 +30,7 @@ export function HomeScreen() {
     const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, monthKey, 6, latestDate));
 
     return { summary, netWorthCents, accounts, deltas };
-  }, []);
+  }, [transactions]);
 
   if (!data) {
     return (

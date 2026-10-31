@@ -1,0 +1,42 @@
+.entry-sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-sheet__amount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: var(--text-hero);
+  font-weight: 700;
+  padding: var(--space-4) 0;
+  position: relative;
+}
+
+.entry-sheet__currency {
+  color: var(--text-tertiary);
+  font-size: var(--text-2xl);
+}
+
+.entry-sheet__clear {
+  position: absolute;
+  right: 0;
+  background: var(--surface-2);
+  border: none;
+  border-radius: var(--radius-full);
+  width: 32px;
+  height: 32px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.entry-sheet__more {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  min-height: var(--touch-target-min);
+  margin-top: var(--space-3);
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  daysBetween,
   getLastNMonthsRange,
   getMonthEndDate,
   getMonthStartDate,
@@ -55,5 +56,15 @@ describe("dates (UTC-safe, timezone bug regression)", () => {
     expect(isWithinRange("2026-01-01", range)).toBe(true);
     expect(isWithinRange("2026-01-31", range)).toBe(true);
     expect(isWithinRange("2026-02-01", range)).toBe(false);
+  });
+
+  it("daysBetween counts whole calendar days, UTC-anchored across a DST boundary", () => {
+    expect(daysBetween("2026-01-01", "2026-01-01")).toBe(0);
+    expect(daysBetween("2026-01-01", "2026-01-02")).toBe(1);
+    expect(daysBetween("2026-01-10", "2026-01-01")).toBe(-9);
+    // March 29 2026 is a DST "spring forward" day in much of Europe; a
+    // naive local-Date subtraction can be off by an hour here.
+    expect(daysBetween("2026-03-28", "2026-03-30")).toBe(2);
+    expect(daysBetween("2026-02-01", "2026-03-01")).toBe(28); // 2026 not a leap year
   });
 });

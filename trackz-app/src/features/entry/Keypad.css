@@ -1,0 +1,37 @@
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.keypad__key {
+  min-height: 56px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.keypad__key:active {
+  background: var(--surface-3);
+}
+
+.keypad__key--blank {
+  background: none;
+  border: none;
+  pointer-events: none;
+}
+
+.keypad__key--delete {
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .keypad__key:not(.keypad__key--blank):hover {
+    border-color: var(--border-strong);
+  }
+}
