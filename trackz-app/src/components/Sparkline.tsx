@@ -1,0 +1,79 @@
+import { useEffect, useRef } from "preact/hooks";
+import uPlot from "uplot";
+import type { Cents } from "@/domain/money";
+import { centsToDecimal } from "@/domain/money";
+
+interface SparklineProps {
+  /** End-of-period points, oldest first (e.g. getAccountBalanceSeries's output). */
+  points: Array<{ balanceCents: Cents }>;
+  /** Stroke color; caller decides positive/negative/dormant (see AccountsScreen). */
+  color: string;
+  height?: number;
+}
+
+/**
+ * A decorative 6-point balance line for the Accounts screen (Phase 12).
+ * Pulls uPlot forward from Phase 14 so there's one charting path in the
+ * codebase — but this costs real bytes: uPlot is one monolithic class
+ * that doesn't tree-shake, so a 6-point sparkline pulls the whole library
+ * (axes/cursor/legend/tooltips, none of which this component uses).
+ * Measured: +22.3KB gzipped to the production bundle, confirmed with a
+ * standalone build before committing to this choice (see
+ * docs/renovation_version_1.txt's Phase 12 write-up).
+ *
+ * uPlot does NOT auto-size to its container — it needs an explicit pixel
+ * width at construction and on every resize, verified by reproducing the
+ * failure (a 390px chart left static after a 390->320px viewport change
+ * overflowed its card). The ResizeObserver below is the fix; every
+ * consumer of this component gets it for free rather than re-solving it
+ * (Phase 14's net-worth line and ranked bars should use this same
+ * pattern, not hand-roll their own sizing).
+ */
+export function Sparkline({ points, color, height = 24 }: SparklineProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const plotRef = useRef<uPlot | null>(null);
+
+  const values = points.map((p) => centsToDecimal(p.balanceCents));
+  const xs = points.map((_, i) => i);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    const width = Math.max(1, host.clientWidth);
+    const plot = new uPlot(
+      {
+        width,
+        height,
+        series: [{}, { stroke: color, width: 1.5, points: { show: false } }],
+        axes: [{ show: false }, { show: false }],
+        legend: { show: false },
+        cursor: { show: false },
+        scales: { x: { time: false } },
+        padding: [2, 0, 2, 0],
+      },
+      [xs, values],
+      host,
+    );
+    plotRef.current = plot;
+
+    const resizeObserver = new ResizeObserver(() => {
+      const w = host.clientWidth;
+      if (w > 0) plot.setSize({ width: w, height });
+    });
+    resizeObserver.observe(host);
+
+    return () => {
+      resizeObserver.disconnect();
+      plot.destroy();
+      plotRef.current = null;
+    };
+    // Re-create on data/color change rather than diffing in place — these
+    // sparklines are small and change only when the underlying account's
+    // transaction list changes, so a full rebuild is cheap and simpler
+    // than threading uPlot's setData API through.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(values), color, height]);
+
+  return <div ref={hostRef} class="sparkline" aria-hidden="true" />;
+}

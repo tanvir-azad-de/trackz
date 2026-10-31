@@ -166,6 +166,107 @@ export function getAccountBalances(transactions: Transaction[]): Array<{ account
   }));
 }
 
+export interface AccountActivity {
+  account: string;
+  balanceCents: Cents;
+  lastActivityDate: string | null; // null only if an account somehow has zero transactions
+}
+
+/** Per-account current balance + last-activity date, for the Accounts screen (Phase 12). Dormant accounts (ADVZ/REVJ/REVB in the real data) are surfaced, not hidden. */
+export function getAccountActivity(transactions: Transaction[]): AccountActivity[] {
+  const balances = getAccountBalances(transactions);
+  return balances.map(({ account, balanceCents }) => {
+    let lastActivityDate: string | null = null;
+    for (const tx of transactions) {
+      if (tx.account !== account && tx.destinationAccount !== account) continue;
+      if (lastActivityDate === null || tx.date > lastActivityDate) lastActivityDate = tx.date;
+    }
+    return { account, balanceCents, lastActivityDate };
+  });
+}
+
+/**
+ * End-of-month running balance for one account, over `months` months
+ * ending at (and including) monthKey — feeds the Accounts screen's
+ * sparkline (components/Sparkline.tsx). Cumulative over ALL history up to
+ * each month end, not a per-month delta: a balance line must start from
+ * the true running total, otherwise a dormant account (no transactions
+ * this window) would wrongly show as flat-zero instead of flat-at-its-
+ * actual-balance.
+ */
+export function getAccountBalanceSeries(
+  transactions: Transaction[],
+  account: string,
+  monthKey: string,
+  months = 6,
+): Array<{ monthKey: string; balanceCents: Cents }> {
+  const keys: string[] = [];
+  for (let i = months - 1; i >= 0; i--) keys.push(shiftMonthKey(monthKey, -i));
+
+  return keys.map((k) => {
+    const asOfDate = getMonthEndDate(k);
+    const balanceCents = addCents(
+      ...transactions
+        .filter((tx) => tx.date <= asOfDate)
+        .map((tx) => getSignedAmountCents(tx, { kind: "account", name: account })),
+    );
+    return { monthKey: k, balanceCents };
+  });
+}
+
+export interface CounterpartyBalance {
+  counterparty: string; // tx.merchant — where the counterparty name lives for receivable/payable rows
+  balanceCents: Cents; // outstanding amount, always > 0 (settled-to-zero counterparties are excluded)
+}
+
+/**
+ * Outstanding "Lent out" balances per counterparty (UI label for
+ * categoryType "receivable" — see docs/renovation_version_1.txt
+ * decisions). Counterparty name lives in tx.merchant for these rows
+ * (confirmed against the real CSV: "Lent" / "Kaution" rows carry the
+ * person's name there). Settled-to-zero counterparties (e.g. Chayan
+ * Mitra in the real data: lent 130, repaid 130) are excluded rather than
+ * shown as a 0,00 € row.
+ */
+export function getReceivableBalances(transactions: Transaction[]): CounterpartyBalance[] {
+  return getCounterpartyBalances(transactions, "receivable");
+}
+
+/** "I owe" balances per counterparty (UI label for categoryType "payable"). Empty on the real dataset — zero payable rows exist — so callers must handle an empty-state, not assume this is always populated. */
+export function getPayableBalances(transactions: Transaction[]): CounterpartyBalance[] {
+  return getCounterpartyBalances(transactions, "payable");
+}
+
+function getCounterpartyBalances(
+  transactions: Transaction[],
+  categoryType: "receivable" | "payable",
+): CounterpartyBalance[] {
+  const totals = new Map<string, Cents>();
+  for (const tx of transactions) {
+    if (tx.categoryType !== categoryType) continue;
+    const key = tx.merchant || tx.category;
+    totals.set(key, addCents(totals.get(key) ?? 0, getSignedAmountCents(tx, { kind: categoryType })));
+  }
+  return [...totals.entries()]
+    .filter(([, balanceCents]) => balanceCents !== 0)
+    .map(([counterparty, balanceCents]) => ({ counterparty, balanceCents }))
+    .sort((a, b) => b.balanceCents - a.balanceCents);
+}
+
+/**
+ * Total assets = liquid cash (account balances) + outstanding receivables
+ * ("Lent out") - outstanding payables ("I owe"). This is the number that
+ * makes Home's "Liquid" hero and the Accounts screen's receivables
+ * reconcile: Home intentionally shows liquid-only (see HeroCard's
+ * relabel in Phase 12), this is the fuller picture shown on Accounts.
+ */
+export function getTotalAssetsCents(transactions: Transaction[]): Cents {
+  const liquid = addCents(...getAccountBalances(transactions).map((a) => a.balanceCents));
+  const receivables = addCents(...getReceivableBalances(transactions).map((r) => r.balanceCents));
+  const payables = addCents(...getPayableBalances(transactions).map((p) => p.balanceCents));
+  return addCents(liquid, receivables, -payables);
+}
+
 /** Monthly expense totals for N months ending at (and including) monthKey — feeds the sparkline. */
 export function getMonthlyExpenseSeries(
   transactions: Transaction[],

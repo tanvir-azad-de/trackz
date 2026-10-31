@@ -214,9 +214,9 @@ Phase  3  *** DESIGN REVIEW GATE — CLEARED ***
             defined in tokens.css in case it's wanted later, but nothing
             should reference it going forward.
 
-STATUS AS OF THIS WRITE-UP: Phases 0-5, 8, and 9-10 (partial) are built and
-verified. Real app code lives in trackz-app/ (Vite + Preact + TS). Key
-things done:
+STATUS AS OF THIS WRITE-UP: Phases 0-5, 8, 9-10 (partial), 11, and 12 are
+built and verified. Real app code lives in trackz-app/ (Vite + Preact + TS).
+Key things done:
   - trackz-app/src/domain/{money,dates,transaction,id}.ts — integer-cent
     money, UTC-safe dates (now also daysBetween, for recall ranking),
     single getSignedAmountCents() replacing the 4 old divergent
@@ -401,6 +401,128 @@ the phase text above, called out honestly rather than silently:
     spending, which the latest transaction defines), but the inconsistency
     between the two anchors is worth resolving — or at least naming
     deliberately — before Phase 18's cutover.
+
+PHASE 12 (Accounts screen) — done, with two deliberate deviations from the
+phase text above, called out honestly rather than silently:
+  - "Opening balance is editable (impossible in v1)" -> DROPPED. This
+    directly contradicted Phase 0's own lock-in ("accounts/categories are
+    always derived from transactions — there is no separately-persisted
+    opening-balance feature in use"), which domain/transaction.ts's
+    Account interface already encodes as a comment. Re-checked against
+    the real data before dropping it: all 7 derived-from-zero account
+    balances are plausible (CMRZ 700,01 / SCLB 2.300,00 / REVO 81,52 /
+    CASH 65,00 / REVB 0,54 / ADVZ 0,00 / REVJ 0,00) — there is no real
+    account whose true balance isn't its transaction sum. Phase 12's
+    scope became balance cards + sparklines + Lent out/I owe + drill-
+    down, nothing more.
+  - Home's hero card relabeled "Net worth" -> "Liquid". The two screens
+    would otherwise visibly fail to add up: Accounts surfaces "Lent out"
+    = 2.415,69 € outstanding (receivable-type transactions, grouped by
+    merchant — that's where the counterparty name lives: Kaution 2.160 /
+    Towkir 195,99 / three 19,90 loans; Chayan Mitra lent 130 and repaid
+    130, so is excluded as settled-to-zero rather than shown as a 0,00 €
+    row), but getNetWorthCents() only ever summed account balances —
+    lending already debited the source account, and the receivable asset
+    was never added back. Rather than changing that verified Phase-10
+    math (which would blend spendable cash with unspendable claims into
+    one headline number), the hero was relabeled to describe what it
+    actually measures. The Accounts screen's own total-assets card is
+    the one place Liquid + Lent out are added together into Total
+    (verified: 3.147,07 + 2.415,69 = 5.562,76).
+  Also confirmed: zero payable ("I owe") rows exist in the real 1,456-row
+  dataset. getPayableBalances() is implemented and tested, but renders an
+  honest empty state ("You don't owe anyone right now.") rather than a
+  dead card — this was a real risk, since an untested empty-list path is
+  exactly the kind of thing that only breaks in front of a user.
+
+  uPlot was pulled forward from Phase 14 for the balance-card sparklines
+  (one charting path in the codebase, Phase 14's net-worth line reuses
+  the same components/Sparkline.tsx). This was measured, not estimated,
+  before committing to it — the plan doc's original "~10-45KB" guess was
+  optimistic:
+    - uPlot is ONE MONOLITHIC CLASS that does not tree-shake. A 6-point
+      sparkline pulls axes/cursor/legend/tooltips, none of which this
+      component uses. Measured with a standalone Vite build of the exact
+      7-sparkline scenario: 22,330 bytes gzipped, vs 726 bytes for an
+      equivalent hand-rolled inline-SVG polyline. For scale, the whole
+      app was 15.4KB gzipped before this phase.
+    - uPlot does NOT auto-size to its container. Reproduced live: a
+      390px-wide chart left static through a 390->320px viewport resize
+      overflowed its card. Fixed with a ResizeObserver -> setSize() in
+      Sparkline.tsx, wrapped once so every consumer (this phase and
+      Phase 14) gets it for free.
+    - SECOND, worse bug caught only by testing at real device pixel
+      ratio: without uPlot's own CSS (`canvas { width: 100%; height:
+      100% }`), the canvas renders at its native BUFFER size instead of
+      its intended CSS size. At dpr=2 a 99px-wide host produced a
+      198px-wide visible canvas — invisible at dpr=1, which is why the
+      first few manual checks looked fine. Caught by a Playwright run
+      with deviceScaleFactor:2 after a viewport resize. Fixed by scoping
+      that one rule into Sparkline.css with a comment explaining why it
+      is load-bearing, not cosmetic — this is the kind of bug that would
+      have shipped invisibly on every non-retina dev machine and only
+      appeared on real phones.
+    - THIRD bug, caught the same way: the balance-card row's flex layout
+      let the identity column's unwrapped "Last activity 2026-10-06"
+      text and the amount column's min-width together exceed the row's
+      space on a 320px-wide phone, so the flexible sparkline silently
+      collapsed to 0px width — no overflow, the chart just vanished.
+      Fixed by giving the identity column a fixed 64px width with
+      text-overflow:ellipsis, and switching the last-activity date to
+      formatDayLabel() (Phase 11's existing day-label formatter: "Tue 6
+      Oct" instead of "Last activity 2026-10-06") — shorter AND reuses
+      an already-tested function instead of inventing a new date format.
+  Built:
+  - insights/engine.ts gained getAccountActivity (balance + last-
+    activity date per account, dormant accounts surfaced not hidden),
+    getAccountBalanceSeries (end-of-month running balance over N months,
+    CUMULATIVE over all history to each month end — not a per-month
+    delta, so a dormant account correctly shows flat-at-its-actual-
+    balance rather than flat-at-zero), getReceivableBalances /
+    getPayableBalances (grouped by merchant, settled-to-zero excluded),
+    and getTotalAssetsCents (liquid + receivables - payables). All reuse
+    the existing getSignedAmountCents single source of truth — no new
+    sign convention invented here, the same discipline as Phase 11's
+    group.ts.
+  - components/Sparkline.tsx + Sparkline.css: the ResizeObserver-wrapped
+    uPlot component described above, with plot.destroy() on unmount
+    (7 instances mounting/unmounting per navigation would otherwise
+    leak canvases).
+  - features/accounts/{AccountsScreen,AccountsScreen.css}: total-assets
+    header, account balance cards with sparklines, Lent out / I owe
+    sections. Every card/row taps through to Activity pre-filtered,
+    reusing app.tsx's existing onDrillDown + remount-on-nonce mechanism
+    from Phase 11 — no new navigation concept introduced.
+  - HeroCard.tsx: one-word label change ("Net worth" -> "Liquid"), no
+    change to the underlying math, so Phase 10's independently-verified
+    numbers don't move.
+  - 6 new unit tests (113 total, up from 107) against the real CSV
+    fixture, reference figures computed with a standalone python script
+    independent of this codebase (not this phase's own math echoing
+    itself back): last-activity dates including dormant accounts,
+    6-month balance series for both a normal and a negative-going
+    account, receivables total 2.415,69 € with Chayan Mitra correctly
+    absent, empty payables, total assets 5.562,76 €. tsc -b clean.
+  - Verified end-to-end against a live `npm run dev` instance via
+    Playwright (real clicks at 390x844 with deviceScaleFactor:2, not a
+    static DOM dump): total-assets card reads "Liquid 3.147,07 € / Lent
+    out 2.415,69 € / Total 5.562,76 €" exactly; all 7 accounts render
+    with correct balances and last-activity dates, dormant ones (REVB,
+    REVJ) included; sparkline canvas tracks a 390->320px resize exactly
+    (99px host -> 99px canvas CSS width, 198px buffer width for retina
+    sharpness) with zero horizontal overflow; all 5 receivable rows and
+    the correct empty-state message for payables render; tapping an
+    account card drills into Activity pre-filtered to that account with
+    the filter badge active; tapping "Kaution" drills into Activity
+    filtered by search query, landing on exactly 6 transactions (cross-
+    checked independently against the raw CSV: `awk` count = 6). Zero
+    console or page errors across the run.
+  - Production build: 102.47KB JS / 39.17KB gzipped (was 46.4KB/15.4KB
+    before this phase) — uPlot's measured 22.3KB accounts for most of
+    the +23.8KB gzipped delta, the Accounts screen's own code is a small
+    fraction of that. This is the largest single-phase bundle increase
+    so far in the rebuild, accepted deliberately for the Phase 14 reuse
+    rather than re-litigated here — see the uPlot discussion above.
 
 
           - TS types: Transaction, Account, Category, Merchant.

@@ -1,0 +1,147 @@
+.accounts-screen {
+  padding: var(--space-1) var(--space-5) calc(100px + var(--safe-bottom));
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.accounts-screen__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: var(--space-2) 0 var(--space-4);
+  letter-spacing: 0.01em;
+}
+
+.accounts-screen__section-title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: var(--space-6) 0 var(--space-3);
+}
+
+.accounts-screen__empty {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* ---- Total assets card ---- */
+
+.total-assets-card__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-1) 0;
+}
+
+.total-assets-card__label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.total-assets-card__value {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.total-assets-card__value--neutral {
+  color: var(--neutral);
+}
+
+.total-assets-card__divider {
+  border-top: 1px solid var(--border-subtle);
+  margin: var(--space-2) 0;
+}
+
+.total-assets-card__row--total .total-assets-card__label {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.total-assets-card__value--total {
+  font-size: var(--text-xl);
+}
+
+/* ---- Account balance cards ---- */
+
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-card__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.account-card__identity {
+  flex: 0 0 64px;
+  width: 64px;
+  overflow: hidden;
+}
+
+.account-card__name {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.account-card__last-activity {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-card__last-activity--dormant {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.account-card__balance {
+  flex: 0 0 auto;
+  font-size: var(--text-base);
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.account-card__balance--negative {
+  color: var(--negative);
+}
+
+/* ---- Lent out / I owe counterparty rows ---- */
+
+.counterparty-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.counterparty-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.counterparty-card__name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.counterparty-card__amount {
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.counterparty-card__amount--neutral {
+  color: var(--neutral);
+}
+
+.counterparty-card__amount--negative {
+  color: var(--negative);
+}

@@ -1,0 +1,30 @@
+.sparkline {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  overflow: hidden;
+}
+
+/*
+ * Scoped reset of uPlot's own wrapper/canvas rules rather than importing
+ * the library's full uPlot.min.css (which also styles axes/legend/cursor
+ * this component never renders — see Sparkline.tsx's header comment).
+ *
+ * The `canvas { width: 100%; height: 100% }` rule is NOT cosmetic: uPlot
+ * sets the canvas element's width/height ATTRIBUTES to
+ * cssSize * devicePixelRatio (for retina sharpness) but relies on CSS to
+ * scale the element back down to its intended CSS size. Without this
+ * rule the canvas renders at its native buffer-pixel size instead —
+ * caught live on a retina (dpr=2) Playwright run: a 99px-wide host
+ * produced a 198px-wide visible canvas, overflowing the card exactly the
+ * way the un-styled uPlot default would.
+ */
+.sparkline .uplot {
+  width: 100%;
+}
+
+.sparkline canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}

@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { TabBar, type TabName } from "@/app/TabBar";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ActivityScreen } from "@/features/activity/ActivityScreen";
+import { AccountsScreen } from "@/features/accounts/AccountsScreen";
 import { EntrySheet, savedToastMessage } from "@/features/entry/EntrySheet";
 import { Toast, type ToastState } from "@/components/Toast";
 import { useTransactions } from "@/storage/useTransactions";
@@ -13,9 +14,9 @@ import "@/components/Card.css";
 import "@/components/Toast.css";
 
 /**
- * App shell: 4-tab navigation + center FAB. Home (Phase 10) and Activity
- * (Phase 11) are real screens; Accounts/Settings are still Phase 12/13
- * placeholders. The FAB opens the quick-entry sheet (Phase 8).
+ * App shell: 4-tab navigation + center FAB. Home (Phase 10), Activity
+ * (Phase 11), and Accounts (Phase 12) are real screens; Settings is still
+ * a Phase 13 placeholder. The FAB opens the quick-entry sheet (Phase 8).
  */
 export function App() {
   const [activeTab, setActiveTab] = useState<TabName>("home");
@@ -55,7 +56,7 @@ export function App() {
       {activeTab === "activity" && (
         <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />
       )}
-      {activeTab === "accounts" && <PlaceholderScreen title="Accounts" />}
+      {activeTab === "accounts" && <AccountsScreen onDrillDown={navigateToActivity} />}
       {activeTab === "settings" && <PlaceholderScreen title="Settings" />}
       <TabBar active={activeTab} onNavigate={setActiveTab} onFabPress={() => setEntryOpen(true)} />
       <EntrySheet
