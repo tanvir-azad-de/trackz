@@ -301,6 +301,107 @@ things done:
   - Activity / Accounts / Settings tabs are still placeholders (Phase
     11-13).
 
+PHASE 11 (Activity screen) — done, with three deliberate deviations from
+the phase text above, called out honestly rather than silently:
+  - "Virtualized" -> INCREMENTAL RENDER, not true windowing. The list
+    renders 80 rows at a time (trackz-app/src/features/activity/
+    useIncrementalList.ts), appending another 80 when an
+    IntersectionObserver sentinel scrolls into view. Scrolling all the
+    way through ~1,500 real rows does eventually mount all of them —
+    this is NOT constant-DOM-size virtualization. Hand-rolled
+    absolute-position virtualization (measured row heights, a flattened
+    index, scroll-offset math) was judged disproportionate to a bounded
+    dataset with sticky variable-height month/day headers; revisit as a
+    Phase 17 item if a real device shows jank.
+  - "Sticky month headers" -> pure CSS `position: sticky`
+    (ActivityList.css), not a scroll-position-tracking JS mechanism. The
+    browser's native sticky behaviour already produces the "which month
+    am I in" handoff correctly as the user scrolls past a boundary, so no
+    IntersectionObserver-on-every-header machinery was built.
+  - Swipe-to-delete (named in the original Phase 11 scope) -> DEFERRED to
+    Phase 17's real-device hardening pass. Hand-rolled touch-gesture code
+    (touchstart/move/end tracking, scroll-direction disambiguation) was
+    judged the highest-risk, least verifiable-in-session part of the
+    original plan — it can only be meaningfully tested on a real iPhone,
+    which Phase 17 is explicitly for. The tap-through detail sheet
+    (TransactionDetailSheet.tsx) covers every action swipe would have:
+    edit (every field via the existing EntryForm, now with an editable
+    amount field for the first time — see below) and delete (with a
+    same-sheet confirm step and an Undo toast), both reachable via
+    keyboard/screen reader for free since rows are plain <button>s.
+  Built:
+  - features/activity/filter.ts + group.ts — pure, unit-tested (29 new
+    tests total) against the real 1,456-row CSV: instant search matches
+    merchant, category, notes, AND account/destination-account (not just
+    merchant+category — the real merchant field is a graveyard of raw
+    bank strings, see Section 1, so a note or account match matters);
+    diacritic- and case-insensitive; account/category/categoryType/date
+    facets AND together; day/month grouping with net totals via the same
+    getSignedAmountCents({kind:"net-worth"}) perspective every other KPI
+    in the app uses (so a transfer day/month nets to 0, no second sign
+    convention invented here).
+  - domain/dates.ts gained formatDayLabel ("Today"/"Yesterday"/"Fri 17
+    Oct"[/" 2025"]) and formatMonthLabel ("October 2026"), both
+    Date.UTC + `timeZone: "UTC"`-anchored and regression-tested under
+    both Asia/Dhaka and America/Los_Angeles to produce identical output —
+    same discipline as daysBetween, for the same reason (see this file's
+    "dates" section).
+  - features/entry/draft.ts gained draftFromTransaction /
+    applyDraftToTransaction (the edit-flow inverse of buildTransaction,
+    preserving id+createdAt) and amount.ts gained amountFromCents, both
+    round-trip-tested across all 7 category types including both
+    receivable/payable directions.
+  - EntryForm.tsx (Phase 8) was touched for the first time since it
+    shipped: datalist ids now come from useId() instead of being
+    hardcoded (two EntryForm instances — quick-entry's manual mode and
+    Activity's edit sheet — could otherwise collide and silently break
+    autocomplete in whichever mounted second), it takes an optional
+    saveLabel, and — more substantively — an optional onAmountChange that
+    swaps the amount preview from a read-only keypad echo to a real
+    decimal <input>. This surfaced a genuine gap while writing the
+    Chrome-DevTools-Protocol verification below: the detail sheet had no
+    way to actually change an amount until this was added.
+  - features/activity/{ActivityScreen,ActivityList,TransactionRow,
+    FilterSheet,TransactionDetailSheet}.tsx + useIncrementalList.ts.
+  - Home's InsightFeed cards are now tappable (onSelectCategory), closing
+    the Phase 10 gap noted at the time ("every insight card taps through
+    to a filtered Activity view" was written before Activity existed to
+    tap through to). app.tsx lifts the deep-link filter + a nonce bumped
+    only on drill-down, passed to ActivityScreen as `key` — remounting
+    resets scroll/state cleanly on a deep link without disturbing the
+    screen's own state on ordinary tab switches.
+  - Verified end-to-end against a live `npm run dev` instance via
+    Playwright-driven real Chromium clicks (not a static DOM dump,
+    matching how Phase 8 was verified): 1,456 real rows render in correct
+    month/day groups with correct in/out totals; scrolling past the
+    sentinel appends more rows (53 -> 229 in the test run); search for
+    "edeka" narrows 1,456 -> 64 with every visible row actually matching;
+    the filter sheet's account facet narrows to 370 and shows the active
+    badge, Reset clears it back to 1,456; editing a transaction's amount
+    moves Home's net worth by EXACTLY the expected delta (verified
+    arithmetically, not just "it changed") and Undo restores net worth to
+    the exact original cent value; delete removes a row and drops the
+    count by 1, Undo brings it back and the count/total are exact;
+    tapping a Home insight card lands on Activity pre-filtered with the
+    badge active and the right category+month totals; Escape closes the
+    filter sheet and body scroll-lock engages/releases correctly. Zero
+    console or page errors across the run.
+  - 107 unit tests passing (up from 62), tsc -b clean. Production build
+    is now ~46.4KB JS gzipped to ~15.4KB (was ~34KB/~12.1KB after Phase 8
+    — Activity's +12.4KB raw / +3.3KB gzip, in the same ballpark as
+    Phase 8's own delta).
+  - KNOWN OPEN ITEM, not fixed in this phase: Activity's day headers
+    ("Today"/"Yesterday") are anchored to getLocalToday() — the real
+    "what day is it right now" — while Home (Phase 10) anchors its
+    "this month" to the LATEST TRANSACTION DATE instead. With the dev
+    seed's last row dated 2026-10-17, Activity will never show "Today"
+    while Home treats the 17th as the current month. This is the correct
+    behaviour for each screen taken alone (Activity's "Today" must mean
+    today; Home's hero card is about the most recent complete picture of
+    spending, which the latest transaction defines), but the inconsistency
+    between the two anchors is worth resolving — or at least naming
+    deliberately — before Phase 18's cutover.
+
 
           - TS types: Transaction, Account, Category, Merchant.
           - EUR-only — delete currency field plumbing entirely.

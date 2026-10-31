@@ -45,6 +45,20 @@ export function clearAmount(): AmountEntry {
   return emptyAmount();
 }
 
+/**
+ * Builds an AmountEntry directly from a known cents value — used by the
+ * Activity detail sheet (Phase 11) to preload the amount preview when
+ * editing an existing transaction, where there's no sequence of keypad
+ * taps to replay. `cents` is clamped to the same non-negative, 9-digit
+ * range appendDigit enforces, so a pre-existing (already-valid) amount
+ * can't somehow produce an AmountEntry invariant-breaking state.
+ */
+export function amountFromCents(cents: Cents): AmountEntry {
+  const nonNegative = Math.max(0, Math.round(cents));
+  const digits = String(nonNegative).slice(0, 9);
+  return { digits: digits === "0" ? "" : digits };
+}
+
 export function isEmptyAmount(entry: AmountEntry): boolean {
   return entry.digits.length === 0 || entryToCents(entry) === 0;
 }

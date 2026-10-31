@@ -1,0 +1,66 @@
+.transaction-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.transaction-detail__summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.transaction-detail__summary-amount {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.transaction-detail__delete {
+  background: none;
+  border: 1px solid var(--negative);
+  border-radius: var(--radius-md);
+  color: var(--negative);
+  min-height: var(--touch-target-min);
+  font-weight: 600;
+  font-size: var(--text-base);
+}
+
+.transaction-detail__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--negative-bg);
+  border: 1px solid var(--negative);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.transaction-detail__confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.transaction-detail__confirm-cancel {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.transaction-detail__confirm-delete {
+  flex: 1;
+  background: var(--negative);
+  border: none;
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  color: var(--text-on-accent);
+  font-weight: 700;
+}

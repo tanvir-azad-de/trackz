@@ -99,3 +99,62 @@ export function daysBetween(earlier: ISODate, later: ISODate): number {
   const laterMs = Date.UTC(ly, lm - 1, ld);
   return Math.round((laterMs - earlierMs) / MS_PER_DAY);
 }
+
+/**
+ * Both ISODate -> Date conversions below go through Date.UTC and format
+ * with `timeZone: "UTC"` explicitly. This is deliberate: an ISODate like
+ * "2026-10-17" has no time-of-day component, so parsing it with the
+ * platform's local-timezone Date constructor (`new Date("2026-10-17")`
+ * is actually parsed as UTC midnight by spec, but formatting it back with
+ * a *local* Intl.DateTimeFormat would then shift it onto the 16th for
+ * anyone west of UTC) would reintroduce exactly the off-by-one-day class
+ * of bug this module's header comment warns about. Pinning both the
+ * construction and the formatting to UTC keeps the string-in/string-out
+ * round trip exact regardless of the viewer's timezone.
+ */
+function parseISODateUTC(date: ISODate): Date {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+const WEEKDAY_MONTH_DAY_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+
+const WEEKDAY_MONTH_DAY_YEAR_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+
+/**
+ * "Today" / "Yesterday" / "Fri 17 Oct" (same year as `today`) / "Fri 17 Oct
+ * 2025" (a different year). Used by the Activity screen's day group
+ * headers (Phase 11). `today` must be the caller's actual getLocalToday()
+ * — this function does no "what day is it" work itself, it only compares
+ * two already-resolved ISODate strings, so it can't reintroduce the
+ * UTC-vs-local "today" bug this module exists to avoid.
+ */
+export function formatDayLabel(date: ISODate, today: ISODate): string {
+  if (date === today) return "Today";
+  if (daysBetween(date, today) === 1) return "Yesterday";
+  const dt = parseISODateUTC(date);
+  const sameYear = date.slice(0, 4) === today.slice(0, 4);
+  return sameYear ? WEEKDAY_MONTH_DAY_FORMAT.format(dt) : WEEKDAY_MONTH_DAY_YEAR_FORMAT.format(dt);
+}
+
+/** "October 2026" for a "YYYY-MM" month key. Used by the Activity screen's sticky month header. */
+export function formatMonthLabel(monthKey: string): string {
+  return MONTH_YEAR_FORMAT.format(parseISODateUTC(getMonthStartDate(monthKey)));
+}

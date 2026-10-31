@@ -11,6 +11,32 @@
   margin-bottom: var(--space-2);
 }
 
+.entry-form__amount-preview--editable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+}
+
+.entry-form__amount-input {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  text-align: center;
+  width: 160px;
+  font-family: inherit;
+  font-feature-settings: var(--font-feature-numeric);
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-form__amount-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .entry-form__field {
   display: flex;
   flex-direction: column;

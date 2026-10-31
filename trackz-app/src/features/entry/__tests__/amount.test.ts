@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  amountFromCents,
   appendDigit,
   clearAmount,
   deleteDigit,
@@ -74,5 +75,24 @@ describe("amount entry (ATM cent accumulator)", () => {
     expect(clearAmount()).toEqual(emptyAmount());
     expect(isEmptyAmount(clearAmount())).toBe(true);
     void e;
+  });
+});
+
+describe("amountFromCents (Phase 11 edit-flow preload)", () => {
+  it("round-trips a typical amount", () => {
+    expect(entryToCents(amountFromCents(1240))).toBe(1240);
+    expect(entryToDisplay(amountFromCents(1240))).toBe("12,40");
+  });
+
+  it("treats 0 as empty, matching emptyAmount()", () => {
+    expect(amountFromCents(0)).toEqual(emptyAmount());
+  });
+
+  it("clamps negative input to 0 rather than producing a malformed entry", () => {
+    expect(amountFromCents(-500)).toEqual(emptyAmount());
+  });
+
+  it("rounds a non-integer cents value", () => {
+    expect(entryToCents(amountFromCents(12.6))).toBe(13);
   });
 });

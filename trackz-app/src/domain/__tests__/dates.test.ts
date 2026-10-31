@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   daysBetween,
+  formatDayLabel,
+  formatMonthLabel,
   getLastNMonthsRange,
   getMonthEndDate,
   getMonthStartDate,
@@ -66,5 +68,51 @@ describe("dates (UTC-safe, timezone bug regression)", () => {
     // naive local-Date subtraction can be off by an hour here.
     expect(daysBetween("2026-03-28", "2026-03-30")).toBe(2);
     expect(daysBetween("2026-02-01", "2026-03-01")).toBe(28); // 2026 not a leap year
+  });
+});
+
+describe("formatDayLabel / formatMonthLabel (Phase 11 Activity day/month headers)", () => {
+  it("labels the exact today date as 'Today'", () => {
+    expect(formatDayLabel("2026-10-17", "2026-10-17")).toBe("Today");
+  });
+
+  it("labels the day before today as 'Yesterday'", () => {
+    expect(formatDayLabel("2026-10-16", "2026-10-17")).toBe("Yesterday");
+  });
+
+  it("omits the year for a date in the same year as today", () => {
+    expect(formatDayLabel("2026-10-01", "2026-10-17")).toBe("Thu 1 Oct");
+  });
+
+  it("includes the year for a date in a different year than today", () => {
+    expect(formatDayLabel("2025-10-01", "2026-10-17")).toBe("Wed, 1 Oct 2025");
+  });
+
+  it("formats a month key as 'Month YYYY'", () => {
+    expect(formatMonthLabel("2026-10")).toBe("October 2026");
+    expect(formatMonthLabel("2025-01")).toBe("January 2025");
+  });
+
+  it("produces identical labels regardless of the host machine's timezone", () => {
+    // Regression guard for the exact class of bug this module exists to
+    // avoid (see header comment): formatting must not re-derive "now" or
+    // shift across a local-timezone midnight boundary. Both formatters
+    // take their dates as already-resolved ISODate strings, so flipping
+    // process.env.TZ between calls must change nothing.
+    const originalTz = process.env.TZ;
+    try {
+      process.env.TZ = "Asia/Dhaka";
+      const dhakaDay = formatDayLabel("2026-10-01", "2026-10-17");
+      const dhakaMonth = formatMonthLabel("2026-10");
+
+      process.env.TZ = "America/Los_Angeles";
+      const laDay = formatDayLabel("2026-10-01", "2026-10-17");
+      const laMonth = formatMonthLabel("2026-10");
+
+      expect(dhakaDay).toBe(laDay);
+      expect(dhakaMonth).toBe(laMonth);
+    } finally {
+      process.env.TZ = originalTz;
+    }
   });
 });

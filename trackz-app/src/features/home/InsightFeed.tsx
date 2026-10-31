@@ -3,6 +3,8 @@ import { Money } from "@/components/Money";
 
 interface InsightFeedProps {
   deltas: CategoryDelta[];
+  /** When provided, each row becomes tappable and drills into Activity filtered to that category+month (Phase 11). */
+  onSelectCategory?: (category: string) => void;
 }
 
 function describeDelta(d: CategoryDelta): { icon: string; tone: "up" | "down"; title: string } {
@@ -13,7 +15,7 @@ function describeDelta(d: CategoryDelta): { icon: string; tone: "up" | "down"; t
   return { icon: "↓", tone: "down", title: `${d.category} is down ${pct}%` };
 }
 
-export function InsightFeed({ deltas }: InsightFeedProps) {
+export function InsightFeed({ deltas, onSelectCategory }: InsightFeedProps) {
   if (deltas.length === 0) {
     return <p class="insight-feed__empty">Not enough history yet to compare this month.</p>;
   }
@@ -21,8 +23,14 @@ export function InsightFeed({ deltas }: InsightFeedProps) {
     <div class="insight-feed">
       {deltas.map((d) => {
         const { icon, tone, title } = describeDelta(d);
+        const Tag = onSelectCategory ? "button" : "div";
         return (
-          <div class="insight" key={d.category}>
+          <Tag
+            class="insight"
+            key={d.category}
+            type={onSelectCategory ? "button" : undefined}
+            onClick={onSelectCategory ? () => onSelectCategory(d.category) : undefined}
+          >
             <div class={`insight__icon insight__icon--${tone}`}>{icon}</div>
             <div class="insight__body">
               <div class="insight__title">{title}</div>
@@ -34,7 +42,7 @@ export function InsightFeed({ deltas }: InsightFeedProps) {
               {tone === "up" ? "+" : "−"}
               <Money cents={Math.abs(d.deltaCents)} />
             </div>
-          </div>
+          </Tag>
         );
       })}
     </div>

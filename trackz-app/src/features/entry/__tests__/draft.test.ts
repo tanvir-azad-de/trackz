@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDraftToTransaction,
   buildTransaction,
   defaultCashflowForCategoryType,
   draftFromCombo,
+  draftFromTransaction,
   emptyDraft,
   isDraftValid,
   validateDraft,
 } from "@/features/entry/draft";
 import type { RecallCombo } from "@/features/entry/recall";
-import type { Account } from "@/domain/transaction";
+import type { Account, Transaction } from "@/domain/transaction";
 
 const accounts: Account[] = [{ name: "ADVZ" }, { name: "CMRZ" }];
 
@@ -145,5 +147,87 @@ describe("draftFromCombo + buildTransaction (the 3-tap happy path)", () => {
     expect(tx.category).toBe("Groceries");
     expect(tx.account).toBe("ADVZ");
     expect(tx.merchant).toBe("Edeka");
+  });
+});
+
+describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", () => {
+  const baseTx: Transaction = {
+    id: "txn_abc123",
+    date: "2026-10-17",
+    account: "ADVZ",
+    destinationAccount: "",
+    cashflow: "out",
+    category: "Groceries",
+    categoryType: "expense",
+    merchant: "Edeka",
+    amountCents: 1240,
+    notes: "weekly shop",
+    createdAt: "2026-10-17T08:00:00.000Z",
+  };
+
+  it("round-trips an expense transaction exactly through draft and back", () => {
+    const draft = draftFromTransaction(baseTx);
+    expect(applyDraftToTransaction(baseTx, draft)).toEqual(baseTx);
+  });
+
+  it("round-trips a transfer, preserving destinationAccount and cashflow 'none'", () => {
+    const transferTx: Transaction = {
+      ...baseTx,
+      destinationAccount: "REVO",
+      cashflow: "none",
+      category: "Transfer",
+      categoryType: "transfer",
+      merchant: "",
+    };
+    const draft = draftFromTransaction(transferTx);
+    expect(applyDraftToTransaction(transferTx, draft)).toEqual(transferTx);
+  });
+
+  it("round-trips a receivable transaction in the 'out' direction (lending)", () => {
+    const lendingTx: Transaction = {
+      ...baseTx,
+      cashflow: "out",
+      category: "Lent",
+      categoryType: "receivable",
+      merchant: "",
+    };
+    const draft = draftFromTransaction(lendingTx);
+    expect(draft.direction).toBe("out");
+    expect(applyDraftToTransaction(lendingTx, draft)).toEqual(lendingTx);
+  });
+
+  it("round-trips a receivable transaction in the 'in' direction (getting repaid)", () => {
+    const repaidTx: Transaction = {
+      ...baseTx,
+      cashflow: "in",
+      category: "Lent",
+      categoryType: "receivable",
+      merchant: "",
+    };
+    const draft = draftFromTransaction(repaidTx);
+    expect(draft.direction).toBe("in");
+    expect(applyDraftToTransaction(repaidTx, draft)).toEqual(repaidTx);
+  });
+
+  it("round-trips a payable transaction in both directions", () => {
+    const borrowingTx: Transaction = {
+      ...baseTx,
+      cashflow: "out",
+      category: "Owed",
+      categoryType: "payable",
+      merchant: "",
+    };
+    const repayingTx: Transaction = { ...borrowingTx, cashflow: "in" };
+
+    expect(applyDraftToTransaction(borrowingTx, draftFromTransaction(borrowingTx))).toEqual(borrowingTx);
+    expect(applyDraftToTransaction(repayingTx, draftFromTransaction(repayingTx))).toEqual(repayingTx);
+  });
+
+  it("preserves id and createdAt from the existing transaction, not the draft's build-time", () => {
+    const draft = draftFromTransaction(baseTx);
+    const edited = applyDraftToTransaction(baseTx, { ...draft, amountCents: 999 });
+    expect(edited.id).toBe(baseTx.id);
+    expect(edited.createdAt).toBe(baseTx.createdAt);
+    expect(edited.amountCents).toBe(999);
   });
 });

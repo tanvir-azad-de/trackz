@@ -1,25 +1,44 @@
 import { useState } from "preact/hooks";
 import { TabBar, type TabName } from "@/app/TabBar";
 import { HomeScreen } from "@/features/home/HomeScreen";
+import { ActivityScreen } from "@/features/activity/ActivityScreen";
 import { EntrySheet, savedToastMessage } from "@/features/entry/EntrySheet";
 import { Toast, type ToastState } from "@/components/Toast";
 import { useTransactions } from "@/storage/useTransactions";
 import { deleteTransaction } from "@/storage/repository";
 import type { Transaction } from "@/domain/transaction";
+import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
 import "@/app/TabBar.css";
 import "@/components/Card.css";
 import "@/components/Toast.css";
 
 /**
- * App shell: 4-tab navigation + center FAB. Only Home (Phase 10) is a
- * real screen so far — Activity/Accounts/Settings are Phase 11-13.
- * The FAB opens the quick-entry sheet (Phase 8).
+ * App shell: 4-tab navigation + center FAB. Home (Phase 10) and Activity
+ * (Phase 11) are real screens; Accounts/Settings are still Phase 12/13
+ * placeholders. The FAB opens the quick-entry sheet (Phase 8).
  */
 export function App() {
   const [activeTab, setActiveTab] = useState<TabName>("home");
   const [entryOpen, setEntryOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const transactions = useTransactions();
+
+  // Lifted here (rather than owned by ActivityScreen) so a Home insight
+  // card can deep-link into a pre-filtered Activity view (closes the gap
+  // left open in Phase 10's write-up: "every insight card taps through to
+  // a filtered Activity view" was written before Activity existed).
+  // `activityFilterNonce` is bumped only on an explicit deep-link and
+  // passed to ActivityScreen as `key` — remounting resets the screen's
+  // scroll position and internal state cleanly, and plain tab-switching
+  // (which doesn't touch the nonce) leaves the screen's own state alone.
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>(emptyFilter());
+  const [activityFilterNonce, setActivityFilterNonce] = useState(0);
+
+  function navigateToActivity(filter: ActivityFilter) {
+    setActivityFilter(filter);
+    setActivityFilterNonce((n) => n + 1);
+    setActiveTab("activity");
+  }
 
   function handleSaved(tx: Transaction) {
     setToast({
@@ -32,8 +51,10 @@ export function App() {
 
   return (
     <div class="app-shell">
-      {activeTab === "home" && <HomeScreen />}
-      {activeTab === "activity" && <PlaceholderScreen title="Activity" />}
+      {activeTab === "home" && <HomeScreen onDrillDown={navigateToActivity} />}
+      {activeTab === "activity" && (
+        <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />
+      )}
       {activeTab === "accounts" && <PlaceholderScreen title="Accounts" />}
       {activeTab === "settings" && <PlaceholderScreen title="Settings" />}
       <TabBar active={activeTab} onNavigate={setActiveTab} onFabPress={() => setEntryOpen(true)} />

@@ -87,6 +87,28 @@ export function draftFromCombo(combo: RecallCombo, amountCents: Cents, today: st
 }
 
 /**
+ * Inverse of buildTransaction, for the Activity screen's edit flow
+ * (Phase 11). `direction` is recovered from the existing transaction's
+ * cashflow — for receivable/payable "in" means direction "in", everything
+ * else defaults to "out" (direction is ignored by buildTransaction for
+ * the other 5 category types, so the exact fallback value doesn't matter
+ * there, but receivable/payable must round-trip exactly).
+ */
+export function draftFromTransaction(tx: Transaction): EntryDraft {
+  return {
+    amountCents: tx.amountCents,
+    date: tx.date,
+    categoryType: tx.categoryType,
+    category: tx.category,
+    merchant: tx.merchant,
+    account: tx.account,
+    destinationAccount: tx.destinationAccount,
+    direction: tx.cashflow === "in" ? "in" : "out",
+    notes: tx.notes,
+  };
+}
+
+/**
  * Same validation rules as storage/csv.ts's row-level checks — a
  * quick-entry transaction must be able to round-trip through CSV
  * export/import (Phase 13) exactly like an imported one. Returns a list
@@ -135,5 +157,29 @@ export function buildTransaction(draft: EntryDraft, createdAt: string = new Date
     amountCents: draft.amountCents,
     notes: draft.notes.trim(),
     createdAt,
+  };
+}
+
+/**
+ * Inverse of buildTransaction, for the Activity screen's edit flow
+ * (Phase 11) — preserves the original id and createdAt instead of
+ * minting new ones, so an edited transaction stays the "same" row (undo
+ * restores the exact prior object, and the key the list renders by
+ * doesn't change under the user's finger). Caller must check
+ * validateDraft() first, same contract as buildTransaction.
+ */
+export function applyDraftToTransaction(existing: Transaction, draft: EntryDraft): Transaction {
+  const cashflow = defaultCashflowForCategoryType(draft.categoryType, draft.direction);
+  return {
+    ...existing,
+    date: draft.date,
+    account: draft.account.trim(),
+    destinationAccount: cashflow === "none" ? draft.destinationAccount.trim() : "",
+    cashflow,
+    category: draft.category.trim(),
+    categoryType: draft.categoryType,
+    merchant: draft.merchant.trim(),
+    amountCents: draft.amountCents,
+    notes: draft.notes.trim(),
   };
 }

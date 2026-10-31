@@ -8,6 +8,9 @@ import {
   getNetWorthCents,
   summarizeMonth,
 } from "@/insights/engine";
+import { getMonthEndDate, getMonthStartDate } from "@/domain/dates";
+import type { ActivityFilter } from "@/features/activity/filter";
+import { emptyFilter } from "@/features/activity/filter";
 import { HeroCard } from "./HeroCard";
 import { AccountStrip } from "./AccountStrip";
 import { InsightFeed } from "./InsightFeed";
@@ -16,7 +19,12 @@ import "./AccountStrip.css";
 import "./InsightFeed.css";
 import "./HomeScreen.css";
 
-export function HomeScreen() {
+interface HomeScreenProps {
+  /** Wired by app.tsx so an insight card can deep-link into a pre-filtered Activity view (Phase 11). */
+  onDrillDown?: (filter: ActivityFilter) => void;
+}
+
+export function HomeScreen({ onDrillDown }: HomeScreenProps) {
   const transactions = useTransactions();
 
   const data = useMemo(() => {
@@ -29,7 +37,7 @@ export function HomeScreen() {
     const accounts = getAccountBalances(transactions);
     const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, monthKey, 6, latestDate));
 
-    return { summary, netWorthCents, accounts, deltas };
+    return { summary, netWorthCents, accounts, deltas, monthKey };
   }, [transactions]);
 
   if (!data) {
@@ -39,6 +47,17 @@ export function HomeScreen() {
         <p class="home-screen__empty">No transactions yet. Tap the + button to log your first one.</p>
       </main>
     );
+  }
+
+  function handleDrillDown(category: string) {
+    if (!onDrillDown || !data) return;
+    const filter: ActivityFilter = {
+      ...emptyFilter(),
+      categories: [category],
+      from: getMonthStartDate(data.monthKey),
+      to: getMonthEndDate(data.monthKey),
+    };
+    onDrillDown(filter);
   }
 
   return (
@@ -52,7 +71,7 @@ export function HomeScreen() {
       />
       <AccountStrip accounts={data.accounts} />
       <h2 class="home-screen__section-title">What changed this month</h2>
-      <InsightFeed deltas={data.deltas} />
+      <InsightFeed deltas={data.deltas} onSelectCategory={onDrillDown ? handleDrillDown : undefined} />
     </main>
   );
 }
