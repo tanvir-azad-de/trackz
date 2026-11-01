@@ -132,8 +132,12 @@ accessibility regression for users who rely on zoom.
 
 ## What this checklist does NOT cover
 
-- Google Drive sync — doesn't exist yet (Phase 15, not started). Nothing
-  here exercises cross-device behavior.
+- Google Drive sync — out of scope for THIS checklist. (It no longer
+  "doesn't exist": Phase 15b has since wired up sign-in and token
+  persistence. But it has never been run against live Google, and
+  verifying it needs its own two-device pass — see api/README.md's "Not
+  yet verified" section, which is the checklist for that.) Nothing here
+  exercises cross-device behavior.
 - The 7-day Safari storage-eviction window itself — this would require
   leaving the NON-installed browser-tab version untouched for 7+ real
   days to actually observe eviction, which is out of scope for a

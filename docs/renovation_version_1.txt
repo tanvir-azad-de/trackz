@@ -1042,6 +1042,126 @@ assumed:
     verify-import.test.ts fails at collection time, not as a clean
     skip) — untouched, not this phase's scope.
 
+PHASE 15b (Drive sync — sign-in + token persistence) — code complete,
+NOT yet verified against live Google. The four commits before this one
+("Phase 15b ... sync", "...polish", "...UX", "backend OAuth endpoints")
+shipped the whole sync machine — document.ts, merge.ts, drive.ts,
+coordinator.ts, auth.ts, plus api/auth/{exchange,refresh}.ts — but an
+audit of the result found it was UNREACHABLE: initializeAuth() and
+signIn() had no caller anywhere outside their own tests, so
+getAuthState().isSignedIn was permanently false and performSync() bailed
+at its auth check on every single attempt. Sync was shipped-but-dead
+code. This phase wired it up and fixed what that exposed.
+
+  THE MISSING PIECE — features/settings/SyncSettings.tsx: connect /
+  disconnect / sync-now, current status, and the connected account
+  email. Placed in Settings, deliberately NOT prompted at startup: sync
+  is optional (the app is fully usable on localStorage alone) and an
+  unsolicited consent popup on first launch would also likely be eaten
+  by iOS Safari's popup blocker, since it wouldn't stem from a user
+  gesture.
+
+  TOKEN STORAGE — DECISION GATE (user chose option 1 of 3): the refresh
+  token moved from a frontend module variable into an httpOnly cookie
+  set by the backend. The alternatives were localStorage (fastest, but
+  any XSS then exfiltrates ~6 months of Drive access) and not persisting
+  at all (safest, but re-does the OAuth popup on every app launch, which
+  for a PWA is unusable). The cookie gets both properties: unreadable by
+  script, and survives a reload for free. auth.ts now holds ONLY the
+  ~1h access token, in memory, never persisted — storing it would buy
+  nothing, since restoreSession() can mint a fresh one from the cookie
+  on every load.
+    - New api/auth/signout.ts. This endpoint is not optional: httpOnly
+      means frontend JS *cannot* delete that cookie, so without a server
+      round-trip "sign out" would clear the in-memory token while the
+      browser quietly kept a months-long Drive credential for the next
+      page load to silently reuse.
+    - Shared helpers live in lib/apiAuth.ts, NOT under api/ — Vercel
+      creates one function per file in api/, so a helper there would
+      deploy as a third pointless endpoint (its Node.js runtime docs say
+      to keep shared utilities outside api/).
+    - CSRF: no CORS headers at all (same-origin by construction, and
+      withholding Access-Control-Allow-Origin means a hostile page can
+      cause a request but never read the response), plus the
+      X-Requested-With header Google's popup-mode guide specifies, plus
+      an Origin-vs-Host match. All three, since these endpoints are now
+      cookie-authenticated.
+    - trackz-app/vite.config.ts gained an /api -> :3000 dev proxy. This
+      is load-bearing, not convenience: pointing the app straight at
+      vercel dev's port would make app and API cross-site, and a
+      SameSite=Lax cookie is not sent cross-site, so session restore
+      would silently fail in dev only.
+
+  HONEST STATUS UI — SyncStatus gained "signed-out". The previous code
+  reported missing auth AS "conflict" (twice: the auth check and the
+  error categorizer), which told the user their devices disagreed when
+  in fact they had simply never connected Drive. Related: the initial
+  state was "synced" before anything had ever synced — the single most
+  misleading thing that indicator could claim — and markLocalChanged()
+  flipped to "pending" even when signed out, promising a sync that could
+  not happen and arming a 5s timer that would only wake up to fail.
+
+  FOUR BUGS FOUND WHILE WIRING IT UP, none of which any existing test
+  or the type checker would have caught:
+  - index.html's client ID had NEVER worked. An inline *classic*
+    <script> read import.meta.env, which Vite only rewrites inside
+    MODULE scripts — confirmed by grepping dist/index.html, where the
+    literal text survived verbatim, and `import.meta` in a classic
+    script is a SyntaxError. So window.GOOGLE_CLIENT_ID was never
+    assigned and signIn() would have thrown "not configured"
+    unconditionally, even with the env var correctly set. The ID now
+    flows through app/config.ts (a module, so Vite substitutes it);
+    verified by building with a dummy value and grepping it out of the
+    bundle. This is bug B7's exact failure mode — a missing client ID
+    failing silently — reintroduced in a new place.
+  - The CORS preflight branch in both endpoints was unreachable: the
+    405 method check rejected everything non-POST before the OPTIONS
+    handler could run. Found by adding `npm run typecheck:api` +
+    tsconfig.api.json — api/ had never been typechecked by anything.
+  - redirect_uri was wrong. Google's "Use Code Model" guide states that
+    in popup mode it defaults to the origin of the page calling
+    initCodeClient and must be replayed at exchange time; the code sent
+    a hardcoded GOOGLE_REDIRECT_URI defaulting to localhost:3000, which
+    could not match any real deployment (every preview URL included).
+    Now derived per-request; that env var is deleted, not just fixed.
+  - No CSRF protection on cookie-authenticated endpoints (see above).
+
+  Verification: 219 tests passing (up from 197 — +22 for auth's token
+  lifecycle and the coordinator's auth-awareness), tsc -b clean,
+  typecheck:api clean, production build 46.58KB gzipped (+1.80KB for
+  SyncSettings + the auth rewrite). Every new test was mutation-tested
+  by reverting the fix it covers and confirming it fails; ONE of them
+  was found to be vacuous that way (it asserted initializeSync's
+  idempotency via the sign-in path, which is already status-guarded, so
+  it passed even with the guard removed) and was rewritten against the
+  sign-out path, which notifies unconditionally.
+
+  Also: node_modules/ was tracked (126 files of chart.js). Untracked
+  after confirming public/index.html:598 loads Chart.js from
+  public/vendor/chart.umd.min.js, not from node_modules — so the
+  committed copy was vestigial.
+
+  Deliberately NOT done in this phase:
+  - LIVE VERIFICATION. Nothing here has touched real Google: no Google
+    Cloud project, no .env.local, no `vercel dev` run, so the cookie
+    flow, the reload-stays-signed-in claim, and two-device sync are all
+    UNPROVEN. Checklist written up in api/README.md's "Not yet
+    verified" section. This is the next thing to do.
+  - api/ and lib/ unit tests — DECISION GATE (user chose to defer):
+    the cookie attributes, CSRF check and Origin/Host matching are
+    currently guarded by typechecking alone, to be verified by hand
+    against vercel dev instead. Root-level vitest infrastructure would
+    be needed (the existing vitest only covers trackz-app/src).
+  - The ETag conflict-detection bug, found in the same audit but left
+    alone as a separate concern: coordinator.ts discards the etag
+    uploadToDrive returns and assigns currentETag = "", which is falsy,
+    so drive.ts never sends If-Match. The Phase 15 spec's "revision
+    number + ETag/If-Match for conflict detection" is therefore still
+    not actually delivered, and the "conflict" status is currently
+    unreachable in practice.
+  - Phase 6 / 13b / 14 and the dummyData fixture gap — all still open,
+    untouched, same as the previous phase.
+
 
           - EUR-only — delete currency field plumbing entirely.
           - Money as integer cents.

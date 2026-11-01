@@ -1,42 +1,34 @@
 /**
- * Phase 15b Backend: Google OAuth2 code exchange endpoint
+ * Phase 15b Backend: Google OAuth2 code exchange endpoint.
  *
  * POST /api/auth/exchange
  *
- * Receives an authorization code from Google Identity Services (obtained by the
- * frontend via the OAuth2 authorization flow) and exchanges it for an access token.
- * Returns the access token and expiration time so the frontend can make Drive API calls.
+ * Receives an authorization code from Google Identity Services (obtained in
+ * the browser via GIS popup-mode `initCodeClient`) and exchanges it for
+ * tokens using the client secret, which must never reach the frontend.
  *
- * Security considerations:
- * - NEVER expose client_secret in frontend code
- * - NEVER log credentials or tokens
- * - Always validate the authorization code
- * - Always verify the origin/referer
- * - Use HTTPS only in production
- * - Token should expire within 1 hour
+ * The access token is returned in the JSON body: it is short-lived (~1h)
+ * and the frontend genuinely needs it to call the Drive API directly.
  *
- * Request body:
- * {
- *   "code": "4/0AX4XfWh..."  // Authorization code from GIS
- * }
+ * The refresh token is NOT returned. It is set as an httpOnly cookie
+ * (see lib/apiAuth.ts for the reasoning) so that script cannot read a
+ * ~6-month Drive credential, and so the session survives a page reload.
  *
- * Response:
- * {
- *   "access_token": "ya29.a0AfH6SMB...",
- *   "expires_in": 3599,
- *   "token_type": "Bearer"
- * }
+ * Request body: { "code": "4/0AX4XfWh..." }
+ * Request header: X-Requested-With: XmlHttpRequest (CSRF, required)
  *
- * Error responses (4xx/5xx with JSON body):
- * {
- *   "error": "invalid_code",
- *   "error_description": "..."
- * }
+ * Response 200: { "access_token", "expires_in", "token_type", "email"? }
+ * Errors: 4xx/5xx with { "error", "error_description" }
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import {
+  callerOrigin,
+  readGoogleCredentials,
+  rejectUnlessSameOriginPost,
+  setRefreshCookie,
+} from "../../lib/apiAuth";
 
-// Type for Google's token response
 interface GoogleTokenResponse {
   access_token: string;
   expires_in: number;
@@ -46,126 +38,131 @@ interface GoogleTokenResponse {
   id_token?: string;
 }
 
-interface ErrorResponse {
-  error: string;
-  error_description: string;
-}
-
-/**
- * Validate the request has required fields and reasonable values
- */
-function validateRequest(body: unknown): { code: string } | null {
-  if (!body || typeof body !== "object") {
-    return null;
-  }
-
+/** Validate the request body and extract the authorization code. */
+function readCode(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
   const { code } = body as { code?: unknown };
-  if (typeof code !== "string" || code.length < 10 || code.length > 500) {
+  if (typeof code !== "string" || code.length < 10 || code.length > 2048) {
     return null;
   }
-
-  return { code };
+  return code;
 }
 
 /**
- * Exchange authorization code for access token via Google API
+ * Pull the email claim out of an ID token so the UI can show which account
+ * is connected.
+ *
+ * Deliberately NOT verifying the signature: this token came straight from
+ * Google's token endpoint over TLS in the response to our own
+ * client-secret-authenticated request, so there is no untrusted hop to
+ * guard against. The email is used for display only and never for
+ * authorization, so a bad parse just means we show no address.
  */
-async function exchangeCodeForToken(code: string): Promise<GoogleTokenResponse> {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000";
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Google OAuth credentials not configured");
+function readEmailFromIdToken(idToken: string | undefined): string | null {
+  if (!idToken) return null;
+  const parts = idToken.split(".");
+  if (parts.length !== 3) return null;
+  const payload = parts[1];
+  if (!payload) return null;
+  try {
+    const json = Buffer.from(payload, "base64url").toString("utf8");
+    const claims = JSON.parse(json) as { email?: unknown };
+    return typeof claims.email === "string" ? claims.email : null;
+  } catch {
+    return null;
   }
-
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      code,
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uri: redirectUri,
-      grant_type: "authorization_code",
-    }).toString(),
-  });
-
-  if (!response.ok) {
-    const errorData = (await response.json()) as ErrorResponse;
-    throw new Error(
-      `Google OAuth error: ${errorData.error} - ${errorData.error_description || "unknown"}`,
-    );
-  }
-
-  const data = (await response.json()) as GoogleTokenResponse;
-  return data;
 }
 
-/**
- * Main handler for the auth exchange endpoint
- */
 export default async (req: VercelRequest, res: VercelResponse) => {
-  // Only allow POST requests
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "method_not_allowed" });
+  if (rejectUnlessSameOriginPost(req, res)) return;
+
+  const code = readCode(req.body);
+  if (!code) {
+    return res.status(400).json({
+      error: "invalid_request",
+      error_description: "Missing or invalid authorization code.",
+    });
   }
 
-  // Set CORS headers
-  res.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const credentials = readGoogleCredentials();
+  if (!credentials) {
+    // A deployment problem, not the caller's fault — and worth saying so
+    // plainly rather than hiding it behind a generic 500, since this is
+    // the single most likely first-run failure.
+    console.error("GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not set");
+    return res.status(500).json({
+      error: "server_misconfigured",
+      error_description: "Google OAuth credentials are not configured on the server.",
+    });
+  }
 
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
+  const redirectUri = callerOrigin(req);
+  if (!redirectUri) {
+    return res.status(400).json({
+      error: "invalid_request",
+      error_description: "Could not determine the request origin.",
+    });
   }
 
   try {
-    // Validate request
-    const validated = validateRequest(req.body);
-    if (!validated) {
+    const googleResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }).toString(),
+    });
+
+    if (!googleResponse.ok) {
+      const failure = (await googleResponse.json().catch(() => ({}))) as {
+        error?: string;
+        error_description?: string;
+      };
+      // Log Google's reason (it is diagnostic, not secret) but return a
+      // flat 400 — an auth code is single-use and short-lived, so there is
+      // nothing a caller can usefully retry.
+      console.error(
+        "Google token exchange rejected:",
+        failure.error ?? googleResponse.status,
+        failure.error_description ?? "",
+      );
       return res.status(400).json({
-        error: "invalid_request",
-        error_description: "Missing or invalid authorization code",
+        error: "exchange_failed",
+        error_description: "Google rejected the authorization code.",
       });
     }
 
-    // Exchange code for token
-    const tokenResponse = await exchangeCodeForToken(validated.code);
-
-    // Return token to client
-    // Note: We return access_token, expires_in, and token_type (required)
-    // If the backend receives a refresh_token from Google, it should be:
-    // - Stored securely on the backend (httpOnly cookie + encrypted DB)
-    // - NOT sent to the frontend in production
-    // For now, we return it so the frontend can handle token refresh,
-    // but this should be secured in production
-    const response: Record<string, unknown> = {
-      access_token: tokenResponse.access_token,
-      expires_in: tokenResponse.expires_in,
-      token_type: tokenResponse.token_type,
-    };
-
-    // Include refresh_token only if provided by Google
-    // In production, handle this securely via httpOnly cookies
-    if (tokenResponse.refresh_token) {
-      response.refresh_token = tokenResponse.refresh_token;
+    const tokens = (await googleResponse.json()) as GoogleTokenResponse;
+    if (!tokens.access_token || typeof tokens.expires_in !== "number") {
+      throw new Error("Token response missing access_token/expires_in");
     }
 
-    return res.status(200).json(response);
+    // Google only issues a refresh token on the first consent for a given
+    // client+user (unless prompt=consent forces a new one). Absent is
+    // therefore normal on re-authorization, not an error: the existing
+    // cookie, if any, stays valid.
+    if (tokens.refresh_token) {
+      setRefreshCookie(req, res, tokens.refresh_token);
+    }
+
+    return res.status(200).json({
+      access_token: tokens.access_token,
+      expires_in: tokens.expires_in,
+      token_type: tokens.token_type,
+      email: readEmailFromIdToken(tokens.id_token),
+    });
   } catch (error) {
     console.error(
       "Auth exchange error:",
       error instanceof Error ? error.message : String(error),
     );
-
-    // Don't expose internal error details to client
     return res.status(500).json({
       error: "server_error",
-      error_description: "Failed to exchange authorization code",
+      error_description: "Failed to exchange authorization code.",
     });
   }
 };

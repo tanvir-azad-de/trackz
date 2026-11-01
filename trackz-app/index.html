@@ -20,17 +20,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="trackz" />
     <title>trackz</title>
-    <!-- Phase 15b: Google Identity Services for OAuth2 sign-in and Drive API.
-         Replace CLIENT_ID with your actual Google Cloud project ID.
-         See: https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid -->
+    <!-- Phase 15b: Google Identity Services, loaded from the CDN because GIS
+         must exist as a global before sync/auth.ts initializes it. The client
+         ID is NOT set here: an inline classic <script> cannot read
+         import.meta.env (Vite only transforms module scripts, so the literal
+         text survives into dist/index.html and `import.meta` in a classic
+         script is a SyntaxError). It reaches the app through
+         src/app/config.ts, which Vite does transform. -->
     <script async defer src="https://accounts.google.com/gsi/client"></script>
   </head>
   <body>
-    <!-- Phase 15b: GOOGLE_CLIENT_ID window variable for GIS initialization.
-         This should be set via environment variable or loaded from config. -->
-    <script>
-      window.GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

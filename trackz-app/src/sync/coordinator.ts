@@ -3,7 +3,7 @@ import { merge } from "./merge";
 import { localToSync } from "./document";
 import { getTransactionsIncludingDeleted, replaceAllTransactions, setSyncNotifier } from "@/storage/repository";
 import { fetchFromDrive, uploadToDrive } from "./drive";
-import { getAuthState } from "./auth";
+import { getAuthState, subscribeToAuth } from "./auth";
 import { categorizeSyncError } from "./errors";
 
 /**
@@ -26,7 +26,23 @@ import { categorizeSyncError } from "./errors";
  * 6. Retry on failure with exponential backoff (1s → 2s → 4s → 8s, max 5 retries)
  */
 
-export type SyncStatus = "synced" | "pending" | "offline" | "conflict" | "error";
+/**
+ * Sync status, as shown to the user.
+ *
+ * "signed-out" is deliberately distinct from "conflict": an earlier pass
+ * reported missing auth AS a conflict, which told the user their devices
+ * disagreed when in fact they had simply never connected Drive. The whole
+ * point of this status set (per the Phase 15 spec's "honest status UI") is
+ * that each value implies a different user action — connect an account,
+ * resolve a clash, or wait for the network — so they cannot be conflated.
+ */
+export type SyncStatus =
+  | "synced"
+  | "pending"
+  | "offline"
+  | "conflict"
+  | "signed-out"
+  | "error";
 
 export interface SyncState {
   status: SyncStatus;
@@ -37,7 +53,12 @@ export interface SyncState {
 }
 
 let syncState: SyncState = {
-  status: "synced",
+  // Starts "signed-out", not "synced". Nothing has been synced at startup,
+  // and the overwhelmingly common case on a fresh install is no Drive
+  // account at all; claiming "Synced" would be the single most misleading
+  // thing this indicator could say. initializeSync() corrects it once the
+  // real auth state is known.
+  status: "signed-out",
   lastSyncTime: null,
   lastError: null,
   hasConflicts: false,
@@ -83,14 +104,58 @@ let deviceId = getDeviceId();
 // Current remote state (for conflict detection and ETag)
 let currentETag: string | null = null;
 
+// Teardown for initializeSync's auth subscription, so repeat calls (and
+// tests) don't accumulate listeners.
+let unsubscribeFromAuth: (() => void) | null = null;
+
 /**
- * Initialize the sync coordinator. Call once during app startup.
+ * Initialize the sync coordinator. Call once during app startup, after
+ * restoreSession() has settled so the initial status reflects real auth.
+ *
+ * Subscribes to auth so that signing in or out immediately moves the
+ * status indicator, rather than leaving it stale until the next write.
+ * Signing in also kicks off a sync right away: a device that has been
+ * offline for a week has changes waiting, and making the user tap a
+ * button to discover that would defeat the point of syncing.
  */
 export function initializeSync(): void {
   // Register with repository so every local write triggers sync debounce
   setSyncNotifier(markLocalChanged);
-  // TODO: In Phase 15b+, optionally restore previous session's device ID from localStorage
-  // to keep the same device identity across page reloads
+
+  // Idempotent: a second call must not stack a second auth subscription,
+  // or one sign-in would kick off two concurrent performSync() runs racing
+  // to upload the same revision.
+  if (unsubscribeFromAuth) unsubscribeFromAuth();
+  unsubscribeFromAuth = subscribeToAuth((auth) => {
+    if (auth.isSignedIn) {
+      if (syncState.status === "signed-out") {
+        syncState.status = "pending";
+        syncState.lastError = null;
+        notifyListeners();
+        performSync().catch((error) => {
+          console.error("Sync after sign-in failed:", error);
+        });
+      }
+      return;
+    }
+
+    // Signed out: cancel pending work so a queued upload can't fire with a
+    // dead token and surface as a spurious error.
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    retryCount = 0;
+    syncState.status = "signed-out";
+    syncState.lastError = null;
+    notifyListeners();
+  });
+
+  syncState.status = getAuthState().isSignedIn ? "pending" : "signed-out";
   notifyListeners();
 }
 
@@ -106,6 +171,14 @@ export function getSyncState(): SyncState {
  * sync attempt. Called by repository after every write.
  */
 export function markLocalChanged(): void {
+  // No account connected: this write is local-only and that's a legitimate
+  // way to use the app. Stay "signed-out" rather than showing "Syncing…"
+  // for a sync that cannot happen, and don't arm a timer that would only
+  // wake up to fail.
+  if (!getAuthState().isSignedIn) {
+    return;
+  }
+
   // Clear any pending retry timer (will reset with new debounce)
   if (retryTimer) {
     clearTimeout(retryTimer);
@@ -153,8 +226,8 @@ async function performSync(): Promise<void> {
 
   // Check auth state
   if (!auth.isSignedIn) {
-    syncState.status = "conflict"; // Using "conflict" as the status when auth is needed
-    syncState.lastError = "Not signed in to Google Drive";
+    syncState.status = "signed-out";
+    syncState.lastError = null;
     notifyListeners();
     return;
   }
@@ -223,8 +296,8 @@ async function performSync(): Promise<void> {
         syncState.status = "offline";
         break;
       case "auth":
-        syncState.status = "conflict"; // Using "conflict" to indicate auth needed
-        retryCount = 0; // Don't retry auth failures automatically
+        syncState.status = "signed-out";
+        retryCount = 0; // Retrying can't fix this; the user must sign in.
         break;
       default:
         syncState.status = "error";
@@ -286,6 +359,10 @@ function notifyListeners(): void {
 export function resetCoordinatorForTesting(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   if (retryTimer) clearTimeout(retryTimer);
+  if (unsubscribeFromAuth) {
+    unsubscribeFromAuth();
+    unsubscribeFromAuth = null;
+  }
 
   debounceTimer = null;
   retryTimer = null;
@@ -293,7 +370,7 @@ export function resetCoordinatorForTesting(): void {
   currentETag = null;
 
   syncState = {
-    status: "synced",
+    status: "signed-out",
     lastSyncTime: null,
     lastError: null,
     hasConflicts: false,

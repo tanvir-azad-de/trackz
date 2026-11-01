@@ -8,17 +8,24 @@ import "./SyncStatusIndicator.css";
  *
  * Shows:
  * - "Synced" (green) when local and Drive are in sync
- * - "Pending" (yellow) while upload is in progress (debounce timer running)
+ * - "Syncing…" (yellow) while an upload is pending or in flight
  * - "Offline" (gray) when no network connection
  * - "Conflict" (red) when two devices made conflicting changes
+ * - "Not syncing" (gray) when no Google account is connected
  * - "Error" (red) when sync failed after retries
  *
- * Tapping the status indicator shows a tooltip. Tapping "Sync Now" button
- * triggers an immediate sync (bypasses debounce).
+ * The retry button appears only for states a retry could actually fix.
+ * "Not syncing" is not one of them — the fix there is to connect an
+ * account in Settings, so offering a retry button would just produce a
+ * second failure. That's also why it carries no error tooltip: having no
+ * account connected is a valid way to run the app, not a fault.
  */
 export function SyncStatusIndicator() {
   const syncState = useSyncStatus();
-  const canManualSync = syncState.status !== "pending" && syncState.status !== "synced";
+  const canManualSync =
+    syncState.status === "offline" ||
+    syncState.status === "conflict" ||
+    syncState.status === "error";
 
   const handleSyncNow = async () => {
     try {
@@ -62,6 +69,8 @@ function formatStatus(status: SyncStatus): string {
       return "Offline";
     case "conflict":
       return "Conflict";
+    case "signed-out":
+      return "Not syncing";
     case "error":
       return "Error";
   }

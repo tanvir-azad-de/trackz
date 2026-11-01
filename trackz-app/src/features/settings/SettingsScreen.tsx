@@ -11,6 +11,7 @@ import { Money } from "@/components/Money";
 import { Sheet } from "@/components/Sheet";
 import type { ToastState } from "@/components/Toast";
 import { buildExportCsv, canCommit, exportFileName, previewImport, type ImportPreview } from "@/features/settings/exportImport";
+import { SyncSettings } from "@/features/settings/SyncSettings";
 import "./SettingsScreen.css";
 import "@/components/Sheet.css";
 
@@ -198,6 +199,8 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
           ))}
         </div>
       )}
+
+      <SyncSettings onToast={onToast} />
 
       <h2 class="settings-screen__section-title">Data</h2>
       <p class="settings-screen__hint">

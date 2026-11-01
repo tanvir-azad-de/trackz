@@ -21,7 +21,8 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-.sync-status-indicator[data-status="offline"] {
+.sync-status-indicator[data-status="offline"],
+.sync-status-indicator[data-status="signed-out"] {
   color: var(--on-surface-variant, #cac7d0);
   border-color: var(--outline, #49454f);
 }

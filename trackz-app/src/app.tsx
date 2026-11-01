@@ -13,6 +13,7 @@ import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
 import { applyServiceWorkerUpdate, registerServiceWorker } from "@/pwa/registerServiceWorker";
 import { SyncStatusIndicator } from "@/app/SyncStatusIndicator";
 import { initializeSync, syncNow } from "@/sync/coordinator";
+import { restoreSession } from "@/sync/auth";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import "@/app/TabBar.css";
 import "@/app/SyncStatusIndicator.css";
@@ -76,9 +77,23 @@ export function App() {
     });
   }, []);
 
-  // Phase 15b: Initialize sync coordinator on mount
+  // Phase 15b: bring sync up on mount.
+  //
+  // Order matters: restoreSession() has to settle BEFORE initializeSync(),
+  // because initializeSync() reads the auth state to pick its opening
+  // status. Reversed, a returning signed-in user would see "Not syncing"
+  // flash before the session landed.
+  //
+  // restoreSession() resolving false is the normal case for anyone who has
+  // never connected Drive, so it is not treated as an error.
   useEffect(() => {
-    initializeSync();
+    let cancelled = false;
+    void restoreSession().finally(() => {
+      if (!cancelled) initializeSync();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Phase 15b: Show sync error toasts

@@ -1,15 +1,29 @@
 /**
- * Phase 15b: Google Identity Services integration.
+ * Phase 15b: Google sign-in for Drive sync.
  *
- * Wraps the Google Sign-In (via GIS) so sync can:
- * - Get an OAuth2 access token to call Google Drive API
- * - Refresh that token before it expires
- * - Handle user sign-out gracefully
+ * Owns exactly one thing: whether this browser currently holds a usable
+ * Google access token, and how to get one. Everything else in sync/ asks
+ * this module via getAuthState() and never touches OAuth directly.
  *
- * GIS is loaded at runtime from the CDN (see index.html), not as an npm dep,
- * because it needs to be global and injected before this code runs. Tests
- * mock the global google object.
+ * The flow is GIS popup-mode authorization code:
+ *   1. signIn() opens Google's popup and gets a one-time auth code.
+ *   2. The code goes to POST /api/auth/exchange, which holds the client
+ *      secret. That endpoint returns a short-lived access token and parks
+ *      the long-lived refresh token in an httpOnly cookie.
+ *   3. restoreSession() POSTs /api/auth/refresh on startup. A 200 means the
+ *      cookie survived, so the user is still signed in without a popup.
+ *
+ * Why no refresh token in this file: it is a ~6-month credential for the
+ * user's Drive, and anything JavaScript can read, XSS can steal. Only the
+ * access token (≈1h, re-mintable) lives in memory here. See lib/apiAuth.ts.
+ *
+ * Why the access token is NOT persisted: it would buy nothing. It expires
+ * in an hour, and restoreSession() can mint a fresh one from the cookie on
+ * every load anyway, so storing it would add an exfiltration target for no
+ * gain in reliability.
  */
+
+import { driveScope, googleClientId } from "@/app/config";
 
 export interface AuthState {
   isSignedIn: boolean;
@@ -22,244 +36,336 @@ export interface AuthConfig {
   scopes: string[];
 }
 
+/**
+ * Google's documented CSRF defense for popup-mode code flow: a header that
+ * cross-site HTML forms cannot set, and that cross-site fetch cannot set
+ * without a preflight the API never grants. The backend requires it.
+ */
+const CSRF_HEADER = { "X-Requested-With": "XmlHttpRequest" } as const;
+
+/**
+ * The signed-in account's email, kept in localStorage purely so Settings
+ * can render "Connected as ..." immediately on load instead of flashing a
+ * blank row while /api/auth/refresh is in flight. It is display-only
+ * metadata and confers no access — unlike a token, which is why this one
+ * is allowed to be persisted.
+ */
+const EMAIL_KEY = "trackz.sync.email";
+
+function readStoredEmail(): string | null {
+  try {
+    return localStorage.getItem(EMAIL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredEmail(email: string | null): void {
+  try {
+    if (email) localStorage.setItem(EMAIL_KEY, email);
+    else localStorage.removeItem(EMAIL_KEY);
+  } catch {
+    // Private browsing or a full quota. Losing a cached display string is
+    // not worth failing sign-in over.
+  }
+}
+
 let currentAuthState: AuthState = {
   isSignedIn: false,
   accessToken: null,
-  userEmail: null,
+  userEmail: readStoredEmail(),
 };
-
-// Store refresh token in memory (in production, should use httpOnly cookie via backend)
-let refreshToken: string | null = null;
 
 let authListeners = new Set<(state: AuthState) => void>();
 let tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * Initialize Google Sign-In. Must be called once during app startup,
- * after the Google Identity Services script has loaded (see index.html).
- *
- * @param config Client ID and OAuth scopes (must include drive.file or drive)
- * @throws Error if GIS not available or already initialized
- */
-export async function initializeAuth(config: AuthConfig): Promise<void> {
-  const google = (window as unknown as { google?: unknown }).google;
-  if (!google) {
-    throw new Error("Google Identity Services not loaded. Check index.html script tag.");
-  }
+interface TokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  email?: string | null;
+}
 
-  const gis = google as unknown as {
-    accounts: { id: { initialize: (config: unknown) => void } };
+/** Shape of the GIS global we rely on. */
+interface GisCodeClient {
+  requestCode: () => void;
+}
+interface GisGlobal {
+  accounts: {
+    oauth2: {
+      initCodeClient: (config: {
+        client_id: string;
+        scope: string;
+        ux_mode: "popup" | "redirect";
+        callback: (response: { code?: string; error?: string }) => void;
+      }) => GisCodeClient;
+    };
   };
+}
+
+function readGis(): GisGlobal | null {
+  const google = (window as unknown as { google?: GisGlobal }).google;
+  return google?.accounts?.oauth2 ? google : null;
+}
+
+/**
+ * True once the GIS script from index.html has loaded. It is `async defer`,
+ * so it may not be ready at first paint; the sign-in button uses this to
+ * stay disabled rather than throwing on click.
+ */
+export function isGoogleScriptReady(): boolean {
+  return readGis() !== null;
+}
+
+/** True if this build has a client ID at all (VITE_GOOGLE_CLIENT_ID). */
+export function isSyncConfigured(): boolean {
+  return googleClientId !== null;
+}
+
+/**
+ * Restore a previous session, if the refresh cookie is still valid.
+ *
+ * Call once on startup. Resolves to true when a fresh access token was
+ * obtained. A false result is the ordinary "not signed in" case — a user
+ * who never connected Drive hits this on every load, so it must not
+ * surface as an error.
+ */
+export async function restoreSession(): Promise<boolean> {
+  if (!isSyncConfigured()) return false;
 
   try {
-    gis.accounts.id.initialize({
-      client_id: config.clientId,
-      callback: handleCredentialResponse,
-      auto_select: false,
+    const response = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: CSRF_HEADER,
+      credentials: "same-origin",
     });
-  } catch (error) {
-    throw new Error(`Failed to initialize Google Sign-In: ${error instanceof Error ? error.message : String(error)}`);
+
+    if (!response.ok) return false;
+
+    const data = (await response.json()) as TokenResponse;
+    if (!data.access_token || typeof data.expires_in !== "number") return false;
+
+    setAccessToken(data.access_token, data.expires_in);
+    return true;
+  } catch {
+    // Offline at startup. Not signed in *right now*, but the cookie is
+    // untouched, so a later retry can still succeed.
+    return false;
   }
 }
 
 /**
- * Trigger the Google Sign-In flow. This initiates OAuth2 authorization code flow:
- * 1. User clicks "Sign in" button
- * 2. Google redirects to auth screen
- * 3. User approves access
- * 4. GIS calls our callback with authorization code
- * 5. We exchange the code with our backend for access token
+ * Initialize Google sign-in. Must be called after the GIS script has
+ * loaded. Kept for symmetry with the GIS lifecycle and to fail loudly on a
+ * misconfigured build; the code client itself is created per sign-in
+ * attempt, since it is single-use.
  *
- * @returns Promise that resolves when user signs in and token is obtained
+ * @throws if GIS is not loaded or the build has no client ID
  */
-export function signIn(): Promise<void> {
+export async function initializeAuth(config?: AuthConfig): Promise<void> {
+  const clientId = config?.clientId ?? googleClientId;
+  if (!clientId) {
+    throw new Error(
+      "VITE_GOOGLE_CLIENT_ID is not set — Drive sync is unavailable in this build.",
+    );
+  }
+  if (!readGis()) {
+    throw new Error("Google Identity Services not loaded. Check index.html script tag.");
+  }
+}
+
+/**
+ * Run the Google sign-in popup and exchange the resulting code for tokens.
+ * Resolves once this device holds an access token and a refresh cookie.
+ */
+export function signIn(config?: AuthConfig): Promise<void> {
   return new Promise((resolve, reject) => {
-    const google = (window as unknown as { google?: unknown }).google;
-    if (!google) {
+    const clientId = config?.clientId ?? googleClientId;
+    if (!clientId) {
+      reject(
+        new Error(
+          "VITE_GOOGLE_CLIENT_ID is not set — Drive sync is unavailable in this build.",
+        ),
+      );
+      return;
+    }
+
+    const gis = readGis();
+    if (!gis) {
       reject(new Error("Google Identity Services not loaded"));
       return;
     }
 
-    const gis = google as unknown as {
-      accounts: { oauth2: { initCodeClient: (config: unknown) => { requestCode: () => void } } };
-    };
-
     try {
-      const clientId =
-        (window as unknown as { GOOGLE_CLIENT_ID?: string }).GOOGLE_CLIENT_ID ?? "";
-      if (!clientId) {
-        throw new Error("GOOGLE_CLIENT_ID not configured in environment");
-      }
-
       const client = gis.accounts.oauth2.initCodeClient({
         client_id: clientId,
-        scope: "https://www.googleapis.com/auth/drive.file",
+        scope: config?.scopes?.join(" ") ?? driveScope,
         ux_mode: "popup",
-        callback: async (response: unknown) => {
-          const codeResponse = response as { code?: string };
-          if (!codeResponse.code) {
-            reject(new Error("No authorization code received"));
+        callback: (response) => {
+          // The user closing the popup or declining consent arrives here as
+          // an error, not a rejected promise — treat it as a cancellation.
+          if (response.error) {
+            reject(new Error(`Google sign-in was cancelled (${response.error}).`));
             return;
           }
-
-          try {
-            // Exchange authorization code for access token via backend
-            const exchangeResponse = await fetch("/api/auth/exchange", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ code: codeResponse.code }),
-            });
-
-            if (!exchangeResponse.ok) {
-              const error = (await exchangeResponse.json()) as { error_description?: string };
-              throw new Error(
-                `Authorization failed: ${error.error_description || "unknown error"}`,
-              );
-            }
-
-            const tokenData = (await exchangeResponse.json()) as {
-              access_token?: string;
-              expires_in?: number;
-              refresh_token?: string;
-            };
-
-            if (!tokenData.access_token || !tokenData.expires_in) {
-              throw new Error("Invalid response from auth endpoint");
-            }
-
-            // Store the access token and set up auto-refresh
-            setAccessToken(tokenData.access_token, tokenData.expires_in, tokenData.refresh_token);
-
-            resolve();
-          } catch (error) {
-            reject(error);
+          if (!response.code) {
+            reject(new Error("Google sign-in returned no authorization code."));
+            return;
           }
+          exchangeCode(response.code).then(resolve, reject);
         },
       });
       client.requestCode();
     } catch (error) {
       reject(
         new Error(
-          `Failed to initiate sign-in: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to start Google sign-in: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         ),
       );
     }
   });
 }
 
-/**
- * Called when GIS returns a credential (ID token). Extract the JWT,
- * decode it to get email, and prepare for access token refresh.
- */
-function handleCredentialResponse(response: unknown): void {
-  const credential = response as { credential?: string };
-  if (!credential.credential) {
-    return;
+/** Trade a one-time authorization code for an access token + refresh cookie. */
+async function exchangeCode(code: string): Promise<void> {
+  const response = await fetch("/api/auth/exchange", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...CSRF_HEADER },
+    credentials: "same-origin",
+    body: JSON.stringify({ code }),
+  });
+
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => ({}))) as {
+      error_description?: string;
+    };
+    throw new Error(
+      `Could not complete Google sign-in: ${
+        failure.error_description ?? `server returned ${response.status}`
+      }`,
+    );
   }
 
-  // Decode the JWT (basic parsing — don't verify signature here, that's backend's job)
-  const parts = credential.credential.split(".");
-  if (parts.length !== 3) {
-    console.error("Invalid JWT format");
-    return;
+  const data = (await response.json()) as TokenResponse;
+  if (!data.access_token || typeof data.expires_in !== "number") {
+    throw new Error("Could not complete Google sign-in: malformed server response.");
   }
 
-  try {
-    const payload = JSON.parse(atob(parts[1]!)) as { email?: string };
-    currentAuthState.isSignedIn = true;
-    currentAuthState.userEmail = payload.email || null;
-    // In a real app, the credential IS the ID token; get access token via backend exchange
-    notifyListeners();
-  } catch (error) {
-    console.error("Failed to decode JWT:", error);
-  }
+  if (data.email) writeStoredEmail(data.email);
+  setAccessToken(data.access_token, data.expires_in, data.email ?? undefined);
 }
 
-/**
- * Get the current auth state (signed-in status, access token, email).
- */
+/** Current auth state. */
 export function getAuthState(): AuthState {
   return { ...currentAuthState };
 }
 
 /**
- * Set the access token (called after successful OAuth exchange with the backend).
- * Also schedules automatic refresh before expiry.
+ * Record a newly-obtained access token and schedule its replacement.
  *
  * @param token OAuth2 access token
- * @param expiresInSeconds How long until token expires
- * @param newRefreshToken Optional refresh token to store (for refresh flow)
+ * @param expiresInSeconds Lifetime as reported by Google
+ * @param email Optional account email, when the server supplied one
  */
 export function setAccessToken(
   token: string,
   expiresInSeconds: number,
-  newRefreshToken?: string,
+  email?: string,
 ): void {
   currentAuthState.accessToken = token;
   currentAuthState.isSignedIn = true;
+  if (email) currentAuthState.userEmail = email;
 
-  // Store refresh token if provided
-  if (newRefreshToken) {
-    refreshToken = newRefreshToken;
-  }
-
-  // Schedule refresh 30s before expiry, with a minimum 60s interval to avoid thrashing
+  // Renew 60s early so an in-flight Drive call can't be cut off by expiry
+  // mid-request, and never schedule shorter than 30s — a surprisingly
+  // short expires_in would otherwise spin the refresh endpoint.
   if (tokenRefreshTimeout) clearTimeout(tokenRefreshTimeout);
-  const refreshDelayMs = Math.max(30000, (expiresInSeconds - 30) * 1000);
-  tokenRefreshTimeout = setTimeout(refreshAccessToken, refreshDelayMs);
+  const refreshDelayMs = Math.max(30_000, (expiresInSeconds - 60) * 1000);
+  tokenRefreshTimeout = setTimeout(() => {
+    void refreshAccessToken();
+  }, refreshDelayMs);
 
   notifyListeners();
 }
 
 /**
- * Refresh the access token. Called automatically before expiry, or manually
- * if the old token was rejected by Drive API. Exchanges the refresh token
- * for a new access token via the backend.
+ * Mint a new access token from the refresh cookie. Called automatically
+ * before expiry, and by the Drive layer if a token is rejected early.
+ *
+ * @returns true if a new token was obtained
  */
-export async function refreshAccessToken(): Promise<void> {
+export async function refreshAccessToken(): Promise<boolean> {
   try {
-    if (!refreshToken) {
-      throw new Error("No refresh token available - user must sign in again");
-    }
-
     const response = await fetch("/api/auth/refresh", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      headers: CSRF_HEADER,
+      credentials: "same-origin",
     });
 
     if (!response.ok) {
-      // Check for specific error (e.g., refresh token expired)
-      const error = (await response.json()) as { error?: string };
-      if (error.error === "invalid_grant") {
-        // Refresh token expired - need to sign in again
-        signOut();
-        throw new Error("Refresh token expired - please sign in again");
+      const failure = (await response.json().catch(() => ({}))) as { error?: string };
+
+      // 401 means the cookie is gone or permanently rejected: the user must
+      // sign in again, so drop local state to match reality.
+      if (response.status === 401) {
+        clearLocalAuthState();
+        return false;
       }
-      throw new Error(`Token refresh failed: ${response.status}`);
+
+      // Anything else (Google 5xx, rate limit) is transient. Keep the
+      // signed-in state and let the sync coordinator's backoff retry —
+      // signing the user out over a blip would be a worse lie.
+      console.warn("Access token refresh deferred:", failure.error ?? response.status);
+      return false;
     }
 
-    const data = (await response.json()) as { access_token?: string; expires_in?: number };
-    if (data.access_token && data.expires_in) {
-      setAccessToken(data.access_token, data.expires_in);
-    } else {
-      throw new Error("Invalid response from refresh endpoint");
-    }
+    const data = (await response.json()) as TokenResponse;
+    if (!data.access_token || typeof data.expires_in !== "number") return false;
+
+    setAccessToken(data.access_token, data.expires_in);
+    return true;
   } catch (error) {
-    console.error("Failed to refresh access token:", error);
-    // Clear auth state on refresh failure — user will need to sign in again
-    signOut();
+    // Network failure: same reasoning as a 5xx, don't sign out.
+    console.warn(
+      "Access token refresh failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
   }
 }
 
 /**
- * Sign the user out. Clear all tokens and notify listeners.
+ * Sign out on this device: clear the in-memory token AND ask the server to
+ * expire the refresh cookie. The server round-trip is not optional —
+ * httpOnly means script cannot delete that cookie, so skipping it would
+ * leave a months-long Drive credential in the browser for the next load to
+ * silently reuse.
  */
-export function signOut(): void {
+export async function signOut(): Promise<void> {
+  clearLocalAuthState();
+  try {
+    await fetch("/api/auth/signout", {
+      method: "POST",
+      headers: CSRF_HEADER,
+      credentials: "same-origin",
+    });
+  } catch (error) {
+    // Local state is already cleared, so the UI is honest about being
+    // signed out; the cookie will be retried on the next sign-out or expire
+    // on its own.
+    console.warn(
+      "Sign-out could not reach the server; the sync cookie may persist until it expires:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+function clearLocalAuthState(): void {
   currentAuthState.isSignedIn = false;
   currentAuthState.accessToken = null;
   currentAuthState.userEmail = null;
-  refreshToken = null;
+  writeStoredEmail(null);
 
   if (tokenRefreshTimeout) {
     clearTimeout(tokenRefreshTimeout);
@@ -270,9 +376,8 @@ export function signOut(): void {
 }
 
 /**
- * Subscribe to auth state changes. Useful for UI to react to sign-in/out.
+ * Subscribe to auth state changes.
  *
- * @param listener Called whenever auth state changes
  * @returns Unsubscribe function
  */
 export function subscribeToAuth(listener: (state: AuthState) => void): () => void {
@@ -287,19 +392,21 @@ function notifyListeners(): void {
   }
 }
 
-/**
- * Test-only: reset auth state. Used to ensure each test starts fresh.
- */
+/** Test-only: reset auth state so each test starts fresh. */
 export function resetAuthForTesting(): void {
   currentAuthState = {
     isSignedIn: false,
     accessToken: null,
     userEmail: null,
   };
-  refreshToken = null;
   authListeners.clear();
   if (tokenRefreshTimeout) {
     clearTimeout(tokenRefreshTimeout);
     tokenRefreshTimeout = null;
+  }
+  try {
+    localStorage.removeItem(EMAIL_KEY);
+  } catch {
+    // no-op
   }
 }
