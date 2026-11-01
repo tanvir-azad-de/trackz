@@ -1,4 +1,11 @@
 import type { Transaction } from "@/domain/transaction";
+// Phase 15b: notify coordinator when local data changes so it can debounce sync
+// (lazy import to avoid circular dependencies if coordinator later imports from repo)
+let markLocalChanged: (() => void) | null = null;
+
+export function setSyncNotifier(notifier: () => void): void {
+  markLocalChanged = notifier;
+}
 
 /**
  * Runtime persistence for transactions. New, namespaced key — NOT the old
@@ -29,6 +36,8 @@ export function subscribe(listener: () => void): () => void {
 
 function notify(): void {
   for (const listener of listeners) listener();
+  // Phase 15b: notify sync coordinator that local data changed
+  if (markLocalChanged) markLocalChanged();
 }
 
 /**

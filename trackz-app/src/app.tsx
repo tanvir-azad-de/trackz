@@ -11,7 +11,10 @@ import { deleteTransaction } from "@/storage/repository";
 import type { Transaction } from "@/domain/transaction";
 import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
 import { applyServiceWorkerUpdate, registerServiceWorker } from "@/pwa/registerServiceWorker";
+import { SyncStatusIndicator } from "@/app/SyncStatusIndicator";
+import { initializeSync } from "@/sync/coordinator";
 import "@/app/TabBar.css";
+import "@/app/SyncStatusIndicator.css";
 import "@/components/Card.css";
 import "@/components/Toast.css";
 
@@ -71,8 +74,17 @@ export function App() {
     });
   }, []);
 
+  // Phase 15b: Initialize sync coordinator on mount
+  useEffect(() => {
+    initializeSync();
+  }, []);
+
   return (
     <div class="app-shell">
+      <div class="app-header">
+        <h1 class="app-title">trackz</h1>
+        <SyncStatusIndicator />
+      </div>
       {activeTab === "home" && <HomeScreen onDrillDown={navigateToActivity} />}
       {activeTab === "activity" && (
         <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />
