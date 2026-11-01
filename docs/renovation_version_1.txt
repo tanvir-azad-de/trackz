@@ -981,6 +981,52 @@ data mid-test.
     deploy a later one, confirm the toast appears and Reload actually
     picks up new code) — requires two real deploys, not one session.
 
+REAL-DEVICE FOLLOW-UP (same day): user ran the full
+docs/device-check-phase16.md checklist on a real iPhone. Install,
+--safe-top, CSV export/re-import (the Phase 13a item this phase existed
+to finally check), and offline all worked as expected — no surprises.
+
+ONE REAL BUG FOUND, not caught by anything in this phase's Playwright
+verification: double-tapping two adjacent keypad digits in quick
+succession on the quick-entry sheet (e.g. "2" then "3") triggered iOS
+Safari's native double-tap-to-zoom gesture, zooming the whole page.
+This is a DIFFERENT bug than the zoom-on-focus fix already in
+globals.css: that one fires when a text input gains focus (fixed via
+the >=16px font-size floor), this one fires on two quick taps anywhere
+on the page regardless of what's under them — exactly the interaction
+pattern the keypad's rapid-digit-entry happy path produces, and
+precisely the kind of native-gesture-recognizer behavior no DOM/CSS
+computed-style assertion (the only kind of check this phase's
+Playwright pass could run) would ever surface. This is also why this
+bug class specifically needed a real device, not a more thorough
+Playwright pass — Chromium's own touch-emulation doesn't reproduce
+Safari's double-tap-zoom gesture at all.
+
+Fixed with `touch-action: manipulation` on the universal `*` selector
+in globals.css. Two things confirmed before calling this done, not
+assumed:
+  - `manipulation` (not `none`) is deliberate: it disables ONLY
+    double-tap-zoom while still permitting pinch-zoom and normal
+    panning/scrolling. Disabling pinch-zoom site-wide would have traded
+    one real bug for an accessibility regression for low-vision users
+    who rely on it — checked that the property value itself reads
+    "manipulation" everywhere in the final CSS, not "none".
+  - touch-action does NOT inherit in the normal CSS sense — verified
+    directly via getComputedStyle before settling on the fix: setting
+    it on body alone left a descendant keypad button computed at
+    "auto", not "manipulation" (confirmed with Playwright against a
+    live `npm run dev` instance). Had to be set on the universal `*`
+    selector, not relied upon to propagate from a container — re-
+    checked afterward that body, the keypad button, the Sheet wrapper,
+    the tab bar, the FAB, and a Card all compute to "manipulation".
+  - 135 tests still passing, tsc -b clean, production build 42.24KB
+    gzipped — unchanged (CSS-only fix, +0.01KB gzipped, below rounding).
+  - docs/device-check-phase16.md updated: sections 1-4 marked checked
+    (confirmed working as-is), section 5 gained the bug writeup above
+    plus two new unchecked re-verify items (rapid double-tap no longer
+    zooms; pinch-zoom still works somewhere) for the next real-device
+    pass, section 6 untouched (still needs a second future deploy).
+
   Deliberately NOT done in this phase:
   - Phase 15 (Drive sync) — src/sync/ remains an empty placeholder.
     This phase was explicitly reframed ahead of it, not instead of it.
