@@ -577,13 +577,41 @@ transaction-derivable signal, so there was nothing to derive it from):
     Zero console errors. 117 tests passing, tsc -b clean, production
     build 39.46KB gzipped (negligible increase from 39.17KB — this was a
     reclassification, not new charting/library weight).
-  - OPEN ITEM for Phase 13 (Settings): this classification currently has
-    no UI to edit it — SCLB's "investment" tag can only be changed by
-    editing storage/accountTypes.ts's SEED_DEFAULTS. If more investment
-    or other non-cash account types surface later (the user's own
-    wording was "are not liquid actually", which may generalize beyond
-    SCLB), Settings should get an account-type picker rather than this
-    staying code-only.
+  - OPEN ITEM (RESOLVED below): at the time this fix shipped, the
+    classification had no UI — SCLB's "investment" tag could only be
+    changed by editing storage/accountTypes.ts's SEED_DEFAULTS.
+
+ACCOUNT-TYPE SETTINGS UI (closes the open item directly above): built
+features/settings/SettingsScreen.tsx — the first real content in the
+previously-empty Settings tab (Phase 13's placeholder). One section for
+now (account types); categories/merchant-merge/CSV import-export remain
+Phase 13 scope, not duplicated here.
+  - Every derived account (deriveAccounts) gets a Cash/Investment
+    segmented toggle, with its current balance shown for context. Tapping
+    an option calls storage/accountTypes.ts's existing setAccountType()
+    (built but unused until now) and fires an undo-able toast — reusing
+    the same Toast primitive Phase 8/11 use for save/delete, rather than
+    inventing a confirm dialog. No draft+Apply step (unlike FilterSheet):
+    there's exactly one meaningful value per account at a time, so a
+    draft step would be pure friction for a toggle this reversible.
+  - app.tsx wires onToast through so Settings' toasts render via the
+    same single <Toast> instance every other screen uses.
+  - Verified end-to-end via Playwright against live npm run dev: SCLB
+    shows "Investment" selected with its 2.300,00 € balance; tapping
+    "Cash" updates the toast ("SCLB set to Cash"), and WITHOUT a page
+    reload — Home's hero jumps from 847,07 € to 3.147,07 € live, its
+    account-strip badge disappears, and the Accounts screen's
+    "Investments" section itself disappears (conditionally rendered,
+    correctly empty) while SCLB appears in "Cash". Toggling back to
+    Investment and tapping the toast's Undo action correctly reverts to
+    Cash (confirming Undo restores the PREVIOUS state, not a hardcoded
+    default). Zero console errors. Reset back to the real SCLB=investment
+    classification after verification (this was test-only churn against
+    the dev seed's localStorage, not a data change).
+  - tsc -b clean, 117 tests unchanged (this UI has no new pure logic —
+    setAccountType/getAccountTypes were already tested indirectly via
+    the engine tests added in the SCLB fix above), production build
+    39.88KB gzipped (+0.42KB from the Settings screen's own markup/CSS).
 
 
           - TS types: Transaction, Account, Category, Merchant.

@@ -3,6 +3,7 @@ import { TabBar, type TabName } from "@/app/TabBar";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ActivityScreen } from "@/features/activity/ActivityScreen";
 import { AccountsScreen } from "@/features/accounts/AccountsScreen";
+import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { EntrySheet, savedToastMessage } from "@/features/entry/EntrySheet";
 import { Toast, type ToastState } from "@/components/Toast";
 import { useTransactions } from "@/storage/useTransactions";
@@ -15,8 +16,9 @@ import "@/components/Toast.css";
 
 /**
  * App shell: 4-tab navigation + center FAB. Home (Phase 10), Activity
- * (Phase 11), and Accounts (Phase 12) are real screens; Settings is still
- * a Phase 13 placeholder. The FAB opens the quick-entry sheet (Phase 8).
+ * (Phase 11), Accounts (Phase 12), and Settings' account-type section
+ * (the post-Phase-12 SCLB fix's follow-up) are real screens. The FAB
+ * opens the quick-entry sheet (Phase 8).
  */
 export function App() {
   const [activeTab, setActiveTab] = useState<TabName>("home");
@@ -57,7 +59,7 @@ export function App() {
         <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />
       )}
       {activeTab === "accounts" && <AccountsScreen onDrillDown={navigateToActivity} />}
-      {activeTab === "settings" && <PlaceholderScreen title="Settings" />}
+      {activeTab === "settings" && <SettingsScreen onToast={setToast} />}
       <TabBar active={activeTab} onNavigate={setActiveTab} onFabPress={() => setEntryOpen(true)} />
       <EntrySheet
         open={entryOpen}
@@ -67,14 +69,5 @@ export function App() {
       />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
-  );
-}
-
-function PlaceholderScreen({ title }: { title: string }) {
-  return (
-    <main style={{ padding: "24px 20px", maxWidth: 480, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 15, color: "var(--text-secondary)" }}>{title}</h1>
-      <p style={{ color: "var(--text-tertiary)", fontSize: 14 }}>Coming in a later phase.</p>
-    </main>
   );
 }
