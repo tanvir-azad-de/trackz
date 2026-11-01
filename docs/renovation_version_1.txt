@@ -756,6 +756,246 @@ which depends on a Settings screen that didn't have a Data section yet.
   tsc -b clean, production build 41.96KB gzipped (+2.08KB from the Data
   section's export/import UI and share/Blob plumbing).
 
+PHASE 16/17 (PWA install + iOS hardening pass) — done. Reframed as the
+next phase ahead of Phase 15 (Drive sync): an audit after Phase 13a found
+the app's real data path was now "import a CSV into localStorage on an
+iPhone" with zero sync and zero install path — and Safari evicts
+script-writable storage after ~7 days of non-use for a site that is NOT
+installed to the Home Screen (an installed PWA gets its own storage
+bucket, not subject to that cap). SettingsScreen.tsx's handleExport
+docstring had also flagged the one recovery path (CSV export) as
+unverified on real iOS since Phase 13a shipped it. Durability, not
+feature polish, was judged the actual gap — Phase 15 needs live Google
+OAuth and two-device conflict testing that can't be faked in one
+session; better to verify it against an app that can't lose its own
+data mid-test.
+
+  ICON SOURCE — DESIGN REVIEW GATE, same pattern as Phase 3's mockup
+  gate: two candidates (trackz-app/public/favicon.svg's purple bolt vs
+  public/logo.svg's old green circle) were rendered to PNG via
+  Playwright/Chromium (no rsvg/ImageMagick/Inkscape on the build
+  machine) at 192px/512px, both on transparent and on --surface-0, and
+  shown to the user before anything was wired into a manifest. DECISION
+  (locked): the purple bolt — matches --accent (#6e56f8) and the app's
+  actual branding; the old green circle's #34C759 would have clashed
+  with the dark-fintech purple accent the whole rebuild is built on.
+  Before the review: confirmed programmatically (pixel-sampling, not
+  assumption) that favicon.svg's 15 stacked blurred <ellipse>s inside a
+  mask render with zero corner clipping and a consistent center color
+  at both 192px and 512px — the blur filters were a real risk flagged
+  in the plan and checked, not assumed safe.
+
+  Built:
+  - trackz-app/public/{icon-192,icon-512,icon-maskable-512,
+    apple-touch-icon-180}.png — generated from favicon.svg via a
+    one-off Playwright-Chromium rasterization script (same rasterizer
+    as the review step), flattened onto --surface-0 since PNG app
+    icons need an opaque background (iOS's apple-touch-icon ignores
+    transparency; Android's maskable crop composites onto the OS's own
+    background, not the app's). Maskable variant uses a conservative
+    55%-of-canvas glyph fraction to clear the maskable safe-zone circle
+    (the glyph's bounding box is a square, not a circle, so this is
+    deliberately conservative rather than a pixel-exact safe-zone fit).
+  - trackz-app/public/icons.svg DELETED — confirmed zero references
+    anywhere in the tree first (grep across src/, index.html, *.css):
+    dead Vite-template cruft (bluesky/discord/github/x social icons)
+    that predated this rebuild and was never used by it.
+  - trackz-app/public/manifest.webmanifest: name/short_name "trackz",
+    display "standalone", background_color/theme_color #0a0b0f
+    (matching --surface-0 exactly, so the install splash and status
+    bar don't flash a different color than the app shell for a frame),
+    orientation "portrait", all 4 icon sizes/purposes declared.
+  - index.html gained: <link rel="manifest">, <link
+    rel="apple-touch-icon">, <meta name="theme-color"> (matching the
+    manifest's colors — asserted equal in the verification pass, not
+    just written twice and assumed to agree), and the 3 non-standard
+    apple-mobile-web-app-* meta tags iOS actually uses instead of
+    manifest.webmanifest's display:"standalone" (iOS ignores that
+    field entirely). status-bar-style "black-translucent" was chosen
+    deliberately over the opaque alternatives — it extends the app
+    under the status bar, which is *why* the --safe-top fix below was
+    needed, not an accident discovered after the fact.
+
+  SERVICE WORKER — HAND-ROLLED, NOT vite-plugin-pwa/Workbox. Decision,
+  not an oversight: Vite's content-hashed chunk filenames (e.g.
+  index-CLVuw3db.js) are immutable by construction — a byte change
+  always produces a new URL — so cache-first runtime caching needs no
+  build-time precache manifest at all; the only non-hashed URL is
+  index.html itself. That reduces the real need to 2 fetch strategies
+  (network-first for navigations, falling back to the cached shell
+  offline; cache-first for hashed assets) and zero new dependencies,
+  matching this codebase's measured-bytes posture (cf. the uPlot
+  writeup in Phase 12). Honest counterpoint, not hidden: Workbox would
+  land in the SW file, not the main bundle, so it would NOT have moved
+  the ~42KB gzipped main-bundle figure either way — the argument
+  against it is dependency surface and opacity, not app size.
+  - trackz-app/public/sw.js: precaches "/" and "/index.html" on
+    install; network-first for navigations with cached-shell fallback;
+    cache-first for everything same-origin GET. Does NOT auto-activate
+    a new version on install (skipWaiting is NOT called automatically)
+    — only activates after the running app explicitly posts
+    SKIP_WAITING, which only happens after the user taps "Reload" on
+    the update toast below. Deliberate: a background tab silently
+    swapping its running JS out from under a mid-edit quick-entry form
+    would be worse than a few stale minutes.
+  - trackz-app/src/pwa/registerServiceWorker.ts: registers only when
+    import.meta.env.PROD (mirrors dev/seed.ts's DEV guard, same
+    reasoning — `npm run dev` already has Vite's own HMR, a second
+    competing cache layer would only risk serving stale dev code).
+    Detects both a worker already "waiting" at registration time and a
+    newer one installing later; reloads the page automatically once
+    the NEW worker actually takes control (controllerchange), which
+    only fires after the toast's explicit SKIP_WAITING post.
+  - components/Toast.tsx gained a per-toast durationMs override
+    (defaulting to the existing 5000ms everywhere else). The update
+    prompt ("A new version of trackz is available." / "Reload") reuses
+    the same Toast primitive every other save/delete/account-type
+    action already uses rather than inventing a banner, but durationMs:
+    Infinity — a 5s undo window and an unhurried "reload when you're
+    ready" prompt have genuinely different urgency, collapsing them to
+    one duration would have been wrong, not just inconsistent.
+  - app.tsx wires registerServiceWorker in a mount-only useEffect,
+    showing the toast via the existing setToast state.
+
+  --safe-top: DEAD TOKEN BECOMES LOAD-BEARING. Phase 12 defined
+  --safe-top (tokens.css) but nothing consumed it, since no screen had
+  a fixed top bar. black-translucent (this phase) changes that —
+  without consuming it, installing the PWA would have introduced a
+  layout bug that does not exist in an ordinary Safari tab, which is
+  why this had to land in the SAME phase as the manifest, not be
+  deferred as an iOS-hardening afterthought.
+  - HomeScreen.css / AccountsScreen.css / SettingsScreen.css: top
+    padding changed from a bare --space-1 to calc(--space-1 +
+    --safe-top).
+  - ActivityScreen.css's .activity-screen__sticky-header AND
+    ActivityList.css's .activity-list__month BOTH needed their own
+    --safe-top offset, independently of the container's padding fix
+    above and independently of each other: CSS position:sticky's `top`
+    is computed against the scrollport (the viewport), not the parent
+    element's padding box, so a parent's top padding does not protect
+    a child that becomes sticky once scrolled. This was reasoned
+    through explicitly rather than assumed, then confirmed by
+    simulation (see verification below) — a real bug class (two
+    independently-stacked sticky headers, two independently-necessary
+    fixes) that would have been easy to half-fix by only touching one
+    of the two files.
+
+  -webkit-appearance RESET: globals.css's input/select/textarea rule
+  gained appearance:none/-webkit-appearance:none — without it, iOS
+  paints native light-chrome (a white dropdown-arrow area, light
+  date-picker trim) over dark inputs, fighting the dark-only palette.
+  This is global, but there is exactly one <select> in the entire app
+  (EntryForm.tsx's Type field) and removing its native arrow with
+  nothing in its place would have been a real regression, not a wash
+  — confirmed by checking (grep, not assumption) that it is the only
+  <select> before deciding how to handle it. Fixed with a scoped
+  replacement chevron (inline SVG data-URI background-image) on
+  select.entry-form__input specifically, rather than a generic
+  global select-arrow rule applied to selects that don't exist yet
+  and might not want this exact treatment.
+
+  Phase 17 (iOS hardening) scope check: most of the originally-listed
+  items were ALREADY DONE in Phase 2 and verified directly in this
+  phase's audit, not re-done here: 100dvh (zero 100vh in any CSS file),
+  -webkit-tap-highlight-color: transparent, overscroll-behavior
+  containment, prefers-reduced-motion (3 sites), 44px touch targets,
+  the @media (hover: hover) guard, and the 16px input-font-size floor.
+  The audit also found one thing the original B-bug-list style of
+  "assume broken until shown otherwise" reasoning would have flagged
+  incorrectly: FilterSheet.css's date-field LABEL text is 12px
+  (--text-xs), which looked at first glance like it might cascade onto
+  the date <input> inside it and trigger iOS zoom-on-focus — but
+  globals.css's `input, select, textarea { font-size: var(--text-base)
+  }` is an element selector that wins directly over an ancestor's font-
+  size via inheritance, so the input itself is unaffected. Verified via
+  Playwright's computed-style inspection rather than left as a read of
+  the CSS cascade — this was exactly the kind of "looks risky, isn't"
+  case worth actually checking.
+
+  Verified in-session (Playwright/Chromium against `npm run build` +
+  `serve -s dist`, matching the Phase 13a-established emulation of
+  Vercel's filesystem-first-then-rewrite-fallback behavior):
+  - manifest.webmanifest and all 3 icon URLs return 200 with correct
+    content-types (application/manifest+json, image/png) through the
+    SPA catch-all rewrite — not silently served as index.html, which
+    would have been a confusing failure mode rather than a loud one.
+  - Service worker registers, reaches "activated", and populates its
+    cache with the shell + hashed assets + manifest + icons.
+  - OFFLINE CHECK — METHODOLOGY CORRECTION CAUGHT MID-VERIFICATION:
+    Playwright's context.setOffline(true) pre-empts navigation at the
+    CDP network-transport layer BEFORE the service worker's fetch
+    handler runs at all — confirmed directly: an in-page fetch('/')
+    under setOffline(true) correctly returned the cached shell from
+    the SW (200, real HTML), but page.reload() under the identical
+    condition failed at the browser's own layer first
+    (net::ERR_FAILED), never reaching sw.js. This is a Playwright/CDP
+    navigation-emulation quirk, not a gap in the service worker — re-
+    verified by routing every request to abort with
+    "internetdisconnected" instead (reproducing what a real network
+    outage looks like FROM THE SERVICE WORKER'S OWN PERSPECTIVE: its
+    fetch() to the network fails, which is the exact catch branch
+    sw.js's networkFirst() is written for), which correctly navigated
+    and rendered the real app shell offline. Recorded here rather than
+    quietly switched over, since reporting a false pass or a false
+    fail during verification is the kind of thing that only surfaces
+    later in front of a user.
+  - --safe-top math verified by simulation (CSS custom-property
+    override, since env(safe-area-inset-top) cannot be spoofed from
+    script and desktop Chromium has no real notch to measure): Home's
+    title offset moved by EXACTLY +59px when --safe-top was forced to
+    59px, and was unchanged at the original value with no override —
+    confirming the fix is additive and doesn't regress the ordinary
+    non-notched/browser-tab case.
+  - The Type <select>'s computed style confirmed appearance:none +
+    the custom chevron background-image + padding-right actually
+    applied together (not just present in source), reached via the
+    real EntrySheet -> "More options" -> EntryForm flow.
+  - Confirmed separately that the service worker does NOT register at
+    all under `npm run dev` (zero registrations after a full page
+    load) — the PROD guard is effective, not theoretical.
+  - 135 tests passing (unchanged — this phase added no new pure logic,
+    only markup/CSS/a SW with no unit-testable surface of its own),
+    tsc -b clean, production build 42.24KB gzipped (+0.28KB from
+    index.html's new meta tags + Toast's durationMs param + the SW
+    registration module — the manifest/icons/sw.js are separate static
+    files, not bundled into the measured JS).
+
+  Explicitly NOT verifiable in this session, written up as
+  docs/device-check-phase16.md for a real iPhone pass instead:
+  - Whether Add-to-Home-Screen actually shows the right icon/name and
+    an installed launch is genuinely chrome-less — Chromium's
+    installability signal is a proxy for this, not iOS Safari's actual
+    behavior.
+  - Which code branch handleExport's share-vs-download fork actually
+    takes on real iOS Safari, and whether the downloaded/shared file is
+    a valid CSV — the ORIGINAL unverified item from Phase 13a, now
+    finally actually checkable because the app is installable, which
+    is the whole reason this phase was reframed ahead of Phase 15.
+  - Real airplane-mode behavior on a real radio, as opposed to the
+    routed-request simulation above.
+  - Input-zoom-on-focus on a real iOS keyboard, and the Type select's
+    actual native-vs-custom rendering on real iOS (desktop Chromium's
+    select-replacement behavior is not guaranteed identical to iOS
+    Safari's).
+  - The service-worker UPDATE flow end-to-end (install this version,
+    deploy a later one, confirm the toast appears and Reload actually
+    picks up new code) — requires two real deploys, not one session.
+
+  Deliberately NOT done in this phase:
+  - Phase 15 (Drive sync) — src/sync/ remains an empty placeholder.
+    This phase was explicitly reframed ahead of it, not instead of it.
+  - Phase 6 (merchant merge) / Phase 13b (categories edit/delete),
+    including derive.ts's deriveCategories first-write-wins
+    categoryType conflict (keys on name alone, while getCategoryTotals
+    keys on type|name — the two functions disagree about identity) —
+    unrelated to durability, still open.
+  - Phase 14 charts (net-worth line, ranked bars) — getTopCategoriesForMonth
+    and getMonthlyExpenseSeries remain test-only with no UI consumer.
+  - The pre-existing CI fixture gap (5 of 6 fixture-dependent test files
+    hard-fail without the gitignored dummyData/ fixture;
+    verify-import.test.ts fails at collection time, not as a clean
+    skip) — untouched, not this phase's scope.
+
 
           - EUR-only — delete currency field plumbing entirely.
           - Money as integer cents.

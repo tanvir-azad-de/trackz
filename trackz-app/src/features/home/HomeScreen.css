@@ -1,5 +1,9 @@
 .home-screen {
-  padding: var(--space-1) var(--space-5) calc(100px + var(--safe-bottom));
+  /* Top padding adds --safe-top so content doesn't start under the status
+     bar when installed as a PWA (apple-mobile-web-app-status-bar-style:
+     black-translucent extends the page under it — see index.html). Zero
+     in a normal browser tab since env(safe-area-inset-top) is 0px there. */
+  padding: calc(var(--space-1) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
   max-width: 480px;
   margin: 0 auto;
 }

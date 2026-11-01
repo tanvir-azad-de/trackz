@@ -5,7 +5,13 @@
 
 .activity-list__month {
   position: sticky;
-  top: var(--activity-header-height);
+  /* --activity-header-height (set by ActivityScreen.css) is the pixel
+     height of the search/filter row + summary line this stacks below.
+     Like .activity-screen__sticky-header, sticky top is viewport-relative,
+     so --safe-top has to be added here too or this header slides under
+     the status bar on scroll in an installed PWA, independently of the
+     sticky-header fix above. */
+  top: calc(var(--safe-top) + var(--activity-header-height));
   z-index: 10;
   display: flex;
   align-items: baseline;

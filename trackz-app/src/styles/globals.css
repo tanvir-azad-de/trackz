@@ -71,4 +71,12 @@ select,
 textarea {
   font-size: var(--text-base); /* >=16px: prevents iOS Safari's zoom-on-focus */
   font-family: inherit;
+  /* Without this, iOS renders select/date inputs with native light-theme
+     chrome (a white dropdown arrow area, light date-picker wheel trim)
+     that fights this app's dark-only palette — appearance:none strips
+     that and lets our own background/border/color rules through on
+     .entry-form__input (EntryForm.tsx's Type select) and the date
+     inputs in FilterSheet.tsx. */
+  -webkit-appearance: none;
+  appearance: none;
 }

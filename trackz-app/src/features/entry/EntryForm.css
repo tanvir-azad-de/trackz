@@ -58,6 +58,19 @@
   min-height: var(--touch-target-min);
 }
 
+/* globals.css sets appearance:none on every select (iOS otherwise paints
+   its own light-chrome dropdown affordance over this dark input) — this
+   is the one <select> in the app (EntryForm.tsx's Type field), so the
+   replacement chevron is scoped here rather than added as a generic
+   global select-arrow rule that would apply to selects that don't exist
+   yet and might not want it. */
+select.entry-form__input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%239aa0ad' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  padding-right: var(--space-8);
+}
+
 .entry-form__input:focus {
   border-color: var(--accent);
   outline: none;

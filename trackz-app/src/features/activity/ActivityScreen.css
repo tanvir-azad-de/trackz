@@ -1,5 +1,6 @@
 .activity-screen {
-  padding: var(--space-1) var(--space-5) calc(100px + var(--safe-bottom));
+  /* See HomeScreen.css for why --safe-top is added here. */
+  padding: calc(var(--space-1) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
   max-width: 480px;
   margin: 0 auto;
   /* Sticky month headers in ActivityList.css stick just below the
@@ -19,7 +20,14 @@
 
 .activity-screen__sticky-header {
   position: sticky;
-  top: 0;
+  /* top: 0 would make this stick flush to the viewport's top edge once
+     scrolled — sticky positioning is computed against the scrollport,
+     NOT the parent's padding-top, so the parent's --safe-top padding
+     above does not protect this element once it's stuck. Needs its own
+     --safe-top offset, or an installed PWA's sticky header slides under
+     the status bar on scroll even though the page loads with correct
+     top spacing. */
+  top: var(--safe-top);
   z-index: 20;
   background: var(--surface-0);
   padding-top: var(--space-1);

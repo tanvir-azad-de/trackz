@@ -3,8 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
+    <!-- background_color/theme_color in manifest.webmanifest must match this —
+         otherwise the install splash screen and status bar flash a different
+         color than the app shell for a frame. -->
+    <meta name="theme-color" content="#0a0b0f" />
+    <!-- iOS ignores manifest.webmanifest's display:"standalone" entirely —
+         these three meta tags are the actual (non-standard) iOS mechanism.
+         black-translucent extends the app under the status bar, which is
+         why --safe-top (previously a dead token, see globals.css) now has
+         to be consumed by every screen's top padding. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="trackz" />
     <title>trackz</title>
   </head>
   <body>

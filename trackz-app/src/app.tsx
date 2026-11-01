@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { TabBar, type TabName } from "@/app/TabBar";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ActivityScreen } from "@/features/activity/ActivityScreen";
@@ -10,6 +10,7 @@ import { useTransactions } from "@/storage/useTransactions";
 import { deleteTransaction } from "@/storage/repository";
 import type { Transaction } from "@/domain/transaction";
 import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
+import { applyServiceWorkerUpdate, registerServiceWorker } from "@/pwa/registerServiceWorker";
 import "@/app/TabBar.css";
 import "@/components/Card.css";
 import "@/components/Toast.css";
@@ -51,6 +52,24 @@ export function App() {
       onAction: () => deleteTransaction(tx.id),
     });
   }
+
+  // Phase 16: a new service-worker version sitting in "waiting" means a
+  // newer build has been deployed since this tab loaded. Reusing the same
+  // Toast primitive every other save/delete/account-type action uses
+  // (see components/Toast.tsx) rather than inventing a banner/modal — the
+  // only difference is durationMs: Infinity, since "reload when you're
+  // ready" has none of the urgency of a 5s undo window.
+  useEffect(() => {
+    registerServiceWorker(() => {
+      setToast({
+        id: Date.now(),
+        message: "A new version of trackz is available.",
+        actionLabel: "Reload",
+        onAction: applyServiceWorkerUpdate,
+        durationMs: Infinity,
+      });
+    });
+  }, []);
 
   return (
     <div class="app-shell">

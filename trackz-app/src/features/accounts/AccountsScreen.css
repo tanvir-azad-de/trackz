@@ -1,5 +1,6 @@
 .accounts-screen {
-  padding: var(--space-1) var(--space-5) calc(100px + var(--safe-bottom));
+  /* See HomeScreen.css for why --safe-top is added here. */
+  padding: calc(var(--space-1) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
   max-width: 480px;
   margin: 0 auto;
 }
