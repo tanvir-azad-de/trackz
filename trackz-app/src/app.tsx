@@ -12,7 +12,8 @@ import type { Transaction } from "@/domain/transaction";
 import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
 import { applyServiceWorkerUpdate, registerServiceWorker } from "@/pwa/registerServiceWorker";
 import { SyncStatusIndicator } from "@/app/SyncStatusIndicator";
-import { initializeSync } from "@/sync/coordinator";
+import { initializeSync, syncNow } from "@/sync/coordinator";
+import { useSyncStatus } from "@/storage/useSyncStatus";
 import "@/app/TabBar.css";
 import "@/app/SyncStatusIndicator.css";
 import "@/components/Card.css";
@@ -29,6 +30,7 @@ export function App() {
   const [entryOpen, setEntryOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const transactions = useTransactions();
+  const syncState = useSyncStatus();
 
   // Lifted here (rather than owned by ActivityScreen) so a Home insight
   // card can deep-link into a pre-filtered Activity view (closes the gap
@@ -78,6 +80,25 @@ export function App() {
   useEffect(() => {
     initializeSync();
   }, []);
+
+  // Phase 15b: Show sync error toasts
+  useEffect(() => {
+    if (syncState.status === "error" && syncState.lastError && !toast?.message.includes("Sync")) {
+      setToast({
+        id: Date.now(),
+        message: `Sync error: ${syncState.lastError}`,
+        actionLabel: "Retry",
+        onAction: async () => {
+          try {
+            await syncNow();
+          } catch (error) {
+            console.error("Manual retry failed:", error);
+          }
+        },
+        durationMs: 8000,
+      });
+    }
+  }, [syncState.status, syncState.lastError, toast?.message]);
 
   return (
     <div class="app-shell">
