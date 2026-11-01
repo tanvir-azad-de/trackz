@@ -50,11 +50,22 @@ export function getTransactions(): Transaction[] {
   return readRaw();
 }
 
+/**
+ * True when there is no real transaction data yet — used by the dev
+ * seed (dev/seed.ts) to decide whether to load sample data, and
+ * previously checked `localStorage.getItem(STORAGE_KEY) === null`
+ * exactly. That definition has a trap: after ANY write (including
+ * writing an empty array, e.g. importing a CSV with zero rows, or
+ * deleting every transaction one at a time), the key exists but is
+ * "[]" — so isEmpty() would return false and the dev seed could never
+ * re-run to recover sample data. Checking the actual array length
+ * closes that gap.
+ */
 export function isEmpty(): boolean {
-  return localStorage.getItem(STORAGE_KEY) === null;
+  return readRaw().length === 0;
 }
 
-/** Replace the entire transaction list — used by CSV import (Phase 13) and the one-time dev seed. */
+/** Replace the entire transaction list — used by CSV import (Phase 13a, features/settings) and the one-time dev seed. */
 export function replaceAllTransactions(transactions: Transaction[]): void {
   writeRaw(transactions);
   notify();

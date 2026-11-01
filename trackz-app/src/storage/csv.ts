@@ -1,18 +1,26 @@
-import { toCents } from "@/domain/money";
+import { toCents, centsToFixed } from "@/domain/money";
 import { isValidISODate } from "@/domain/dates";
 import { newTransactionId } from "@/domain/id";
 import type { CategoryType, Cashflow, Transaction } from "@/domain/transaction";
 import { CATEGORY_TYPES } from "@/domain/transaction";
 
 /**
- * CSV columns, matching dummyData/trackz-backup-2026-10-31.csv exactly:
- * date,account,destinationAccount,cashflow,category,category_type,subcategory,amount,currency,notes
+ * Legacy CSV columns, matching dummyData/trackz-backup-2026-10-31.csv
+ * exactly: date,account,destinationAccount,cashflow,category,category_type,
+ * subcategory,amount,currency,notes
  *
  * `subcategory` from the CSV maps to our `merchant` field (Phase 6 rename).
  * `currency` is read and validated but discarded — the app is EUR-only
  * (see decisions in docs/renovation_version_1.txt). Any non-EUR row is a
  * hard parse error, not a silent drop, so a future non-EUR import can't
  * sneak in unnoticed.
+ *
+ * This format has no `id`/`createdAt` columns, so parsing it mints a
+ * fresh id and synthesizes createdAt as midnight-on-date for every row —
+ * fine for a one-time historical import, but NOT a lossless round trip
+ * (same-day ordering, which the Activity list sorts by createdAt desc,
+ * would scramble on re-import). See CSV_HEADERS_V2 below for the format
+ * this app's own export (Phase 13a) produces and re-parses losslessly.
  */
 export const CSV_HEADERS = [
   "date",
@@ -26,6 +34,15 @@ export const CSV_HEADERS = [
   "currency",
   "notes",
 ] as const;
+
+/**
+ * This app's own export format (Phase 13a): the legacy 10 columns plus
+ * `id` and `createdAt` appended. Appending (rather than inserting them
+ * in a "more natural" position) keeps every legacy column at the same
+ * index, so the existing positional destructuring below needs no
+ * branching on which header matched — only the two extra fields differ.
+ */
+export const CSV_HEADERS_V2 = [...CSV_HEADERS, "id", "createdAt"] as const;
 
 const CASHFLOWS: readonly Cashflow[] = ["in", "out", "none"];
 
@@ -88,28 +105,30 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
   }
 
   const header = parseCsvLine(lines[0]!);
-  const headerOk = CSV_HEADERS.every((h, i) => header[i] === h);
-  if (!headerOk) {
+  const isV2 = CSV_HEADERS_V2.every((h, i) => header[i] === h);
+  const isV1 = !isV2 && CSV_HEADERS.every((h, i) => header[i] === h);
+  if (!isV1 && !isV2) {
     errors.push({
       line: 1,
-      message: `Unexpected header. Expected: ${CSV_HEADERS.join(",")}`,
+      message: `Unexpected header. Expected: ${CSV_HEADERS.join(",")} (optionally with id,createdAt appended)`,
     });
     return { transactions, errors };
   }
+  const expectedColumns = isV2 ? CSV_HEADERS_V2.length : CSV_HEADERS.length;
 
   for (let i = 1; i < lines.length; i++) {
     const lineNumber = i + 1;
     const fields = parseCsvLine(lines[i]!);
-    if (fields.length !== CSV_HEADERS.length) {
+    if (fields.length !== expectedColumns) {
       errors.push({
         line: lineNumber,
-        message: `Expected ${CSV_HEADERS.length} columns, got ${fields.length}`,
+        message: `Expected ${expectedColumns} columns, got ${fields.length}`,
       });
       continue;
     }
 
-    const [date, account, destinationAccount, cashflowRaw, category, categoryTypeRaw, merchant, amountRaw, currency, notes] =
-      fields as [string, string, string, string, string, string, string, string, string, string];
+    const [date, account, destinationAccount, cashflowRaw, category, categoryTypeRaw, merchant, amountRaw, currency, notes, idField, createdAtField] =
+      fields as [string, string, string, string, string, string, string, string, string, string, string?, string?];
 
     if (!isValidISODate(date)) {
       errors.push({ line: lineNumber, message: `Invalid date: "${date}"` });
@@ -156,7 +175,7 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
     }
 
     transactions.push({
-      id: newTransactionId(),
+      id: idField || newTransactionId(),
       date,
       account,
       destinationAccount: cashflowRaw === "none" ? destinationAccount : "",
@@ -166,9 +185,56 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       merchant: merchant ?? "",
       amountCents,
       notes: notes ?? "",
-      createdAt: `${date}T00:00:00.000Z`,
+      createdAt: createdAtField || `${date}T00:00:00.000Z`,
     });
   }
 
   return { transactions, errors };
+}
+
+/**
+ * RFC4180 field quoting: wrap in quotes and double any inner quote
+ * whenever the field contains a comma, quote, or newline — exactly the
+ * three characters parseCsvLine above treats specially. Three real rows
+ * in the actual data have a comma inside `notes` (e.g. "Hamburg Service
+ * vor Or, Hamburg DE"), so this is not a theoretical edge case.
+ */
+function quoteCsvField(value: string): string {
+  if (/[,"\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+/**
+ * The inverse of parseTransactionsCsv, producing CSV_HEADERS_V2 (legacy
+ * 10 columns + id + createdAt). Round-trip tested against the real
+ * 1,456-row backup (storage/__tests__/csv.test.ts): parse -> serialize
+ * -> re-parse yields byte-for-byte identical Transaction objects,
+ * INCLUDING id and createdAt — the two fields the legacy 10-column
+ * format cannot preserve, which is exactly what would otherwise scramble
+ * the Activity list's createdAt-desc same-day ordering (filter.ts) on a
+ * round trip. Always writes amount as a positive decimal and
+ * currency=EUR (the app is EUR-only; see decisions doc).
+ */
+export function serializeTransactionsCsv(transactions: Transaction[]): string {
+  const lines = [CSV_HEADERS_V2.join(",")];
+  for (const tx of transactions) {
+    const fields = [
+      tx.date,
+      tx.account,
+      tx.destinationAccount,
+      tx.cashflow,
+      tx.category,
+      tx.categoryType,
+      tx.merchant,
+      centsToFixed(tx.amountCents),
+      "EUR",
+      tx.notes,
+      tx.id,
+      tx.createdAt,
+    ];
+    lines.push(fields.map(quoteCsvField).join(","));
+  }
+  return lines.join("\r\n") + "\r\n";
 }

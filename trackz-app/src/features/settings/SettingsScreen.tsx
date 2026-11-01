@@ -1,13 +1,18 @@
-import { useMemo } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { useAccountTypes } from "@/storage/useAccountTypes";
 import { setAccountType } from "@/storage/accountTypes";
 import { deriveAccounts, getAllAccountBalances } from "@/storage/derive";
+import { replaceAllTransactions } from "@/storage/repository";
 import type { AccountType } from "@/domain/transaction";
+import { getLocalToday } from "@/domain/dates";
 import { Card } from "@/components/Card";
 import { Money } from "@/components/Money";
+import { Sheet } from "@/components/Sheet";
 import type { ToastState } from "@/components/Toast";
+import { buildExportCsv, canCommit, exportFileName, previewImport, type ImportPreview } from "@/features/settings/exportImport";
 import "./SettingsScreen.css";
+import "@/components/Sheet.css";
 
 interface SettingsScreenProps {
   onToast?: (toast: ToastState) => void;
@@ -19,22 +24,46 @@ const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
 ];
 
 /**
- * Phase 13 (Settings), account-type classification section only — the
- * UI gap left open at the end of the post-Phase-12 SCLB fix
- * (docs/renovation_version_1.txt): until now, "this account is an
- * investment, not cash" could only be changed by editing
- * storage/accountTypes.ts's SEED_DEFAULTS directly.
+ * Settings (Phase 13a): account-type classification (Cash/Investment)
+ * plus a Data section for CSV export/import — the piece that makes the
+ * rebuild actually usable outside dev, since src/dev/seed.ts is the
+ * ONLY way real data reaches this app otherwise, and that path is
+ * explicitly disabled in production builds (import.meta.env.DEV guard).
+ * Categories edit/delete and the guided merchant-merge screen remain
+ * Phase 13b scope, not duplicated here.
  *
- * Each account gets a Cash/Investment segmented toggle. Changes are
- * immediate (no draft + Apply like FilterSheet) — unlike a multi-facet
- * filter, there's exactly one meaningful value per account at a time,
- * so a confirm step would just be friction. An undo-able toast (reusing
- * the same Toast primitive Phase 8/11 use for save/delete) is the safety
- * net instead of a draft step.
+ * Account types: each account gets a Cash/Investment segmented toggle.
+ * Changes are immediate (no draft + Apply like FilterSheet) — unlike a
+ * multi-facet filter, there's exactly one meaningful value per account
+ * at a time, so a confirm step would just be friction. An undo-able
+ * toast (reusing the same Toast primitive Phase 8/11 use for
+ * save/delete) is the safety net instead of a draft step.
+ *
+ * Data: export serializes every transaction to this app's own CSV
+ * format (storage/csv.ts's CSV_HEADERS_V2 — the legacy 10 columns plus
+ * id/createdAt, so a round trip is lossless, unlike the original
+ * backup format). Import is a preview-then-confirm flow, never a
+ * silent commit: replaceAllTransactions() (storage/repository.ts)
+ * destroys whatever is currently stored, so the preview shows parse
+ * errors, derived account/category/merchant counts, and the resulting
+ * Liquid/Total figures BEFORE the user can confirm — reusing Sheet
+ * (Phase 8/11/13's shared bottom-sheet primitive) rather than a new
+ * modal concept. If the store is non-empty, the confirm button is
+ * disabled until the user has exported first, so "I imported the
+ * wrong file and lost everything" requires skipping an explicit
+ * warning, not just missing a small one.
  */
 export function SettingsScreen({ onToast }: SettingsScreenProps) {
   const transactions = useTransactions();
   const accountTypesMap = useAccountTypes();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [exporting, setExporting] = useState(false);
+  // Gate on "exported since the store last had data", not just "ever
+  // exported" — reset whenever new data is committed (import, or any
+  // ordinary transaction write) so a second import later in the same
+  // session can't skip the safety step by riding a stale true value.
+  const [exportedSinceLastChange, setExportedSinceLastChange] = useState(false);
 
   const accounts = useMemo(() => {
     const names = deriveAccounts(transactions).map((a) => a.name);
@@ -57,6 +86,71 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
       onAction: () => setAccountType(account, previous),
     });
   }
+
+  /**
+   * Blob + synthetic <a download> — the standard pattern, but iOS Safari
+   * has historically been unreliable with it (silent no-op in some
+   * versions/contexts). navigator.canShare({ files }) lets a real iOS
+   * share sheet take over when available, which is the more reliable
+   * path on the one platform this app actually ships to; the anchor is
+   * the fallback for desktop/Android where share-with-files support is
+   * patchier. This download path has NOT been verified on a real
+   * iPhone yet — flagged for the Step 5 device pass.
+   */
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const csv = buildExportCsv(transactions);
+      const fileName = exportFileName(getLocalToday());
+      const file = new File([csv], fileName, { type: "text/csv" });
+
+      const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean; share?: (data: { files: File[] }) => Promise<void> };
+      if (nav.canShare?.({ files: [file] }) && nav.share) {
+        await nav.share({ files: [file] });
+        setExportedSinceLastChange(true);
+        return;
+      }
+
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onToast?.({ id: Date.now(), message: `Exported ${transactions.length} transactions to ${fileName}` });
+      setExportedSinceLastChange(true);
+    } catch (err) {
+      // AbortError means the user cancelled the share sheet — not a
+      // real failure, don't show an error toast for it.
+      if (err instanceof Error && err.name === "AbortError") return;
+      onToast?.({ id: Date.now(), message: "Export failed — see console for details" });
+      console.error("[export] failed", err);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleFileSelected(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setImportPreview(previewImport(file.name, text, accountTypesMap));
+    input.value = ""; // allow re-selecting the same file name later
+  }
+
+  function handleConfirmImport() {
+    if (!importPreview || !canCommit(importPreview)) return;
+    replaceAllTransactions(importPreview.transactions);
+    onToast?.({ id: Date.now(), message: `Imported ${importPreview.transactions.length} transactions from ${importPreview.fileName}` });
+    setImportPreview(null);
+    setExportedSinceLastChange(false);
+  }
+
+  const hasExistingData = transactions.length > 0;
+  const importBlockedByUnexportedData = hasExistingData && !exportedSinceLastChange;
 
   return (
     <main class="settings-screen">
@@ -100,6 +194,102 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
           ))}
         </div>
       )}
+
+      <h2 class="settings-screen__section-title">Data</h2>
+      <p class="settings-screen__hint">
+        Export a CSV backup of every transaction, or import one to replace what's currently stored. Importing is
+        all-or-nothing and overwrites your current data — review the preview carefully before confirming.
+      </p>
+
+      <div class="settings-data-actions">
+        <button type="button" class="settings-data-button" onClick={handleExport} disabled={exporting || transactions.length === 0}>
+          {exporting ? "Exporting…" : `Export ${transactions.length} transactions`}
+        </button>
+        <button type="button" class="settings-data-button" onClick={() => fileInputRef.current?.click()}>
+          Import from CSV
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          class="settings-data-file-input"
+          onChange={handleFileSelected}
+        />
+      </div>
+
+      <Sheet open={importPreview !== null} onClose={() => setImportPreview(null)} title="Import preview">
+        {importPreview && (
+          <div class="import-preview">
+            <p class="import-preview__file">{importPreview.fileName}</p>
+
+            {importPreview.errors.length > 0 ? (
+              <div class="import-preview__errors">
+                <p class="import-preview__errors-summary">
+                  {importPreview.errors.length} of {importPreview.totalRows} rows failed to parse. Nothing has been
+                  imported — fix the file and try again.
+                </p>
+                <ul class="import-preview__error-list">
+                  {importPreview.errorPreview.map((err, i) => (
+                    <li key={i}>
+                      Line {err.line}: {err.message}
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" class="import-preview__cancel" onClick={() => setImportPreview(null)}>
+                  Close
+                </button>
+              </div>
+            ) : importPreview.validCount === 0 ? (
+              <>
+                <p class="import-preview__errors-summary">This file has no transaction rows — nothing to import.</p>
+                <button type="button" class="import-preview__cancel" onClick={() => setImportPreview(null)}>
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <ul class="import-preview__summary">
+                  <li>{importPreview.validCount} transactions</li>
+                  <li>{importPreview.accountCount} accounts</li>
+                  <li>{importPreview.categoryCount} categories</li>
+                  <li>{importPreview.merchantCount} merchants</li>
+                </ul>
+                <div class="import-preview__totals">
+                  <div>
+                    <span>Liquid</span>
+                    <Money cents={importPreview.liquidCashCents} />
+                  </div>
+                  <div>
+                    <span>Total assets</span>
+                    <Money cents={importPreview.totalAssetsCents} />
+                  </div>
+                </div>
+
+                {importBlockedByUnexportedData && (
+                  <p class="import-preview__warning">
+                    This will permanently replace your current {transactions.length} transactions. Export a backup
+                    first, or confirm below if you're sure.
+                  </p>
+                )}
+
+                <div class="import-preview__actions">
+                  <button type="button" class="import-preview__cancel" onClick={() => setImportPreview(null)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    class="import-preview__confirm"
+                    disabled={!canCommit(importPreview)}
+                    onClick={handleConfirmImport}
+                  >
+                    {importBlockedByUnexportedData ? "Replace anyway" : "Import"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Sheet>
     </main>
   );
 }

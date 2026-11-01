@@ -613,8 +613,150 @@ Phase 13 scope, not duplicated here.
     the engine tests added in the SCLB fix above), production build
     39.88KB gzipped (+0.42KB from the Settings screen's own markup/CSS).
 
+PHASE 13a (CSV import/export + production deploy) — done. Reframed ahead
+of schedule: an audit found production had NO path for real data to
+reach the app at all (src/dev/seed.ts's CSV seed is import.meta.env.DEV-
+gated by design) and root vercel.json still deployed the OLD public/
+app, not trackz-app — so the rebuild was unreachable and unusable
+outside `npm run dev` regardless of which phase came next. This phase
+closes both gaps instead of starting Phase 6's merchant-merge work,
+which depends on a Settings screen that didn't have a Data section yet.
 
-          - TS types: Transaction, Account, Category, Merchant.
+  BUILD-TIME BUG FOUND AND FIXED BEFORE ANYTHING ELSE: src/dev/seed.ts's
+  static `import seedCsv from "./seed-transactions.csv?raw"` is resolved
+  at BUILD time regardless of the `import.meta.env.DEV` runtime guard
+  right below it — and that file is gitignored (real financial data).
+  Reproduced directly: temporarily moving the file and running `npm run
+  build` failed the whole production build with a file-not-found error.
+  This means Vercel, which never has the file, could never have built
+  this app. Fixed by switching to `import.meta.glob("./seed-transactions
+  .csv", { eager: true })`, which resolves to `{}` on zero matches
+  instead of erroring. Verified both ways: build succeeds with the file
+  absent (69 modules vs 70 present, confirming the glob branch is what's
+  different) AND `npm run dev` still seeds all 1,456 real rows when the
+  file IS present (checked via a live Playwright run against `npm run
+  dev`, not just a build-doesn't-crash check). Also fixed
+  storage/repository.ts's isEmpty(): it checked `localStorage.getItem(KEY)
+  === null`, which never fires again once anything is written (including
+  an empty array) — closing that off before the Data section below
+  needed replaceAllTransactions() for real.
+
+  CSV round-trip fidelity: storage/csv.ts's parser minted a fresh `id`
+  and flattened `createdAt` to midnight-on-date for every row, because
+  the original 10-column backup format has neither column. That's fine
+  for a one-time historical import, but would have scrambled
+  features/activity/filter.ts's createdAt-desc same-day sort on any
+  export->reimport round trip. Fixed by adding CSV_HEADERS_V2 (the
+  legacy 10 columns + id + createdAt appended, so legacy column indices
+  are untouched) and serializeTransactionsCsv(), with the parser
+  accepting EITHER header and only synthesizing id/createdAt when
+  they're actually absent. RFC4180 quoting added for export (3 real rows
+  have a comma inside `notes`, confirmed by checking the actual data
+  rather than assuming). Round-trip tested against the full real
+  1,456-row backup: parse -> serialize -> re-parse produces byte-for-byte
+  identical Transaction objects, id and createdAt included (skips
+  gracefully via existsSync if dummyData/ is absent, same posture as the
+  pre-existing verify-import.test.ts).
+
+  Settings "Data" section (features/settings/SettingsScreen.tsx):
+  export button (Blob + navigator.share when canShare({files}) is
+  available, falling back to a synthetic <a download> — iOS Safari's
+  anchor-download path has historically been unreliable, and iOS is the
+  one real target) and an import flow that is PREVIEW-THEN-CONFIRM,
+  never a silent commit, because replaceAllTransactions() destroys
+  whatever is currently stored: the preview (reusing the Sheet primitive
+  Phase 8/11 already built) shows parse errors with line numbers,
+  derived account/category/merchant counts, and the resulting
+  Liquid/Total figures before any commit is possible. All-or-nothing —
+  a single bad row blocks the whole import rather than silently dropping
+  it. If the store already has data and the user hasn't exported this
+  session, the confirm button is relabeled "Replace anyway" with an
+  explicit warning rather than just quietly working, so skipping the
+  safety net takes a deliberate second look, not an accidental miss.
+  Pure logic split into features/settings/exportImport.ts (tested, no
+  DOM) from the Blob/FileReader/share plumbing in SettingsScreen.tsx
+  itself (thin, untested) — same split as storage/csv.ts vs its
+  consumers.
+
+  BUG CAUGHT BY THE PLAYWRIGHT VERIFICATION PASS, NOT BY TESTS: a real
+  re-import of the actual backup showed "Liquid 3.147,07 €" in the
+  import preview, but Home displayed "847,07 €" for the EXACT SAME DATA
+  one tap later after confirming. Cause: previewImport() was calling
+  getLiquidCashCents() with an empty accountTypes map, while Home calls
+  it with the real one. accountTypes (SCLB=investment) lives in a
+  SEPARATE store (storage/accountTypes.ts, trackz.v2.accountTypes) keyed
+  by account name, so it survives a transaction import untouched — but
+  the preview wasn't told about it. Fixed by threading the live
+  accountTypesMap (from useAccountTypes()) into previewImport(), with a
+  regression test asserting the preview's Liquid figure differs with vs
+  without a classification map for the same transactions. Re-verified
+  via Playwright: preview and post-commit Home now both read "847,07 €"
+  for the same import.
+
+  ALSO CAUGHT BY PLAYWRIGHT, NOT BY TESTS: the error-state and empty-
+  file branches of the import preview sheet had no Close/Cancel button
+  at all — a bad CSV left the user with no way out except backdrop-tap
+  or Escape (Sheet's generic dismissal, not a visible affordance).
+  Fixed by adding an explicit Close button to both branches.
+
+  Deployment: root vercel.json previously built+deployed public/ (the
+  OLD app) via a buildCommand that only wrote a config.js file — it
+  never ran the new app's build at all. Rewritten to
+  `cd trackz-app && npm install && npm run build` with
+  outputDirectory "trackz-app/dist" and a catch-all SPA rewrite to
+  index.html. Verified the rewrite's interaction with static assets
+  locally (`serve -s dist`, which emulates the same filesystem-first-
+  then-rewrite-fallback behavior Vercel's docs describe): favicon.svg
+  and the built JS/CSS chunks return 200 with correct content-types
+  directly from the filesystem, while an arbitrary unknown path also
+  returns 200 by falling back to index.html rather than 404 — confirming
+  a client-side route refresh won't break. public/ and the old app.js/
+  js/vendor/ files are untouched in the repo, kept as the Phase 18
+  rollback target.
+
+  Explicitly NOT done in this phase (deferred, not forgotten):
+  - Real iPhone Safari verification of the export download/share path.
+    Flagged in code (SettingsScreen.tsx's handleExport docstring) as
+    unverified on a real device — Playwright/Chromium only proves the
+    Blob/anchor mechanics, not iOS Safari's actual download behavior.
+  - The pre-existing test-fixture gap: 5 test files (verify-import,
+    engine, recall, filter, group) read dummyData/snapshot-2026-10-31/,
+    which is gitignored. Confirmed directly: moving dummyData/ aside and
+    running `npm test` fails those 5 files outright (51 tests skip via
+    their own beforeAll throwing, not gracefully) on a machine that
+    doesn't have the real backup. This phase's OWN new csv.test.ts uses
+    existsSync to skip its real-data assertion gracefully instead — the
+    other 5 files don't, and weren't touched here. Does not block this
+    deploy (Vercel runs `build`, not `test`), but is a real gap for CI.
+  - deriveCategories's first-write-wins conflict on category type
+    (Shopping: expense/non_expense/non_income; WiFi: non_expense/expense
+    in the real data) — unaffected by this phase, still open for a
+    future categories editor.
+  - Categories edit/delete and the guided merchant-merge screen (the
+    rest of the original Phase 13 scope) — still not built. Phase 6's
+    merchant normalization (case-fold + first-token matching, found by
+    counting the real data: 7 pure-duplicate groups covering 150 rows,
+    not "Levenshtein scoring for 60+ variants" as originally scoped) is
+    the next real piece of unstarted work.
+
+  Verified end-to-end against a live `npm run dev` instance via
+  Playwright (390x844, deviceScaleFactor 2): export downloads
+  trackz-backup-2026-11-01.csv with 1,456 data rows and the v2 header;
+  importing that exact file back shows the correct preview (1,456
+  transactions / 7 accounts / 36 categories / 161 merchants / Liquid
+  847,07 € / Total 5.562,76 €) and commits cleanly (toast confirms, tx
+  count stays 1,456, Home's Liquid figure matches the preview exactly);
+  a malformed CSV shows "1 of 1 rows failed to parse" with zero commit
+  path and leaves existing data untouched; a fresh session with existing
+  unexported data shows the "Replace anyway" warning and still allows
+  cancelling without side effects. Zero console/page errors across every
+  run. 135 tests passing (up from 117: +10 for csv.ts's export/dual-parse,
+  +8 for exportImport.ts, though the 5 pre-existing dummyData-dependent
+  files above still can't run on a machine without the real backup),
+  tsc -b clean, production build 41.96KB gzipped (+2.08KB from the Data
+  section's export/import UI and share/Blob plumbing).
+
+
           - EUR-only — delete currency field plumbing entirely.
           - Money as integer cents.
           - Single getSignedAmountCents(tx, perspective) replacing the

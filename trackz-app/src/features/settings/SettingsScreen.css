@@ -89,3 +89,153 @@
   background: var(--accent);
   color: var(--text-on-accent);
 }
+
+/* ---- Data (CSV export/import) ---- */
+
+.settings-data-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-data-button {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.settings-data-button:disabled {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.settings-data-file-input {
+  /* Hidden, but not display:none — keeps it focusable/clickable via the
+     fileInputRef.current.click() trigger button above, which is the
+     actual visible control. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ---- Import preview sheet ---- */
+
+.import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.import-preview__file {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin: 0;
+  word-break: break-all;
+}
+
+.import-preview__errors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.import-preview__errors-summary {
+  color: var(--negative);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.import-preview__error-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.import-preview__summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.import-preview__summary li {
+  background: var(--surface-2);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+}
+
+.import-preview__totals {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.import-preview__totals > div {
+  flex: 1;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.import-preview__totals span {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.import-preview__warning {
+  background: var(--neutral-bg);
+  border: 1px solid var(--neutral);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.import-preview__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.import-preview__cancel {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.import-preview__confirm {
+  flex: 1;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  color: var(--text-on-accent);
+  font-weight: 700;
+}
+
+.import-preview__confirm:disabled {
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+}

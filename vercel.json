@@ -1,5 +1,6 @@
 {
-    "buildCommand": "echo \"window.TRACKZ_CONFIG={GOOGLE_CLIENT_ID:'${GOOGLE_CLIENT_ID}'};\" > public/js/config.js",
-    "outputDirectory": "public",
-    "installCommand": ""
+    "buildCommand": "cd trackz-app && npm install && npm run build",
+    "outputDirectory": "trackz-app/dist",
+    "installCommand": "",
+    "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
