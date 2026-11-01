@@ -1,7 +1,7 @@
 import { useMemo, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { deriveAccounts, deriveCategories, deriveMerchants } from "@/storage/derive";
-import { deleteTransaction, updateTransaction, addTransaction } from "@/storage/repository";
+import { deleteTransaction, updateTransaction, undeleteTransaction } from "@/storage/repository";
 import {
   emptyFilter,
   filterTransactions,
@@ -77,7 +77,12 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
       id: Date.now(),
       message: `Deleted ${target.category}`,
       actionLabel: "Undo",
-      onAction: () => addTransaction(target),
+      // Phase 15a: the row never left storage, it was only tombstoned
+      // (see repository.deleteTransaction). Undo clears the tombstone
+      // in place — re-inserting the object via addTransaction() would
+      // create a SECOND row sharing the same id, which sync's per-id
+      // merge (sync/merge.ts) is not designed to handle.
+      onAction: () => undeleteTransaction(target.id),
     });
   }
 

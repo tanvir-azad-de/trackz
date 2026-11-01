@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
@@ -19,11 +19,21 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../../..");
 const csvPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/transactions.csv");
 const referenceTotalsPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/reference-totals.json");
+// dummyData/ is gitignored real financial data — absent on a fresh clone
+// or CI (Phase 15a fixture-gap fix). This file mixes synthetic-only
+// tests (normalizeForSearch, matchesQuery, activeFacetCount/
+// isFilterActive, and summarizeFiltered's empty-result case) with
+// real-CSV-dependent ones — unlike engine.test.ts/recall.test.ts, a
+// single whole-file skip would wrongly drop the synthetic coverage too.
+// hasFixture gates only the describe/it blocks that actually touch
+// `transactions`/`referenceTotals` below.
+const hasFixture = existsSync(csvPath) && existsSync(referenceTotalsPath);
 
 let transactions: Transaction[];
 let referenceTotals: { rowCount: number; categoryTotals: Record<string, number> };
 
 beforeAll(() => {
+  if (!hasFixture) return;
   const csvText = readFileSync(csvPath, "utf-8");
   const result = parseTransactionsCsv(csvText);
   expect(result.errors).toEqual([]);
@@ -52,6 +62,8 @@ describe("matchesQuery", () => {
       amountCents: 1000,
       notes: "rent split",
       createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      deletedAt: null,
     };
     expect(matchesQuery(tx, normalizeForSearch("edeka"))).toBe(true);
     expect(matchesQuery(tx, normalizeForSearch("transfer"))).toBe(true);
@@ -74,12 +86,14 @@ describe("matchesQuery", () => {
       amountCents: 500,
       notes: "",
       createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      deletedAt: null,
     };
     expect(matchesQuery(tx, "")).toBe(true);
   });
 });
 
-describe("filterTransactions against the real CSV", () => {
+describe.skipIf(!hasFixture)("filterTransactions against the real CSV", () => {
   it("an empty filter returns every row, matching the reference row count", () => {
     const result = filterTransactions(transactions, emptyFilter());
     expect(result.length).toBe(referenceTotals.rowCount);
@@ -179,7 +193,7 @@ describe("activeFacetCount / isFilterActive", () => {
   });
 });
 
-describe("summarizeFiltered", () => {
+describe.skipIf(!hasFixture)("summarizeFiltered against the real CSV", () => {
   it("reconciles income/expense totals against the independently-computed reference totals for a single category", () => {
     const groceries = filterTransactions(transactions, { ...emptyFilter(), categories: ["Groceries"] });
     const summary = summarizeFiltered(groceries);
@@ -196,7 +210,9 @@ describe("summarizeFiltered", () => {
     expect(summary.netCents).toBe(0);
     expect(summary.count).toBe(transfers.length);
   });
+});
 
+describe("summarizeFiltered", () => {
   it("an empty result summarizes to all zeros", () => {
     expect(summarizeFiltered([])).toEqual({ count: 0, inCents: 0, outCents: 0, netCents: 0 });
   });

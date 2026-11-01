@@ -59,7 +59,24 @@ export interface Transaction {
   merchant: string; // was "subcategory" in the old model; renamed (see Phase 6)
   amountCents: Cents; // always positive; sign is derived from cashflow + categoryType
   notes: string;
-  createdAt: string; // ISO timestamp
+  createdAt: string; // ISO timestamp, set once at creation, never changes
+  /**
+   * ISO timestamp, bumped on every create/edit/delete (Phase 15a). This is
+   * the field sync/merge.ts's last-writer-wins resolution keys on when two
+   * devices hold different versions of the same id — NOT createdAt, which
+   * is immutable and would make every edit lose to the original write.
+   */
+  updatedAt: string;
+  /**
+   * Tombstone (Phase 15a), ISO timestamp of deletion or null if live.
+   * repository.deleteTransaction() sets this instead of removing the row,
+   * because a hard delete is invisible to a merge: a device that hasn't
+   * seen the delete yet would resurrect the row on its next sync simply by
+   * still having it. The tombstone is a real record with its own
+   * updatedAt, so it can win or lose a merge like any other edit, and
+   * getTransactions() filters it out for every normal read path.
+   */
+  deletedAt: string | null;
 }
 
 export interface Account {

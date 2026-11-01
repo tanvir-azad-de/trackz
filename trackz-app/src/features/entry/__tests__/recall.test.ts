@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
@@ -10,23 +10,29 @@ import type { Transaction } from "@/domain/transaction";
  * Verified against the real CSV (dummyData/snapshot-2026-10-31). The last
  * transaction date in that file is 2026-10-17, which we use as `asOfDate`
  * so these tests are deterministic.
+ *
+ * dummyData/ is gitignored real financial data — absent on a fresh clone
+ * or CI (Phase 15a fixture-gap fix). Every test here depends on it, so
+ * describe.skipIf on the whole suite.
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../../..");
 const csvPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/transactions.csv");
+const hasFixture = existsSync(csvPath);
 
 let transactions: Transaction[];
 const TODAY = "2026-10-17";
 
 beforeAll(() => {
+  if (!hasFixture) return;
   const csvText = readFileSync(csvPath, "utf-8");
   const result = parseTransactionsCsv(csvText);
   expect(result.errors).toEqual([]);
   transactions = result.transactions;
 });
 
-describe("getRecallCombos against real CSV data", () => {
+describe.skipIf(!hasFixture)("getRecallCombos against real CSV data", () => {
   it("ranks Shopping/Amazon/REVO first — most recently used (4 days before TODAY), even though Groceries/Edeka/ADVZ has more raw occurrences in the window (31 vs 15) but hasn't been used in 18 days", () => {
     const combos = getRecallCombos(transactions, TODAY, 6);
     expect(combos[0]).toMatchObject({ category: "Shopping", merchant: "Amazon", account: "REVO" });
@@ -80,6 +86,8 @@ describe("getRecallCombos against real CSV data", () => {
         amountCents: 500,
         notes: "",
         createdAt: "2026-07-20T00:00:00.000Z",
+        updatedAt: "2026-07-20T00:00:00.000Z",
+        deletedAt: null,
       })),
       // A single use, today.
       {
@@ -94,6 +102,8 @@ describe("getRecallCombos against real CSV data", () => {
         amountCents: 500,
         notes: "",
         createdAt: `${TODAY}T00:00:00.000Z`,
+        updatedAt: `${TODAY}T00:00:00.000Z`,
+        deletedAt: null,
       },
     ];
     const combos = getRecallCombos(synthetic, TODAY, 5);

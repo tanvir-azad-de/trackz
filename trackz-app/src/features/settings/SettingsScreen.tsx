@@ -40,9 +40,13 @@ const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
  * save/delete) is the safety net instead of a draft step.
  *
  * Data: export serializes every transaction to this app's own CSV
- * format (storage/csv.ts's CSV_HEADERS_V2 — the legacy 10 columns plus
- * id/createdAt, so a round trip is lossless, unlike the original
- * backup format). Import is a preview-then-confirm flow, never a
+ * format (storage/csv.ts's CSV_HEADERS_V3 — the legacy 10 columns plus
+ * id/createdAt/updatedAt/deletedAt, so a round trip is lossless, unlike
+ * the original backup format). Deleted transactions are never included
+ * here (useTransactions() already filters tombstones) — this is a
+ * human-facing backup, and a "deleted" row reappearing in a CSV someone
+ * opens in a spreadsheet would look like a bug, not a feature. Import is
+ * a preview-then-confirm flow, never a
  * silent commit: replaceAllTransactions() (storage/repository.ts)
  * destroys whatever is currently stored, so the preview shows parse
  * errors, derived account/category/merchant counts, and the resulting

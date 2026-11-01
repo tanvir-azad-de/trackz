@@ -14,6 +14,8 @@ function tx(overrides: Partial<Transaction>): Transaction {
     amountCents: 1000,
     notes: "",
     createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    deletedAt: null,
     ...overrides,
   };
 }

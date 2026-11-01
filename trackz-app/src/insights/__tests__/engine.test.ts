@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
@@ -25,22 +25,30 @@ import type { Transaction } from "@/domain/transaction";
  * (September 2026, the last fully-complete month in the dataset — see
  * the grill session). These are the exact figures shown in the approved
  * Home screen mockup (docs/mockups/home-b-flat-minimal.html).
+ *
+ * dummyData/ is gitignored real financial data — absent on a fresh clone
+ * or CI (Phase 15a fixture-gap fix). Every test in this file depends on
+ * it (unlike filter.test.ts/group.test.ts, which mix in synthetic-only
+ * cases), so describe.skipIf on the whole suite is correct here rather
+ * than guarding individual blocks.
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../.."); // src/insights/__tests__ -> trackz-app -> trackz
 const csvPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/transactions.csv");
+const hasFixture = existsSync(csvPath);
 
 let transactions: Transaction[];
 
 beforeAll(() => {
+  if (!hasFixture) return;
   const csvText = readFileSync(csvPath, "utf-8");
   const result = parseTransactionsCsv(csvText);
   expect(result.errors).toEqual([]);
   transactions = result.transactions;
 });
 
-describe("insight engine against real September 2026 data", () => {
+describe.skipIf(!hasFixture)("insight engine against real September 2026 data", () => {
   it("summarizes income/expense/surplus for September", () => {
     const summary = summarizeMonth(transactions, "2026-09");
     expect(centsToDecimal(summary.incomeCents)).toBeCloseTo(3125.84, 2);
@@ -110,7 +118,7 @@ describe("insight engine against real September 2026 data", () => {
  * this codebase) — see the numbers quoted in docs/renovation_version_1.txt's
  * Phase 12 write-up.
  */
-describe("Phase 12: account activity, receivables/payables, total assets", () => {
+describe.skipIf(!hasFixture)("Phase 12: account activity, receivables/payables, total assets", () => {
   it("surfaces last-activity date per account, including dormant ones", () => {
     const activity = getAccountActivity(transactions);
     const byAccount = Object.fromEntries(activity.map((a) => [a.account, a]));
@@ -176,7 +184,7 @@ describe("Phase 12: account activity, receivables/payables, total assets", () =>
  * Reference figures re-derived from the same independent python script's
  * per-account output (see Phase 12's reference-totals.json) minus SCLB.
  */
-describe("account-type classification: cash vs investment", () => {
+describe.skipIf(!hasFixture)("account-type classification: cash vs investment", () => {
   it("getLiquidCashCents excludes accounts classified as investment", () => {
     const allCash = getLiquidCashCents(transactions, {}); // no classification = everything is cash
     expect(centsToDecimal(allCash)).toBeCloseTo(3147.07, 2);

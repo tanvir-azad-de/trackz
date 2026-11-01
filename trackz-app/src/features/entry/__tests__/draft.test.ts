@@ -163,6 +163,8 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
     amountCents: 1240,
     notes: "weekly shop",
     createdAt: "2026-10-17T08:00:00.000Z",
+    updatedAt: "2026-10-17T08:00:00.000Z",
+    deletedAt: null,
   };
 
   it("round-trips an expense transaction exactly through draft and back", () => {

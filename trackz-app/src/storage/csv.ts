@@ -44,6 +44,16 @@ export const CSV_HEADERS = [
  */
 export const CSV_HEADERS_V2 = [...CSV_HEADERS, "id", "createdAt"] as const;
 
+/**
+ * Phase 15a: adds updatedAt + deletedAt, needed once sync exists (the
+ * last-writer-wins merge in sync/merge.ts keys on updatedAt; deletedAt is
+ * the tombstone, see the Transaction.deletedAt doc comment). Appended
+ * after V2's own two extra fields for the same reason V2 appended after
+ * the legacy 10: every earlier column keeps its index, so parsing V1/V2
+ * files needs no branching beyond "how many trailing fields are there".
+ */
+export const CSV_HEADERS_V3 = [...CSV_HEADERS_V2, "updatedAt", "deletedAt"] as const;
+
 const CASHFLOWS: readonly Cashflow[] = ["in", "out", "none"];
 
 export interface CsvParseError {
@@ -105,16 +115,17 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
   }
 
   const header = parseCsvLine(lines[0]!);
-  const isV2 = CSV_HEADERS_V2.every((h, i) => header[i] === h);
-  const isV1 = !isV2 && CSV_HEADERS.every((h, i) => header[i] === h);
-  if (!isV1 && !isV2) {
+  const isV3 = header.length === CSV_HEADERS_V3.length && CSV_HEADERS_V3.every((h, i) => header[i] === h);
+  const isV2 = !isV3 && header.length === CSV_HEADERS_V2.length && CSV_HEADERS_V2.every((h, i) => header[i] === h);
+  const isV1 = !isV3 && !isV2 && header.length === CSV_HEADERS.length && CSV_HEADERS.every((h, i) => header[i] === h);
+  if (!isV1 && !isV2 && !isV3) {
     errors.push({
       line: 1,
-      message: `Unexpected header. Expected: ${CSV_HEADERS.join(",")} (optionally with id,createdAt appended)`,
+      message: `Unexpected header. Expected: ${CSV_HEADERS.join(",")} (optionally with id,createdAt[,updatedAt,deletedAt] appended)`,
     });
     return { transactions, errors };
   }
-  const expectedColumns = isV2 ? CSV_HEADERS_V2.length : CSV_HEADERS.length;
+  const expectedColumns = isV3 ? CSV_HEADERS_V3.length : isV2 ? CSV_HEADERS_V2.length : CSV_HEADERS.length;
 
   for (let i = 1; i < lines.length; i++) {
     const lineNumber = i + 1;
@@ -127,8 +138,37 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       continue;
     }
 
-    const [date, account, destinationAccount, cashflowRaw, category, categoryTypeRaw, merchant, amountRaw, currency, notes, idField, createdAtField] =
-      fields as [string, string, string, string, string, string, string, string, string, string, string?, string?];
+    const [
+      date,
+      account,
+      destinationAccount,
+      cashflowRaw,
+      category,
+      categoryTypeRaw,
+      merchant,
+      amountRaw,
+      currency,
+      notes,
+      idField,
+      createdAtField,
+      updatedAtField,
+      deletedAtField,
+    ] = fields as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string?,
+      string?,
+      string?,
+      string?,
+    ];
 
     if (!isValidISODate(date)) {
       errors.push({ line: lineNumber, message: `Invalid date: "${date}"` });
@@ -174,6 +214,7 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       continue;
     }
 
+    const createdAt = createdAtField || `${date}T00:00:00.000Z`;
     transactions.push({
       id: idField || newTransactionId(),
       date,
@@ -185,7 +226,14 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       merchant: merchant ?? "",
       amountCents,
       notes: notes ?? "",
-      createdAt: createdAtField || `${date}T00:00:00.000Z`,
+      createdAt,
+      // V1/V2 files predate Phase 15a and have neither field — default
+      // updatedAt to createdAt (the row has never been edited since
+      // import) and deletedAt to null (a tombstone is only ever written
+      // by this app itself; no legacy format could represent one, so a
+      // missing column always means "not deleted", never "unknown").
+      updatedAt: updatedAtField || createdAt,
+      deletedAt: deletedAtField ? deletedAtField : null,
     });
   }
 
@@ -207,18 +255,24 @@ function quoteCsvField(value: string): string {
 }
 
 /**
- * The inverse of parseTransactionsCsv, producing CSV_HEADERS_V2 (legacy
- * 10 columns + id + createdAt). Round-trip tested against the real
- * 1,456-row backup (storage/__tests__/csv.test.ts): parse -> serialize
- * -> re-parse yields byte-for-byte identical Transaction objects,
- * INCLUDING id and createdAt — the two fields the legacy 10-column
- * format cannot preserve, which is exactly what would otherwise scramble
- * the Activity list's createdAt-desc same-day ordering (filter.ts) on a
- * round trip. Always writes amount as a positive decimal and
- * currency=EUR (the app is EUR-only; see decisions doc).
+ * The inverse of parseTransactionsCsv, producing CSV_HEADERS_V3 (legacy 10
+ * columns + id + createdAt + updatedAt + deletedAt, Phase 15a). Round-trip
+ * tested against the real 1,456-row backup (storage/__tests__/csv.test.ts):
+ * parse -> serialize -> re-parse yields byte-for-byte identical Transaction
+ * objects, INCLUDING id/createdAt/updatedAt/deletedAt — the fields the
+ * legacy 10-column format cannot preserve. Callers decide whether to pass
+ * tombstones in: Settings' human-facing export (features/settings) passes
+ * only live transactions (useTransactions() already filters them), so a
+ * deleted row doesn't reappear in a CSV someone opens in a spreadsheet;
+ * a future sync/backup path that needs tombstone fidelity (e.g. a full
+ * local-backup-before-import) would call
+ * repository.getTransactionsIncludingDeleted() instead. This function
+ * itself is agnostic — it serializes whatever array it's given. Always
+ * writes amount as a positive decimal and currency=EUR (the app is
+ * EUR-only; see decisions doc).
  */
 export function serializeTransactionsCsv(transactions: Transaction[]): string {
-  const lines = [CSV_HEADERS_V2.join(",")];
+  const lines = [CSV_HEADERS_V3.join(",")];
   for (const tx of transactions) {
     const fields = [
       tx.date,
@@ -233,6 +287,8 @@ export function serializeTransactionsCsv(transactions: Transaction[]): string {
       tx.notes,
       tx.id,
       tx.createdAt,
+      tx.updatedAt,
+      tx.deletedAt ?? "",
     ];
     lines.push(fields.map(quoteCsvField).join(","));
   }

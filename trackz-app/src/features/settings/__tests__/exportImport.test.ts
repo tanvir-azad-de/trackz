@@ -16,6 +16,8 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
     amountCents: 1240,
     notes: "",
     createdAt: "2026-10-17T14:00:00.000Z",
+    updatedAt: "2026-10-17T14:00:00.000Z",
+    deletedAt: null,
     ...overrides,
   };
 }

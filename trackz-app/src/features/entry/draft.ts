@@ -157,6 +157,8 @@ export function buildTransaction(draft: EntryDraft, createdAt: string = new Date
     amountCents: draft.amountCents,
     notes: draft.notes.trim(),
     createdAt,
+    updatedAt: createdAt,
+    deletedAt: null,
   };
 }
 
@@ -167,6 +169,22 @@ export function buildTransaction(draft: EntryDraft, createdAt: string = new Date
  * restores the exact prior object, and the key the list renders by
  * doesn't change under the user's finger). Caller must check
  * validateDraft() first, same contract as buildTransaction.
+ */
+/**
+ * Inverse of buildTransaction, for the Activity screen's edit flow
+ * (Phase 11) — preserves the original id and createdAt instead of
+ * minting new ones, so an edited transaction stays the "same" row (undo
+ * restores the exact prior object, and the key the list renders by
+ * doesn't change under the user's finger). Caller must check
+ * validateDraft() first, same contract as buildTransaction.
+ *
+ * Deliberately does NOT touch updatedAt/deletedAt — this function is a
+ * pure, deterministic data transform (exact-round-trip tested:
+ * applyDraftToTransaction(draftFromTransaction(tx)) === tx when nothing
+ * changed), and repository.updateTransaction() is the one place that
+ * stamps updatedAt on an actual write (Phase 15a). Stamping here too
+ * would make this function's output depend on wall-clock time, which
+ * the round-trip test specifically guards against.
  */
 export function applyDraftToTransaction(existing: Transaction, draft: EntryDraft): Transaction {
   const cashflow = defaultCashflowForCategoryType(draft.categoryType, draft.direction);

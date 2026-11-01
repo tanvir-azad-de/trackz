@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
@@ -10,10 +10,17 @@ import type { Transaction } from "@/domain/transaction";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../../..");
 const csvPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/transactions.csv");
+// dummyData/ is gitignored real financial data — absent on a fresh clone
+// or CI (Phase 15a fixture-gap fix). This file is mostly synthetic
+// fixtures (makeTx below); only the two real-CSV tests at the bottom
+// need gating, so hasFixture guards those individually rather than the
+// whole file.
+const hasFixture = existsSync(csvPath);
 
 let transactions: Transaction[];
 
 beforeAll(() => {
+  if (!hasFixture) return;
   const csvText = readFileSync(csvPath, "utf-8");
   const result = parseTransactionsCsv(csvText);
   expect(result.errors).toEqual([]);
@@ -33,6 +40,8 @@ function makeTx(overrides: Partial<Transaction>): Transaction {
     amountCents: 1000,
     notes: "",
     createdAt: "2026-10-17T00:00:00.000Z",
+    updatedAt: "2026-10-17T00:00:00.000Z",
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -95,7 +104,7 @@ describe("groupByMonthAndDay", () => {
     expect(groups[0]!.netCents).toBe(2000);
   });
 
-  it("re-grouping all real October 2026 transactions matches an independently-computed day count", () => {
+  it.skipIf(!hasFixture)("re-grouping all real October 2026 transactions matches an independently-computed day count", () => {
     const octoberTxs = filterTransactions(transactions, { ...emptyFilter(), from: "2026-10-01", to: "2026-10-17" });
     const groups = groupByMonthAndDay(octoberTxs);
     expect(groups).toHaveLength(1);
@@ -106,7 +115,7 @@ describe("groupByMonthAndDay", () => {
     expect(groups[0]!.days).toHaveLength(distinctDates);
   });
 
-  it("day and month groups preserve descending date order from the input", () => {
+  it.skipIf(!hasFixture)("day and month groups preserve descending date order from the input", () => {
     const sorted = filterTransactions(transactions, emptyFilter());
     const groups = groupByMonthAndDay(sorted);
     const monthKeys = groups.map((g) => g.monthKey);
