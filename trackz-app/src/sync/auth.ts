@@ -28,6 +28,9 @@ let currentAuthState: AuthState = {
   userEmail: null,
 };
 
+// Store refresh token in memory (in production, should use httpOnly cookie via backend)
+let refreshToken: string | null = null;
+
 let authListeners = new Set<(state: AuthState) => void>();
 let tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -60,11 +63,14 @@ export async function initializeAuth(config: AuthConfig): Promise<void> {
 }
 
 /**
- * Trigger the Google Sign-In flow. In a real app, this would render the
- * "Sign in with Google" button via gis.accounts.id.renderButton() and let
- * the user click it. For now, this is a placeholder that tests can mock.
+ * Trigger the Google Sign-In flow. This initiates OAuth2 authorization code flow:
+ * 1. User clicks "Sign in" button
+ * 2. Google redirects to auth screen
+ * 3. User approves access
+ * 4. GIS calls our callback with authorization code
+ * 5. We exchange the code with our backend for access token
  *
- * @returns Promise that resolves when user signs in
+ * @returns Promise that resolves when user signs in and token is obtained
  */
 export function signIn(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -89,16 +95,44 @@ export function signIn(): Promise<void> {
         client_id: clientId,
         scope: "https://www.googleapis.com/auth/drive.file",
         ux_mode: "popup",
-        callback: (response: unknown) => {
+        callback: async (response: unknown) => {
           const codeResponse = response as { code?: string };
-          if (codeResponse.code) {
-            // In a real app, send this code to your backend to exchange for access token
-            // For now, mark as success; coordinator will retry if needed
-            currentAuthState.isSignedIn = true;
-            notifyListeners();
-            resolve();
-          } else {
+          if (!codeResponse.code) {
             reject(new Error("No authorization code received"));
+            return;
+          }
+
+          try {
+            // Exchange authorization code for access token via backend
+            const exchangeResponse = await fetch("/api/auth/exchange", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code: codeResponse.code }),
+            });
+
+            if (!exchangeResponse.ok) {
+              const error = (await exchangeResponse.json()) as { error_description?: string };
+              throw new Error(
+                `Authorization failed: ${error.error_description || "unknown error"}`,
+              );
+            }
+
+            const tokenData = (await exchangeResponse.json()) as {
+              access_token?: string;
+              expires_in?: number;
+              refresh_token?: string;
+            };
+
+            if (!tokenData.access_token || !tokenData.expires_in) {
+              throw new Error("Invalid response from auth endpoint");
+            }
+
+            // Store the access token and set up auto-refresh
+            setAccessToken(tokenData.access_token, tokenData.expires_in, tokenData.refresh_token);
+
+            resolve();
+          } catch (error) {
+            reject(error);
           }
         },
       });
@@ -149,15 +183,25 @@ export function getAuthState(): AuthState {
 }
 
 /**
- * Set the access token (called by coordinator after a successful exchange
- * with the backend). Also schedules automatic refresh before expiry.
+ * Set the access token (called after successful OAuth exchange with the backend).
+ * Also schedules automatic refresh before expiry.
  *
  * @param token OAuth2 access token
  * @param expiresInSeconds How long until token expires
+ * @param newRefreshToken Optional refresh token to store (for refresh flow)
  */
-export function setAccessToken(token: string, expiresInSeconds: number): void {
+export function setAccessToken(
+  token: string,
+  expiresInSeconds: number,
+  newRefreshToken?: string,
+): void {
   currentAuthState.accessToken = token;
   currentAuthState.isSignedIn = true;
+
+  // Store refresh token if provided
+  if (newRefreshToken) {
+    refreshToken = newRefreshToken;
+  }
 
   // Schedule refresh 30s before expiry, with a minimum 60s interval to avoid thrashing
   if (tokenRefreshTimeout) clearTimeout(tokenRefreshTimeout);
@@ -169,25 +213,37 @@ export function setAccessToken(token: string, expiresInSeconds: number): void {
 
 /**
  * Refresh the access token. Called automatically before expiry, or manually
- * if the old token was rejected by Drive API. In a real app, this exchanges
- * the refresh token for a new access token via the backend.
+ * if the old token was rejected by Drive API. Exchanges the refresh token
+ * for a new access token via the backend.
  */
 export async function refreshAccessToken(): Promise<void> {
   try {
-    // In a real app, POST to your backend to exchange refresh token for new access token
-    // For now, this is a placeholder
+    if (!refreshToken) {
+      throw new Error("No refresh token available - user must sign in again");
+    }
+
     const response = await fetch("/api/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
     if (!response.ok) {
+      // Check for specific error (e.g., refresh token expired)
+      const error = (await response.json()) as { error?: string };
+      if (error.error === "invalid_grant") {
+        // Refresh token expired - need to sign in again
+        signOut();
+        throw new Error("Refresh token expired - please sign in again");
+      }
       throw new Error(`Token refresh failed: ${response.status}`);
     }
 
     const data = (await response.json()) as { access_token?: string; expires_in?: number };
     if (data.access_token && data.expires_in) {
       setAccessToken(data.access_token, data.expires_in);
+    } else {
+      throw new Error("Invalid response from refresh endpoint");
     }
   } catch (error) {
     console.error("Failed to refresh access token:", error);
@@ -197,12 +253,13 @@ export async function refreshAccessToken(): Promise<void> {
 }
 
 /**
- * Sign the user out. Clear tokens and notify listeners.
+ * Sign the user out. Clear all tokens and notify listeners.
  */
 export function signOut(): void {
   currentAuthState.isSignedIn = false;
   currentAuthState.accessToken = null;
   currentAuthState.userEmail = null;
+  refreshToken = null;
 
   if (tokenRefreshTimeout) {
     clearTimeout(tokenRefreshTimeout);
@@ -239,6 +296,7 @@ export function resetAuthForTesting(): void {
     accessToken: null,
     userEmail: null,
   };
+  refreshToken = null;
   authListeners.clear();
   if (tokenRefreshTimeout) {
     clearTimeout(tokenRefreshTimeout);

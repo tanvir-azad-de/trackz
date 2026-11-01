@@ -1,6 +1,10 @@
 # Browser config (contains secrets, never commit this)
 public/js/config.js
 
+# Environment variables (local development only)
+.env.local
+.env*.local
+
 # OS files
 .DS_Store
 Thumbs.db
