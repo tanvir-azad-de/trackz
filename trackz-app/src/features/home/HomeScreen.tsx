@@ -1,11 +1,12 @@
 import { useMemo } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
+import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
   getAccountBalances,
   getCategoryDeltasForMonth,
   getLatestDate,
+  getLiquidCashCents,
   getMostSurprisingDeltas,
-  getNetWorthCents,
   summarizeMonth,
 } from "@/insights/engine";
 import { getMonthEndDate, getMonthStartDate } from "@/domain/dates";
@@ -26,6 +27,7 @@ interface HomeScreenProps {
 
 export function HomeScreen({ onDrillDown }: HomeScreenProps) {
   const transactions = useTransactions();
+  const accountTypes = useAccountTypes();
 
   const data = useMemo(() => {
     const latestDate = getLatestDate(transactions);
@@ -33,12 +35,15 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     const monthKey = latestDate.slice(0, 7);
 
     const summary = summarizeMonth(transactions, monthKey);
-    const netWorthCents = getNetWorthCents(transactions);
-    const accounts = getAccountBalances(transactions);
+    const liquidCashCents = getLiquidCashCents(transactions, accountTypes);
+    const accounts = getAccountBalances(transactions).map((a) => ({
+      ...a,
+      accountType: accountTypes[a.account] ?? "cash",
+    }));
     const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, monthKey, 6, latestDate));
 
-    return { summary, netWorthCents, accounts, deltas, monthKey };
-  }, [transactions]);
+    return { summary, liquidCashCents, accounts, deltas, monthKey };
+  }, [transactions, accountTypes]);
 
   if (!data) {
     return (
@@ -64,7 +69,7 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     <main class="home-screen">
       <h1 class="home-screen__title">Home</h1>
       <HeroCard
-        netWorthCents={data.netWorthCents}
+        liquidCashCents={data.liquidCashCents}
         incomeCents={data.summary.incomeCents}
         expenseCents={data.summary.expenseCents}
         surplusCents={data.summary.surplusCents}

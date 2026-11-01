@@ -1,5 +1,6 @@
 import type { Transaction } from "@/domain/transaction";
 import { getSignedAmountCents } from "@/domain/transaction";
+import type { AccountType } from "@/domain/transaction";
 import type { Cents } from "@/domain/money";
 import { addCents } from "@/domain/money";
 import { getMonthEndDate, getMonthStartDate, isWithinRange, shiftMonthKey, toMonthKey } from "@/domain/dates";
@@ -33,17 +34,36 @@ export function summarizeMonth(transactions: Transaction[], monthKey: string): M
   return { monthKey, incomeCents: income, expenseCents: expense, surplusCents: income - expense };
 }
 
-/** Net worth = sum of every account's running balance (liquid cash only, for now). */
-export function getNetWorthCents(transactions: Transaction[], asOfDate?: string): Cents {
+/**
+ * Sum of every CASH account's running balance — this is what Home's
+ * "Liquid" hero shows (see docs/renovation_version_1.txt's Phase 12
+ * write-up for the relabel). Investment accounts (classified via
+ * storage/accountTypes.ts, e.g. SCLB/Scalable Capital) are deliberately
+ * excluded: they're a real asset but not spendable cash, and including
+ * them here silently overstated "Liquid" by their full balance (caught
+ * live during Phase 12 QA — SCLB's 2.300,00 € was 73% of the number this
+ * function returned before this fix).
+ *
+ * `accountTypes` defaults to "every account is cash" so existing callers
+ * that don't care about the cash/investment distinction (e.g. a future
+ * CSV-import dry-run) don't have to thread a classification map through
+ * for a question they're not asking. HomeScreen passes the real map.
+ */
+export function getLiquidCashCents(
+  transactions: Transaction[],
+  accountTypes: Record<string, AccountType> = {},
+  asOfDate?: string,
+): Cents {
   const relevant = asOfDate ? transactions.filter((tx) => tx.date <= asOfDate) : transactions;
-  const byAccount = new Map<string, Cents>();
+  const accounts = new Set<string>();
   for (const tx of relevant) {
     for (const acc of [tx.account, tx.destinationAccount].filter(Boolean)) {
-      if (!byAccount.has(acc)) byAccount.set(acc, 0);
+      accounts.add(acc);
     }
   }
   let total = 0;
-  for (const acc of byAccount.keys()) {
+  for (const acc of accounts) {
+    if ((accountTypes[acc] ?? "cash") !== "cash") continue;
     total = addCents(
       total,
       addCents(...relevant.map((tx) => getSignedAmountCents(tx, { kind: "account", name: acc }))),
@@ -170,10 +190,14 @@ export interface AccountActivity {
   account: string;
   balanceCents: Cents;
   lastActivityDate: string | null; // null only if an account somehow has zero transactions
+  accountType: AccountType;
 }
 
-/** Per-account current balance + last-activity date, for the Accounts screen (Phase 12). Dormant accounts (ADVZ/REVJ/REVB in the real data) are surfaced, not hidden. */
-export function getAccountActivity(transactions: Transaction[]): AccountActivity[] {
+/** Per-account current balance + last-activity date + cash/investment classification, for the Accounts screen (Phase 12). Dormant accounts (ADVZ/REVJ/REVB in the real data) are surfaced, not hidden. */
+export function getAccountActivity(
+  transactions: Transaction[],
+  accountTypes: Record<string, AccountType> = {},
+): AccountActivity[] {
   const balances = getAccountBalances(transactions);
   return balances.map(({ account, balanceCents }) => {
     let lastActivityDate: string | null = null;
@@ -181,7 +205,7 @@ export function getAccountActivity(transactions: Transaction[]): AccountActivity
       if (tx.account !== account && tx.destinationAccount !== account) continue;
       if (lastActivityDate === null || tx.date > lastActivityDate) lastActivityDate = tx.date;
     }
-    return { account, balanceCents, lastActivityDate };
+    return { account, balanceCents, lastActivityDate, accountType: accountTypes[account] ?? "cash" };
   });
 }
 
@@ -254,17 +278,20 @@ function getCounterpartyBalances(
 }
 
 /**
- * Total assets = liquid cash (account balances) + outstanding receivables
- * ("Lent out") - outstanding payables ("I owe"). This is the number that
- * makes Home's "Liquid" hero and the Accounts screen's receivables
- * reconcile: Home intentionally shows liquid-only (see HeroCard's
- * relabel in Phase 12), this is the fuller picture shown on Accounts.
+ * Total assets = every account's balance (cash AND investment — unlike
+ * getLiquidCashCents, this does NOT filter by account type, since an
+ * investment account's balance is still a real asset) + outstanding
+ * receivables ("Lent out") - outstanding payables ("I owe"). This is the
+ * number that makes Home's "Liquid" hero and the Accounts screen's
+ * fuller breakdown reconcile: Home intentionally shows cash-only (see
+ * HeroCard's relabel in Phase 12), this is the full picture shown on
+ * Accounts (Liquid + Investments + Lent out = Total).
  */
 export function getTotalAssetsCents(transactions: Transaction[]): Cents {
-  const liquid = addCents(...getAccountBalances(transactions).map((a) => a.balanceCents));
+  const everyAccount = addCents(...getAccountBalances(transactions).map((a) => a.balanceCents));
   const receivables = addCents(...getReceivableBalances(transactions).map((r) => r.balanceCents));
   const payables = addCents(...getPayableBalances(transactions).map((p) => p.balanceCents));
-  return addCents(liquid, receivables, -payables);
+  return addCents(everyAccount, receivables, -payables);
 }
 
 /** Monthly expense totals for N months ending at (and including) monthKey — feeds the sparkline. */

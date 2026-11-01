@@ -8,6 +8,7 @@ import {
   getAccountBalanceSeries,
   getAccountBalances,
   getCategoryDeltasForMonth,
+  getLiquidCashCents,
   getMonthlyExpenseSeries,
   getPayableBalances,
   getReceivableBalances,
@@ -165,5 +166,38 @@ describe("Phase 12: account activity, receivables/payables, total assets", () =>
   it("computes total assets as liquid + receivables - payables, reconciling Home's liquid-only hero with the Accounts screen's fuller picture", () => {
     const total = getTotalAssetsCents(transactions);
     expect(centsToDecimal(total)).toBeCloseTo(5562.76, 2);
+  });
+});
+
+/**
+ * Post-Phase-12 fix: SCLB (Scalable Capital, a real brokerage account in
+ * the user's data) was being summed into "Liquid" alongside true cash
+ * accounts, overstating spendable cash by its full 2.300,00 € balance.
+ * Reference figures re-derived from the same independent python script's
+ * per-account output (see Phase 12's reference-totals.json) minus SCLB.
+ */
+describe("account-type classification: cash vs investment", () => {
+  it("getLiquidCashCents excludes accounts classified as investment", () => {
+    const allCash = getLiquidCashCents(transactions, {}); // no classification = everything is cash
+    expect(centsToDecimal(allCash)).toBeCloseTo(3147.07, 2);
+
+    const withSclbAsInvestment = getLiquidCashCents(transactions, { SCLB: "investment" });
+    expect(centsToDecimal(withSclbAsInvestment)).toBeCloseTo(847.07, 2);
+  });
+
+  it("getLiquidCashCents defaults every account to cash when accountTypes is omitted", () => {
+    expect(getLiquidCashCents(transactions)).toBe(getLiquidCashCents(transactions, {}));
+  });
+
+  it("getAccountActivity tags each account with its classification, defaulting unlisted accounts to cash", () => {
+    const activity = getAccountActivity(transactions, { SCLB: "investment" });
+    const byAccount = Object.fromEntries(activity.map((a) => [a.account, a.accountType]));
+    expect(byAccount["SCLB"]).toBe("investment");
+    expect(byAccount["CMRZ"]).toBe("cash");
+    expect(byAccount["ADVZ"]).toBe("cash");
+  });
+
+  it("getTotalAssetsCents is unaffected by account-type classification — investment balances are still real assets, not excluded from the full picture", () => {
+    expect(centsToDecimal(getTotalAssetsCents(transactions))).toBeCloseTo(5562.76, 2);
   });
 });

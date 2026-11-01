@@ -524,6 +524,67 @@ phase text above, called out honestly rather than silently:
     so far in the rebuild, accepted deliberately for the Phase 14 reuse
     rather than re-litigated here — see the uPlot discussion above.
 
+POST-PHASE-12 FIX: SCLB is not liquid cash. The user flagged, after
+Phase 12 shipped, that SCLB stands for Scalable Capital — a real
+brokerage/investment account, not a bank account. It had been silently
+summed into both Home's "Liquid" hero and the Accounts screen's "Liquid"
+line alongside true cash accounts, overstating spendable cash by its
+full 2.300,00 € balance (3.147,07 € shown vs 847,07 € true liquid cash —
+a 73% overstatement of what the user could actually spend).
+
+Fixed by introducing the one piece of account metadata that IS persisted
+(everything else — names, balances — stays a pure transaction derivation
+per Phase 0's lock-in, which this does not reopen: classification has no
+transaction-derivable signal, so there was nothing to derive it from):
+  - domain/transaction.ts gained AccountType ("cash" | "investment").
+  - storage/accountTypes.ts: new namespaced key (trackz.v2.accountTypes),
+    a Record<accountName, AccountType> defaulting any unlisted account
+    to "cash" — so every account that existed before this fix keeps
+    behaving exactly as before unless explicitly reclassified. SCLB is
+    seeded as "investment" so the fix applies without the user having to
+    manually reclassify it after a fresh import.
+  - insights/engine.ts: getNetWorthCents renamed to getLiquidCashCents
+    and given an accountTypes param (defaulting to "treat everything as
+    cash" for any caller that doesn't care about the distinction) that
+    filters out non-cash accounts from the sum. getAccountActivity now
+    tags each row with its accountType. getTotalAssetsCents is
+    deliberately UNCHANGED — it already summed every account regardless
+    of type, so the Total figure (5.562,76 €) was never wrong, only the
+    "Liquid" subset label was.
+  - HeroCard: "Liquid" now reads getLiquidCashCents's output (847,07 €),
+    not the old all-accounts sum.
+  - AccountStrip (Home): investment accounts get a small "Investment"
+    badge so SCLB's balance sitting right below the Liquid hero doesn't
+    read as spendable cash.
+  - AccountsScreen: split into "Cash" and "Investments" sections (was
+    one flat "Accounts" list). Total-assets card gained an "Investments"
+    row between Liquid and Lent out: Liquid 847,07 € + Investments
+    2.300,00 € + Lent out 2.415,69 € = Total 5.562,76 € (Total itself
+    doesn't move — this is a breakdown becoming honest, not a new
+    number).
+  - 4 new unit tests (117 total, up from 113): getLiquidCashCents with
+    and without SCLB classified as investment, the accountTypes-omitted
+    default, getAccountActivity's per-account tagging, and confirming
+    getTotalAssetsCents is unaffected by classification.
+  - Verified end-to-end via Playwright against live npm run dev: Home's
+    hero reads "Liquid 847,07 €" and SCLB's account-strip card shows the
+    "Investment" badge; Accounts screen's total-assets card reads
+    "Liquid 847,07 € / Investments 2.300,00 € / Lent out 2.415,69 € /
+    Total 5.562,76 €" exactly; section order is Cash (6 accounts) ->
+    Investments (SCLB only, sparkline still renders) -> Lent out -> I
+    owe; tapping SCLB's card still drills into Activity correctly (13
+    transactions, cross-checked against the raw CSV: `awk` count = 13).
+    Zero console errors. 117 tests passing, tsc -b clean, production
+    build 39.46KB gzipped (negligible increase from 39.17KB — this was a
+    reclassification, not new charting/library weight).
+  - OPEN ITEM for Phase 13 (Settings): this classification currently has
+    no UI to edit it — SCLB's "investment" tag can only be changed by
+    editing storage/accountTypes.ts's SEED_DEFAULTS. If more investment
+    or other non-cash account types surface later (the user's own
+    wording was "are not liquid actually", which may generalize beyond
+    SCLB), Settings should get an account-type picker rather than this
+    staying code-only.
+
 
           - TS types: Transaction, Account, Category, Merchant.
           - EUR-only — delete currency field plumbing entirely.

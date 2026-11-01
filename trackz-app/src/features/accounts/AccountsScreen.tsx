@@ -1,5 +1,6 @@
 import { useMemo } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
+import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
   getAccountActivity,
   getAccountBalanceSeries,
@@ -7,6 +8,7 @@ import {
   getPayableBalances,
   getReceivableBalances,
   getTotalAssetsCents,
+  type AccountActivity,
 } from "@/insights/engine";
 import { formatDayLabel, getLocalToday, getMonthStartDate, getMonthEndDate } from "@/domain/dates";
 import type { ActivityFilter } from "@/features/activity/filter";
@@ -22,6 +24,8 @@ interface AccountsScreenProps {
   onDrillDown?: (filter: ActivityFilter) => void;
 }
 
+type AccountRow = AccountActivity & { series: Array<{ monthKey: string; balanceCents: number }> };
+
 /**
  * Phase 12: balance cards with sparklines, receivables/payables surfaced
  * as "Lent out"/"I owe" per the locked relabel decisions. A dedicated
@@ -29,26 +33,48 @@ interface AccountsScreenProps {
  * which (per the Phase 12 design decision) was relabeled "Liquid" rather
  * than made to include receivables — one concept per screen, see
  * docs/renovation_version_1.txt's Phase 12 write-up.
+ *
+ * Accounts are split into Cash / Investments sections (added after
+ * Phase 12 shipped): SCLB (Scalable Capital, a real brokerage account)
+ * was being counted as liquid cash, overstating "Liquid" on both this
+ * screen and Home's hero by its full balance. The cash/investment
+ * classification lives in storage/accountTypes.ts, defaulting every
+ * account to "cash" so no other account's section changes.
  */
 export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
   const transactions = useTransactions();
+  const accountTypes = useAccountTypes();
 
   const data = useMemo(() => {
     const monthKey = getLatestMonthKey(transactions);
     if (!monthKey) return null;
 
-    const accounts = getAccountActivity(transactions).map((acc) => ({
+    const allAccounts = getAccountActivity(transactions, accountTypes).map((acc) => ({
       ...acc,
       series: getAccountBalanceSeries(transactions, acc.account, monthKey, 6),
     }));
-    const liquidCents = accounts.reduce((sum, a) => sum + a.balanceCents, 0);
+    const cashAccounts = allAccounts.filter((a) => a.accountType === "cash");
+    const investmentAccounts = allAccounts.filter((a) => a.accountType === "investment");
+
+    const liquidCents = cashAccounts.reduce((sum, a) => sum + a.balanceCents, 0);
+    const investmentsCents = investmentAccounts.reduce((sum, a) => sum + a.balanceCents, 0);
     const receivables = getReceivableBalances(transactions);
     const payables = getPayableBalances(transactions);
     const totalAssetsCents = getTotalAssetsCents(transactions);
     const lentOutCents = receivables.reduce((sum, r) => sum + r.balanceCents, 0);
 
-    return { accounts, receivables, payables, liquidCents, lentOutCents, totalAssetsCents, monthKey };
-  }, [transactions]);
+    return {
+      cashAccounts,
+      investmentAccounts,
+      receivables,
+      payables,
+      liquidCents,
+      investmentsCents,
+      lentOutCents,
+      totalAssetsCents,
+      monthKey,
+    };
+  }, [transactions, accountTypes]);
 
   if (!data) {
     return (
@@ -76,6 +102,31 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
     });
   }
 
+  function renderAccountCard(acc: AccountRow) {
+    const dormant =
+      acc.lastActivityDate !== null &&
+      data !== null &&
+      getMonthStartDate(data.monthKey) > getMonthEndDate(acc.lastActivityDate.slice(0, 7));
+    const color = dormant ? "var(--text-tertiary)" : acc.balanceCents < 0 ? "var(--negative)" : "var(--positive)";
+    return (
+      <Card class="account-card" key={acc.account} onClick={onDrillDown ? () => drillToAccount(acc.account) : undefined}>
+        <div class="account-card__row">
+          <div class="account-card__identity">
+            <div class="account-card__name">{acc.account}</div>
+            <div class={`account-card__last-activity ${dormant ? "account-card__last-activity--dormant" : ""}`}>
+              {acc.lastActivityDate ? formatDayLabel(acc.lastActivityDate, getLocalToday()) : "No activity"}
+            </div>
+          </div>
+          <Sparkline points={acc.series} color={color} />
+          <Money
+            cents={acc.balanceCents}
+            class={`account-card__balance ${acc.balanceCents < 0 ? "account-card__balance--negative" : ""}`}
+          />
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <main class="accounts-screen">
       <h1 class="accounts-screen__title">Accounts</h1>
@@ -85,6 +136,12 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
           <span class="total-assets-card__label">Liquid</span>
           <Money cents={data.liquidCents} class="total-assets-card__value" />
         </div>
+        {data.investmentsCents !== 0 && (
+          <div class="total-assets-card__row">
+            <span class="total-assets-card__label">Investments</span>
+            <Money cents={data.investmentsCents} class="total-assets-card__value" />
+          </div>
+        )}
         {data.lentOutCents > 0 && (
           <div class="total-assets-card__row">
             <span class="total-assets-card__label">Lent out</span>
@@ -98,32 +155,15 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
         </div>
       </Card>
 
-      <h2 class="accounts-screen__section-title">Accounts</h2>
-      <div class="account-list">
-        {data.accounts.map((acc) => {
-          const dormant =
-            acc.lastActivityDate !== null &&
-            getMonthStartDate(data.monthKey) > getMonthEndDate(acc.lastActivityDate.slice(0, 7));
-          const color = dormant ? "var(--text-tertiary)" : acc.balanceCents < 0 ? "var(--negative)" : "var(--positive)";
-          return (
-            <Card class="account-card" key={acc.account} onClick={onDrillDown ? () => drillToAccount(acc.account) : undefined}>
-              <div class="account-card__row">
-                <div class="account-card__identity">
-                  <div class="account-card__name">{acc.account}</div>
-                  <div class={`account-card__last-activity ${dormant ? "account-card__last-activity--dormant" : ""}`}>
-                    {acc.lastActivityDate ? formatDayLabel(acc.lastActivityDate, getLocalToday()) : "No activity"}
-                  </div>
-                </div>
-                <Sparkline points={acc.series} color={color} />
-                <Money
-                  cents={acc.balanceCents}
-                  class={`account-card__balance ${acc.balanceCents < 0 ? "account-card__balance--negative" : ""}`}
-                />
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+      <h2 class="accounts-screen__section-title">Cash</h2>
+      <div class="account-list">{data.cashAccounts.map(renderAccountCard)}</div>
+
+      {data.investmentAccounts.length > 0 && (
+        <>
+          <h2 class="accounts-screen__section-title">Investments</h2>
+          <div class="account-list">{data.investmentAccounts.map(renderAccountCard)}</div>
+        </>
+      )}
 
       <h2 class="accounts-screen__section-title">Lent out</h2>
       {data.receivables.length === 0 ? (

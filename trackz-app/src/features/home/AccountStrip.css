@@ -24,6 +24,20 @@
   font-size: var(--text-xs);
   color: var(--text-tertiary);
   margin-bottom: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.account-strip__badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--neutral);
+  background: var(--neutral-bg);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
 }
 
 .account-strip__amount {

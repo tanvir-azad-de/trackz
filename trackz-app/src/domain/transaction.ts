@@ -69,6 +69,18 @@ export interface Account {
   // opening-balance feature in use (see Phase 0 note in renovation plan).
 }
 
+/**
+ * "cash" (spendable, counted in Home's "Liquid" hero) vs "investment"
+ * (a real asset, but not spendable cash — e.g. a brokerage account).
+ * Unlike Account above, this IS persisted (see storage/accountTypes.ts):
+ * it's a user classification with no transaction-derivable signal, not
+ * something Phase 0's "always derive from transactions" rule covers.
+ * Defaults to "cash" for any account with no explicit entry, so every
+ * pre-Phase-12 account keeps behaving exactly as before unless a user
+ * (or a seed, like SCLB below) says otherwise.
+ */
+export type AccountType = "cash" | "investment";
+
 export interface Category {
   name: string;
   categoryType: CategoryType;

@@ -3,7 +3,7 @@ import { Money } from "@/components/Money";
 import type { Cents } from "@/domain/money";
 
 interface HeroCardProps {
-  netWorthCents: Cents;
+  liquidCashCents: Cents;
   incomeCents: Cents;
   expenseCents: Cents;
   surplusCents: Cents;
@@ -16,20 +16,24 @@ interface HeroCardProps {
  * No gradient — that was Mockup A, explicitly rejected.
  *
  * Labeled "Liquid" rather than "Net worth" (Phase 12 decision): this
- * figure is account balances only. Outstanding "Lent out" receivables
- * (2.415,69 € in the real data) are a real asset but aren't spendable
- * cash, so folding them in here would make the headline number silently
- * drift from what the Accounts screen's own math shows unless every
- * reader remembered the distinction. The Accounts screen's total-assets
- * card is the one place liquid + receivables are added together.
+ * figure is CASH account balances only (getLiquidCashCents, which
+ * excludes accounts classified "investment" — e.g. SCLB/Scalable
+ * Capital, caught live during Phase 12 QA overstating this number by its
+ * full 2.300,00 € balance before the account-type classification was
+ * added). Outstanding "Lent out" receivables and investment balances are
+ * real assets but aren't spendable cash, so folding them in here would
+ * make the headline number silently drift from what the Accounts
+ * screen's own math shows unless every reader remembered the
+ * distinction. The Accounts screen's total-assets card is the one place
+ * Liquid + Investments + Lent out are added together.
  */
-export function HeroCard({ netWorthCents, incomeCents, expenseCents, surplusCents }: HeroCardProps) {
+export function HeroCard({ liquidCashCents, incomeCents, expenseCents, surplusCents }: HeroCardProps) {
   const isSurplus = surplusCents >= 0;
   return (
     <Card class="hero-card">
       <div class="hero-card__label">Liquid</div>
       <div class="hero-card__amount">
-        <Money cents={netWorthCents} />
+        <Money cents={liquidCashCents} />
       </div>
       <div class={`hero-card__delta ${isSurplus ? "hero-card__delta--positive" : "hero-card__delta--negative"}`}>
         {isSurplus ? "↑" : "↓"} <Money cents={Math.abs(surplusCents)} /> {isSurplus ? "surplus" : "deficit"} this month
