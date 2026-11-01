@@ -4,6 +4,7 @@ import { localToSync } from "./document";
 import { getTransactionsIncludingDeleted, replaceAllTransactions, setSyncNotifier } from "@/storage/repository";
 import { fetchFromDrive, uploadToDrive } from "./drive";
 import { getAuthState } from "./auth";
+import { categorizeSyncError } from "./errors";
 
 /**
  * Phase 15b: Sync coordinator.
@@ -56,7 +57,28 @@ const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY_MS = 1000;
 
 // Device ID for this client (used in sync metadata)
-let deviceId = `device-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+// Persisted in localStorage so the same device keeps the same ID across sessions
+function getDeviceId(): string {
+  const DEVICE_ID_KEY = "trackz.sync.device-id";
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = `device-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      try {
+        localStorage.setItem(DEVICE_ID_KEY, id);
+      } catch (error) {
+        // localStorage might be full or unavailable in private browsing
+        console.warn("Could not persist device ID:", error);
+      }
+    }
+    return id;
+  } catch (error) {
+    // localStorage not available (Node.js tests)
+    return `device-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+}
+
+let deviceId = getDeviceId();
 
 // Current remote state (for conflict detection and ETag)
 let currentETag: string | null = null;
@@ -185,25 +207,33 @@ async function performSync(): Promise<void> {
     retryCount = 0;
     notifyListeners();
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Sync error:", errorMessage);
+    console.error("Sync error:", error);
 
-    // Categorize error
-    if (errorMessage.includes("conflict") || errorMessage.includes("412")) {
-      syncState.status = "conflict";
-      syncState.lastError = "Sync conflict detected. Another device has newer changes.";
-      retryCount = 0; // Don't retry conflicts, let user resolve
-    } else if (errorMessage.includes("network")) {
-      syncState.status = "offline";
-    } else {
-      syncState.status = "error";
-      syncState.lastError = errorMessage;
+    // Use better error categorization
+    const syncError = categorizeSyncError(error);
+    syncState.lastError = syncError.message;
+
+    // Categorize error for status
+    switch (syncError.type) {
+      case "conflict":
+        syncState.status = "conflict";
+        retryCount = 0; // Don't retry conflicts, let user resolve
+        break;
+      case "network":
+        syncState.status = "offline";
+        break;
+      case "auth":
+        syncState.status = "conflict"; // Using "conflict" to indicate auth needed
+        retryCount = 0; // Don't retry auth failures automatically
+        break;
+      default:
+        syncState.status = "error";
     }
 
     notifyListeners();
 
-    // Schedule retry for transient errors
-    if (syncState.status !== "conflict") {
+    // Schedule retry for transient errors (not auth or conflicts)
+    if (syncError.recoverable && syncError.type !== "auth" && syncError.type !== "conflict") {
       scheduleRetry();
     }
   }

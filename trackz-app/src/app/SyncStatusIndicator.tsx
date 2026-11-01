@@ -1,4 +1,5 @@
 import { useSyncStatus } from "@/storage/useSyncStatus";
+import { syncNow } from "@/sync/coordinator";
 import type { SyncStatus } from "@/sync/coordinator";
 import "./SyncStatusIndicator.css";
 
@@ -12,10 +13,20 @@ import "./SyncStatusIndicator.css";
  * - "Conflict" (red) when two devices made conflicting changes
  * - "Error" (red) when sync failed after retries
  *
- * Tapping the indicator shows more details (tooltip or expanded status card).
+ * Tapping the status indicator shows a tooltip. Tapping "Sync Now" button
+ * triggers an immediate sync (bypasses debounce).
  */
 export function SyncStatusIndicator() {
   const syncState = useSyncStatus();
+  const canManualSync = syncState.status !== "pending" && syncState.status !== "synced";
+
+  const handleSyncNow = async () => {
+    try {
+      await syncNow();
+    } catch (error) {
+      console.error("Manual sync failed:", error);
+    }
+  };
 
   return (
     <div class="sync-status-indicator" data-status={syncState.status}>
@@ -25,6 +36,17 @@ export function SyncStatusIndicator() {
         <div class="sync-status-error-tooltip" title={syncState.lastError}>
           ℹ️
         </div>
+      )}
+      {canManualSync && (
+        <button
+          type="button"
+          class="sync-status-button"
+          onClick={handleSyncNow}
+          title="Sync now"
+          aria-label="Sync now"
+        >
+          ↻
+        </button>
       )}
     </div>
   );

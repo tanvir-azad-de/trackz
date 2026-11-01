@@ -39,6 +39,10 @@
   background: currentColor;
 }
 
+.sync-status-label {
+  flex-shrink: 0;
+}
+
 .sync-status-error-tooltip {
   cursor: help;
   font-size: 1rem;
@@ -49,6 +53,34 @@
 
 .sync-status-error-tooltip:hover {
   opacity: 1;
+}
+
+.sync-status-button {
+  background: none;
+  border: none;
+  color: currentColor;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.sync-status-button:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  transform: rotate(180deg);
+}
+
+.sync-status-button:active {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 @keyframes pulse {
