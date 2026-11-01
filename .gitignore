@@ -2,8 +2,18 @@
 public/js/config.js
 
 # Environment variables (local development only)
+# Unanchored, so these also cover trackz-app/.env.local (the client-side
+# VITE_GOOGLE_CLIENT_ID lives there, since Vite reads its own directory).
 .env.local
 .env*.local
+
+# Vercel CLI local state, created by `vercel dev` / `vercel link`
+.vercel
+
+# Dependencies. The root node_modules/ was previously tracked (126 files of
+# chart.js), which was vestigial: the legacy public/ app loads Chart.js from
+# public/vendor/chart.umd.min.js, not from node_modules.
+node_modules/
 
 # OS files
 .DS_Store
