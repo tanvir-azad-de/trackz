@@ -1,6 +1,6 @@
 import { toCents, centsToFixed } from "@/domain/money";
 import { isValidISODate } from "@/domain/dates";
-import { newTransactionId } from "@/domain/id";
+import { contentDerivedTransactionId } from "@/domain/id";
 import type { CategoryType, Cashflow, Transaction } from "@/domain/transaction";
 import { CATEGORY_TYPES } from "@/domain/transaction";
 
@@ -127,6 +127,9 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
   }
   const expectedColumns = isV3 ? CSV_HEADERS_V3.length : isV2 ? CSV_HEADERS_V2.length : CSV_HEADERS.length;
 
+  /** How many rows with each content-identity we've seen so far in this file. */
+  const identityCounts = new Map<string, number>();
+
   for (let i = 1; i < lines.length; i++) {
     const lineNumber = i + 1;
     const fields = parseCsvLine(lines[i]!);
@@ -215,8 +218,31 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
     }
 
     const createdAt = createdAtField || `${date}T00:00:00.000Z`;
+
+    // No id column (V1/V2): derive one from the row's content so that
+    // importing this same file again — on this device, another device, or
+    // another origin — produces the SAME id and sync can recognise it as
+    // the same transaction. A random id here is what put three copies of
+    // one 1456-row backup on Drive; see contentDerivedTransactionId.
+    const identity = {
+      date,
+      account,
+      destinationAccount: cashflowRaw === "none" ? destinationAccount : "",
+      cashflow: cashflowRaw,
+      category,
+      categoryType: categoryTypeRaw,
+      merchant: merchant ?? "",
+      amountCents,
+      notes: notes ?? "",
+    };
+    // Count identical earlier rows in THIS file, so two genuinely separate
+    // but identical-looking transactions keep distinct ids.
+    const identityKey = JSON.stringify(identity);
+    const occurrence = identityCounts.get(identityKey) ?? 0;
+    identityCounts.set(identityKey, occurrence + 1);
+
     transactions.push({
-      id: idField || newTransactionId(),
+      id: idField || contentDerivedTransactionId(identity, occurrence),
       date,
       account,
       destinationAccount: cashflowRaw === "none" ? destinationAccount : "",

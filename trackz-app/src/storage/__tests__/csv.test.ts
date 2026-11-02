@@ -180,3 +180,61 @@ describe("parseTransactionsCsv accepts v1/v2/v3 header formats", () => {
     expect(errors[0]!.message).toMatch(/Expected 12 columns, got 9/);
   });
 });
+
+describe("import is idempotent across devices", () => {
+  /**
+   * The property that failed in production. A V1 file carries no id
+   * column, so import has to invent one; it used to invent a RANDOM one.
+   * The same backup imported on two origins therefore produced two
+   * disjoint id sets, and because sync/merge.ts dedupes by id it kept both
+   * — 1456 rows became 4368 on Drive, three copies of everything, with
+   * nothing in the sync layer able to detect it.
+   */
+  const v1Csv = [
+    CSV_HEADERS.join(","),
+    "2026-10-17,CMRZ,,out,Groceries,expense,Edeka,12.40,EUR,",
+    "2026-10-18,CMRZ,,out,Transport,expense,BVG,2.90,EUR,ticket",
+  ].join("\n");
+
+  it("assigns the same ids when the same file is imported twice", () => {
+    const first = parseTransactionsCsv(v1Csv).transactions.map((t) => t.id);
+    const second = parseTransactionsCsv(v1Csv).transactions.map((t) => t.id);
+
+    // Two separate imports stand in for two devices or two origins: each
+    // starts from nothing but the file itself.
+    expect(first).toEqual(second);
+  });
+
+  it("keeps identical rows distinct, so no real transaction is lost", () => {
+    const withDuplicate = [
+      CSV_HEADERS.join(","),
+      "2026-10-17,CMRZ,,out,Coffee,expense,Shop,3.00,EUR,",
+      "2026-10-17,CMRZ,,out,Coffee,expense,Shop,3.00,EUR,",
+    ].join("\n");
+
+    const { transactions } = parseTransactionsCsv(withDuplicate);
+
+    // Two identical coffees on one day is ordinary data. Collapsing them
+    // would be the opposite failure to the one being fixed: quietly
+    // deleting a real transaction instead of quietly duplicating one.
+    expect(transactions).toHaveLength(2);
+    expect(transactions[0]!.id).not.toBe(transactions[1]!.id);
+
+    // And that pairing must itself be reproducible.
+    const again = parseTransactionsCsv(withDuplicate).transactions;
+    expect(again.map((t) => t.id)).toEqual(transactions.map((t) => t.id));
+  });
+
+  it("still honours an explicit id column when the file has one", () => {
+    const v2Csv = [
+      CSV_HEADERS_V2.join(","),
+      "2026-10-17,CMRZ,,out,Groceries,expense,Edeka,12.40,EUR,,txn_explicit,2026-10-17T00:00:00.000Z",
+    ].join("\n");
+
+    const { transactions } = parseTransactionsCsv(v2Csv);
+
+    // A file that already carries ids is authoritative; deriving over the
+    // top would break round-tripping an export.
+    expect(transactions[0]!.id).toBe("txn_explicit");
+  });
+});
