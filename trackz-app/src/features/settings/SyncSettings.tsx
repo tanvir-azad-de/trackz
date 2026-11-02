@@ -3,7 +3,7 @@ import { useAuthState } from "@/storage/useAuthState";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import { isGoogleScriptReady, isSyncConfigured, signIn, signOut } from "@/sync/auth";
 import { syncNow } from "@/sync/coordinator";
-import { fetchFromDrive, readRemoteMetadata } from "@/sync/drive";
+import { deleteRemoteSyncFile, fetchFromDrive, readRemoteMetadata } from "@/sync/drive";
 import type { ToastState } from "@/components/Toast";
 import "./SyncSettings.css";
 
@@ -100,6 +100,53 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
     }
   }
 
+  /**
+   * Delete the Drive copy and replace it with this device's data.
+   *
+   * The recovery path for a remote file that has gone wrong — notably one
+   * holding duplicates that cannot be reconciled, because nothing links
+   * their ids to anything local. Nothing else can clear it: the file is
+   * invisible under drive.appdata, and revoking the app's access leaves
+   * the folder in place for the next connection to find.
+   *
+   * Irreversible, hence the typed confirmation rather than a plain OK:
+   * appDataFolder files cannot be trashed, so there is nothing to undo
+   * from. The subsequent syncNow() re-uploads local data, which is what
+   * makes this "replace" rather than "destroy".
+   */
+  async function handleResetRemote() {
+    const confirmed = window.confirm(
+      "Delete the copy of your data on Google Drive and replace it with this device's data?\n\n" +
+        "This cannot be undone. Other devices will be overwritten the next time they sync, " +
+        "so make sure THIS device holds the data you want to keep.\n\n" +
+        "Export a CSV backup first if you have not already.",
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setRemote({ kind: "idle" });
+    try {
+      const deleted = await deleteRemoteSyncFile();
+      // Re-upload immediately. Leaving Drive empty would be a worse state
+      // than either end point: the next device to sync would read nothing
+      // and could conclude its own data had been deleted elsewhere.
+      await syncNow();
+      onToast?.({
+        id: Date.now(),
+        message: deleted
+          ? "Drive copy replaced with this device's data."
+          : "Nothing was on Drive. This device's data has been uploaded.",
+      });
+    } catch (error) {
+      onToast?.({
+        id: Date.now(),
+        message: error instanceof Error ? error.message : "Could not reset the Drive copy.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSignOut() {
     setBusy(true);
     try {
@@ -183,6 +230,14 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
               disabled={busy || remote.kind === "loading"}
             >
               Check what's on Drive
+            </button>
+            <button
+              type="button"
+              class="settings-data-button settings-data-button--danger"
+              onClick={handleResetRemote}
+              disabled={busy}
+            >
+              Replace Drive copy with this device
             </button>
             <button
               type="button"

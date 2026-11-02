@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   clearCacheForTesting,
+  deleteRemoteSyncFile,
   fetchFromDrive,
   readRemoteMetadata,
   readVersion,
@@ -363,5 +364,59 @@ describe("expired access token", () => {
 
     const refreshes = calledUrls().filter((url) => url === "/api/auth/refresh");
     expect(refreshes).toHaveLength(1);
+  });
+});
+
+describe("deleteRemoteSyncFile", () => {
+  it("DELETEs the file and forgets its cached id", async () => {
+    fetchMock
+      .mockResolvedValueOnce(searchHit())
+      .mockResolvedValueOnce(jsonResponse({}, 204))
+      // After deletion the next call must SEARCH again, not reuse the id.
+      .mockResolvedValueOnce(searchMiss());
+
+    expect(await deleteRemoteSyncFile()).toBe(true);
+
+    const [url, init] = callTo("/files/file-123") ?? ["", {}];
+    expect(url).toBe(`${METADATA_HOST}/files/file-123`);
+    expect(init.method).toBe("DELETE");
+
+    // Keeping the cached id would make the next upload PATCH a file that
+    // no longer exists and fail with a confusing 404.
+    //
+    // Asserted by COUNTING SEARCHES, not by the return value: a stale
+    // cached id would send readVersion straight to a metadata fetch, whose
+    // response in this mock happens to lack a `version` field, so it would
+    // also return null and the test would pass while the bug survived.
+    // (It did exactly that until mutation testing exposed it.)
+    fetchMock.mockClear();
+    await readVersion();
+
+    const searches = calledUrls().filter((url) => url.includes("spaces=appDataFolder"));
+    expect(searches).toHaveLength(1);
+  });
+
+  it("reports false when there is nothing to delete", async () => {
+    fetchMock.mockResolvedValueOnce(searchMiss());
+
+    // Distinguishable from a successful delete, so the UI can say
+    // "nothing was on Drive" rather than implying it removed something.
+    expect(await deleteRemoteSyncFile()).toBe(false);
+  });
+
+  it("treats a 404 as success, since the end state is the same", async () => {
+    fetchMock.mockResolvedValueOnce(searchHit()).mockResolvedValueOnce(jsonResponse({}, 404));
+
+    // Another device deleted it first. That is the desired outcome, not a
+    // failure to report.
+    expect(await deleteRemoteSyncFile()).toBe(true);
+  });
+
+  it("throws on a real failure instead of claiming the file is gone", async () => {
+    fetchMock.mockResolvedValueOnce(searchHit()).mockResolvedValueOnce(jsonResponse({}, 500));
+
+    // Reporting success here would be the worst outcome: the user believes
+    // the bad remote data is gone, reconnects, and it merges back in.
+    await expect(deleteRemoteSyncFile()).rejects.toThrow(/Failed to delete/);
   });
 });

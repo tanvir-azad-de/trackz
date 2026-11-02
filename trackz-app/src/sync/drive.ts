@@ -332,6 +332,45 @@ async function createSyncFile(content: string): Promise<Response> {
 }
 
 /**
+ * Permanently delete the sync file from Drive.
+ *
+ * WHY THIS HAS TO EXIST. Nothing else can remove it. Under
+ * `drive.appdata` the file is invisible in the Drive UI, so the user
+ * cannot delete it by hand, and REVOKING the app's access at
+ * myaccount.google.com does NOT remove it either — revocation withdraws
+ * permission while Google keeps the folder, so reconnecting later finds
+ * the old data still there. That gap caused a real incident: a ledger was
+ * rebuilt cleanly from CSV, but the stale remote file survived every
+ * attempt to clear it and merged itself back in on the next sync.
+ *
+ * There is no trash to recover from (appDataFolder files cannot be
+ * trashed), so this is irreversible. Callers must confirm with the user
+ * first, and CSV export is the only safety net.
+ *
+ * @returns true if a file was deleted, false if there was nothing to delete
+ */
+export async function deleteRemoteSyncFile(): Promise<boolean> {
+  requireAccessToken();
+
+  const fileId = await findSyncFile();
+  if (!fileId) return false;
+
+  const response = await driveFetch(`${DRIVE_API}/files/${fileId}`, { method: "DELETE" });
+
+  // 404 means someone else already deleted it — the desired end state, so
+  // not an error. Anything else genuinely failed and must be reported
+  // rather than silently leaving the file in place.
+  if (!response.ok && response.status !== 404) {
+    throw driveError(`Failed to delete the Drive sync file: ${response.status}`, response.status);
+  }
+
+  // Drop the cached id, or the next upload would PATCH a file that no
+  // longer exists and fail with a confusing 404.
+  cachedFileId = null;
+  return true;
+}
+
+/**
  * Find the sync file's ID in the app data folder, or null if no device has
  * uploaded one yet.
  *

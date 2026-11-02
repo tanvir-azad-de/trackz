@@ -42,3 +42,12 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+
+/* Destructive action (deletes the Drive copy irreversibly — appDataFolder
+   files cannot be trashed). Visually distinct so it cannot be mistaken for
+   the neutral buttons beside it; the typed confirmation is the real guard,
+   this is the warning before it. */
+.settings-data-button--danger {
+  color: var(--negative);
+  border-color: var(--negative);
+}
