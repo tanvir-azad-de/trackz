@@ -8,7 +8,7 @@ import {
   mergeAccountTypes,
   type AccountTypeMap,
 } from "@/storage/accountTypes";
-import { fetchFromDrive, readVersion, uploadToDrive } from "./drive";
+import { deleteRemoteSyncFile, fetchFromDrive, readVersion, uploadToDrive } from "./drive";
 import { getAuthState, subscribeToAuth } from "./auth";
 import { categorizeSyncError } from "./errors";
 
@@ -249,6 +249,84 @@ export async function syncNow(): Promise<void> {
   retryCount = 0;
 
   await performSync();
+}
+
+/**
+ * Overwrite the Drive copy with this device's data, skipping the merge
+ * entirely.
+ *
+ * THE ONLY OPERATION IN THIS MODULE THAT CAN MAKE DRIVE SMALLER. Normal
+ * sync is a union by id: merge.ts keeps every id present on either side,
+ * so a remote document holding junk can never shrink, and reconnecting
+ * re-merges it into whatever the device has just rebuilt. That is correct
+ * for ordinary syncing — it is what stops one device's stale view from
+ * deleting another's work — and useless as a recovery path.
+ *
+ * The incident that forced this: a V1 CSV import minted random ids, so
+ * importing one 1456-row backup three times produced 4368 unrelated
+ * transactions on Drive. Rebuilding the ledger locally could not fix it,
+ * because connecting Drive merged the 4368 straight back in. Deleting the
+ * remote file and then calling syncNow() was not enough either: the
+ * debounced merge could win the race and re-upload the union before the
+ * fresh upload landed.
+ *
+ * So this does not delete-then-sync, and it does not consult the remote
+ * document at all. It cancels pending work, then uploads local state as
+ * revision 0 — the only sequence whose outcome does not depend on timing.
+ *
+ * Destructive by design: other devices are overwritten on their next sync.
+ * Callers must confirm with the user, and CSV export is the only undo.
+ */
+export async function overwriteRemoteWithLocal(): Promise<void> {
+  // Cancel queued work first. A debounce or retry firing mid-upload would
+  // run a normal merge against the file we are replacing, reintroducing
+  // exactly what this call exists to remove.
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  retryCount = 0;
+
+  if (!getAuthState().isSignedIn) {
+    throw new Error("Not signed in to Google");
+  }
+
+  syncState.status = "pending";
+  syncState.lastError = null;
+  notifyListeners();
+
+  try {
+    const local = getTransactionsIncludingDeleted();
+
+    // Delete first, so the new document cannot inherit anything. Without
+    // this, uploading over the existing file would replace its CONTENT but
+    // leave any id we failed to account for in place — and more
+    // importantly, a fresh file makes "did this work?" answerable by row
+    // count alone.
+    await deleteRemoteSyncFile();
+
+    // Revision 0: this is a new history, not a continuation of the one
+    // being discarded. Claiming a higher revision would imply the old
+    // document was an ancestor of this one, which is the opposite of what
+    // happened.
+    await uploadToDrive(localToSync(local, 0, deviceId, getAccountTypeEntries()));
+
+    syncState.status = "synced";
+    syncState.lastSyncTime = Date.now();
+    syncState.hasConflicts = false;
+    syncState.conflictCount = 0;
+    notifyListeners();
+  } catch (error) {
+    const syncError = categorizeSyncError(error);
+    syncState.status = "error";
+    syncState.lastError = syncError.message;
+    notifyListeners();
+    throw error;
+  }
 }
 
 /**

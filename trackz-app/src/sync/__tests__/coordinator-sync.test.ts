@@ -22,6 +22,7 @@ const driveMock = vi.hoisted(() => ({
   fetchFromDrive: vi.fn(),
   readVersion: vi.fn(),
   uploadToDrive: vi.fn(),
+  deleteRemoteSyncFile: vi.fn(),
 }));
 
 vi.mock("@/sync/drive", () => driveMock);
@@ -71,6 +72,8 @@ beforeEach(async () => {
   driveMock.fetchFromDrive.mockReset();
   driveMock.readVersion.mockReset();
   driveMock.uploadToDrive.mockReset();
+  driveMock.deleteRemoteSyncFile.mockReset();
+  driveMock.deleteRemoteSyncFile.mockResolvedValue(true);
   driveMock.readVersion.mockResolvedValue("1");
   driveMock.uploadToDrive.mockResolvedValue({ version: "2", modifiedTime: "2026-01-01T00:00:00Z" });
 
@@ -415,5 +418,119 @@ describe("version-based convergence", () => {
     // first can only cause a spurious restart, which is the harmless way
     // to be wrong.
     expect(order.slice(0, 2)).toEqual(["version", "content"]);
+  });
+});
+
+describe("overwriteRemoteWithLocal", () => {
+  it("uploads local data without reading the remote document", async () => {
+    const { overwriteRemoteWithLocal } = await import("@/sync/coordinator");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("keep-1", "2026-01-02T00:00:00Z")]);
+    await startSignedIn();
+
+    await overwriteRemoteWithLocal();
+
+    // Not consulting the remote is the entire point. Normal sync is a
+    // union by id, so a remote document full of unreconcilable junk can
+    // only ever grow — merging it in is what made the bad state
+    // unrecoverable in the first place.
+    expect(driveMock.fetchFromDrive).not.toHaveBeenCalled();
+
+    const uploaded = driveMock.uploadToDrive.mock.calls[0]?.[0] as SyncDocument;
+    expect(uploaded.transactions.map((t) => t.id)).toEqual(["keep-1"]);
+  });
+
+  it("deletes the remote file before uploading", async () => {
+    const { overwriteRemoteWithLocal } = await import("@/sync/coordinator");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("keep-1", "2026-01-02T00:00:00Z")]);
+    await startSignedIn();
+
+    // Record order only from here: startSignedIn's own startup sync
+    // uploads too, and counting that would mask the ordering under test.
+    const order: string[] = [];
+    driveMock.deleteRemoteSyncFile.mockImplementation(async () => {
+      order.push("delete");
+      return true;
+    });
+    driveMock.uploadToDrive.mockImplementation(async () => {
+      order.push("upload");
+      return { version: "1", modifiedTime: "2026-01-01T00:00:00Z" };
+    });
+
+    await overwriteRemoteWithLocal();
+
+    // A fresh file makes "did this work?" answerable by row count alone.
+    expect(order).toEqual(["delete", "upload"]);
+  });
+
+  it("uploads as revision 0, not a continuation of the discarded history", async () => {
+    const { overwriteRemoteWithLocal } = await import("@/sync/coordinator");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("keep-1", "2026-01-02T00:00:00Z")]);
+    await startSignedIn();
+
+    await overwriteRemoteWithLocal();
+
+    // A higher revision would imply the old document was an ancestor of
+    // this one. It is not; it is being thrown away.
+    const uploaded = driveMock.uploadToDrive.mock.calls[0]?.[0] as SyncDocument;
+    expect(uploaded.revision).toBe(0);
+  });
+
+  it("cannot be beaten by a pending debounced merge", async () => {
+    const { overwriteRemoteWithLocal, markLocalChanged } = await import("@/sync/coordinator");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("keep-1", "2026-01-02T00:00:00Z")]);
+    await startSignedIn();
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc([tx("junk-1", "2026-01-03T00:00:00Z")]));
+
+    // Fake timers only for this test — the rest of the file relies on real
+    // ones, and startSignedIn above awaits a real promise chain.
+    vi.useFakeTimers();
+    try {
+      // Arm the debounce, then reset while it is still pending.
+      markLocalChanged();
+      await overwriteRemoteWithLocal();
+
+      // Let any surviving timer fire.
+      await vi.advanceTimersByTimeAsync(10_000);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // THE RACE THIS CLOSES: the previous version deleted the file and then
+    // called syncNow(), so a debounce firing in between could re-upload
+    // the union and undo the reset. Whether recovery worked depended on
+    // how fast the user clicked.
+    expect(driveMock.fetchFromDrive).not.toHaveBeenCalled();
+    expect(driveMock.uploadToDrive).toHaveBeenCalledTimes(1);
+    const uploaded = driveMock.uploadToDrive.mock.calls[0]?.[0] as SyncDocument;
+    expect(uploaded.transactions.map((t) => t.id)).toEqual(["keep-1"]);
+  });
+
+  it("refuses when signed out instead of silently doing nothing", async () => {
+    const { overwriteRemoteWithLocal } = await import("@/sync/coordinator");
+
+    await expect(overwriteRemoteWithLocal()).rejects.toThrow(/Not signed in/);
+    expect(driveMock.deleteRemoteSyncFile).not.toHaveBeenCalled();
+  });
+
+  it("reports an error rather than claiming success on failure", async () => {
+    const { overwriteRemoteWithLocal, getSyncState } = await import("@/sync/coordinator");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("keep-1", "2026-01-02T00:00:00Z")]);
+    await startSignedIn();
+    driveMock.uploadToDrive.mockRejectedValue(new Error("Failed to upload to Drive: 500"));
+
+    // Claiming success here would be the worst outcome: the user believes
+    // the junk is gone, reconnects another device, and it merges back in.
+    await expect(overwriteRemoteWithLocal()).rejects.toThrow();
+    expect(getSyncState().status).toBe("error");
   });
 });

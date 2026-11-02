@@ -2,8 +2,8 @@ import { useState } from "preact/hooks";
 import { useAuthState } from "@/storage/useAuthState";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import { isGoogleScriptReady, isSyncConfigured, signIn, signOut } from "@/sync/auth";
-import { syncNow } from "@/sync/coordinator";
-import { deleteRemoteSyncFile, fetchFromDrive, readRemoteMetadata } from "@/sync/drive";
+import { overwriteRemoteWithLocal, syncNow } from "@/sync/coordinator";
+import { fetchFromDrive, readRemoteMetadata } from "@/sync/drive";
 import type { ToastState } from "@/components/Toast";
 import "./SyncSettings.css";
 
@@ -101,22 +101,25 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
   }
 
   /**
-   * Delete the Drive copy and replace it with this device's data.
+   * Replace the Drive copy with this device's data.
    *
    * The recovery path for a remote file that has gone wrong — notably one
    * holding duplicates that cannot be reconciled, because nothing links
-   * their ids to anything local. Nothing else can clear it: the file is
-   * invisible under drive.appdata, and revoking the app's access leaves
-   * the folder in place for the next connection to find.
+   * their ids to anything local. Normal sync cannot fix that: it is a
+   * union by id, so the remote document only ever grows, and merely
+   * reconnecting pulls the junk straight back in.
    *
-   * Irreversible, hence the typed confirmation rather than a plain OK:
-   * appDataFolder files cannot be trashed, so there is nothing to undo
-   * from. The subsequent syncNow() re-uploads local data, which is what
-   * makes this "replace" rather than "destroy".
+   * Delegates to overwriteRemoteWithLocal() rather than deleting and
+   * calling syncNow(), because that sequence was a race: the debounced
+   * merge could re-upload the union before the clean upload landed, so
+   * whether it worked depended on how fast the user clicked.
+   *
+   * Irreversible — appDataFolder files cannot be trashed, so there is
+   * nothing to undo from.
    */
   async function handleResetRemote() {
     const confirmed = window.confirm(
-      "Delete the copy of your data on Google Drive and replace it with this device's data?\n\n" +
+      "Replace the copy of your data on Google Drive with this device's data?\n\n" +
         "This cannot be undone. Other devices will be overwritten the next time they sync, " +
         "so make sure THIS device holds the data you want to keep.\n\n" +
         "Export a CSV backup first if you have not already.",
@@ -126,21 +129,15 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
     setBusy(true);
     setRemote({ kind: "idle" });
     try {
-      const deleted = await deleteRemoteSyncFile();
-      // Re-upload immediately. Leaving Drive empty would be a worse state
-      // than either end point: the next device to sync would read nothing
-      // and could conclude its own data had been deleted elsewhere.
-      await syncNow();
+      await overwriteRemoteWithLocal();
       onToast?.({
         id: Date.now(),
-        message: deleted
-          ? "Drive copy replaced with this device's data."
-          : "Nothing was on Drive. This device's data has been uploaded.",
+        message: "Drive now holds this device's data. Check what's on Drive to confirm.",
       });
     } catch (error) {
       onToast?.({
         id: Date.now(),
-        message: error instanceof Error ? error.message : "Could not reset the Drive copy.",
+        message: error instanceof Error ? error.message : "Could not replace the Drive copy.",
       });
     } finally {
       setBusy(false);
