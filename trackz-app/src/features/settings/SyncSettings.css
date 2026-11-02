@@ -18,6 +18,15 @@
   color: var(--text-tertiary);
 }
 
+/* The "what's actually on Drive" readout. Neutral, not an error: it is an
+   answer to a question, including when the answer is "nothing yet". */
+.sync-settings__remote {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3);
+  line-height: 1.4;
+}
+
 .sync-settings__error {
   font-size: var(--text-sm);
   color: var(--negative);

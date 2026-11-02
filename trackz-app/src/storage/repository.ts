@@ -34,10 +34,14 @@ export function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-function notify(): void {
+/**
+ * Notify after a write. UI subscribers always hear about it; the sync
+ * coordinator hears about it unless the caller marks the write `silent`
+ * (see replaceAllTransactions for why sync needs that).
+ */
+function notify(options?: { silent?: boolean }): void {
   for (const listener of listeners) listener();
-  // Phase 15b: notify sync coordinator that local data changed
-  if (markLocalChanged) markLocalChanged();
+  if (markLocalChanged && !options?.silent) markLocalChanged();
 }
 
 /**
@@ -99,10 +103,24 @@ export function isEmpty(): boolean {
   return getTransactions().length === 0;
 }
 
-/** Replace the entire transaction list — used by CSV import (Phase 13a, features/settings) and the one-time dev seed. */
-export function replaceAllTransactions(transactions: Transaction[]): void {
+/**
+ * Replace the entire transaction list — used by CSV import (Phase 13a,
+ * features/settings), the one-time dev seed, and sync.
+ *
+ * `silent: true` still notifies UI subscribers, but does NOT tell the sync
+ * coordinator that anything changed locally. Sync must pass it, because a
+ * sync-originated write is not a local change: treating it as one made
+ * sync self-perpetuating — performSync wrote the merge result, that write
+ * re-armed the 5s debounce, and the debounce ran performSync again, giving
+ * a full Drive round trip every five seconds for as long as the app was
+ * open, with the status indicator never able to settle on "Synced".
+ */
+export function replaceAllTransactions(
+  transactions: Transaction[],
+  options?: { silent?: boolean },
+): void {
   writeRaw(transactions);
-  notify();
+  notify({ silent: options?.silent });
 }
 
 export function addTransaction(tx: Transaction): void {

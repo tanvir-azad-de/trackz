@@ -16,5 +16,22 @@
 
 export const googleClientId: string | null = import.meta.env.VITE_GOOGLE_CLIENT_ID || null;
 
-/** OAuth scope for Drive sync: per-file access only, NOT full-drive. */
-export const driveScope = "https://www.googleapis.com/auth/drive.file";
+/**
+ * OAuth scope for Drive sync: the app's own hidden appDataFolder only.
+ *
+ * NOT drive.file, and definitely not full-drive. drive.appdata grants access
+ * to a per-app folder the user never sees in their Drive UI, so the sync file
+ * cannot be moved, renamed, or deleted by accident — the three ways a
+ * drive.file setup silently loses its own data.
+ *
+ * The trade-offs, accepted deliberately (see Phase 15c notes):
+ * - appDataFolder files cannot be trashed or shared, so there is no trash to
+ *   recover a bad write from. CSV export is the only recovery path.
+ * - The folder is deleted outright if the user removes the app from Drive.
+ * - Nothing is visible by eye in Drive, so "is my data up there?" has to be
+ *   answerable in-app (remote row count + modified time in Settings).
+ *
+ * Changing this scope later would force every existing grant to re-consent.
+ * It is free right now only because no grant has ever been issued.
+ */
+export const driveScope = "https://www.googleapis.com/auth/drive.appdata";

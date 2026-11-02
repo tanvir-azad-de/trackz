@@ -12,7 +12,10 @@
  *
  * The refresh token is NOT returned. It is set as an httpOnly cookie
  * (see lib/apiAuth.ts for the reasoning) so that script cannot read a
- * ~6-month Drive credential, and so the session survives a page reload.
+ * long-lived Drive credential, and so the session survives a page reload.
+ * That lifetime is ~6 months only while the OAuth app is PUBLISHED; in
+ * Testing status Google issues a 7-day token instead (see
+ * COOKIE_MAX_AGE_SECONDS in lib/apiAuth.ts).
  *
  * Request body: { "code": "4/0AX4XfWh..." }
  * Request header: X-Requested-With: XmlHttpRequest (CSRF, required)

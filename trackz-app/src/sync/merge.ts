@@ -51,15 +51,16 @@ export interface MergeResult {
   }>;
 
   /**
-   * Whether any updates should be uploaded back to Drive (Phase 15b will
-   * check this to decide if a PUT is needed). True if:
+   * Whether any TRANSACTIONS should be uploaded back to Drive. True if:
    * - Local has any id not in Drive, or
    * - Local's updatedAt for any id is newer than Drive's (rare outside
    *   conflicts, but can happen if merge happened before a local edit
    *   was uploaded).
    *
-   * Even if false, a sync is still complete (local and Drive are in sync);
-   * it's just that no upload is needed.
+   * NOT the whole upload decision. coordinator.ts also uploads when only
+   * the account-type map differs — a device where the user just
+   * reclassified an account has nothing new here, and treating this flag
+   * as the final word would strand that classification on one device.
    */
   shouldUpload: boolean;
 }

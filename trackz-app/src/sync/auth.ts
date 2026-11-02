@@ -13,9 +13,11 @@
  *   3. restoreSession() POSTs /api/auth/refresh on startup. A 200 means the
  *      cookie survived, so the user is still signed in without a popup.
  *
- * Why no refresh token in this file: it is a ~6-month credential for the
+ * Why no refresh token in this file: it is a long-lived credential for the
  * user's Drive, and anything JavaScript can read, XSS can steal. Only the
- * access token (≈1h, re-mintable) lives in memory here. See lib/apiAuth.ts.
+ * access token (≈1h, re-mintable) lives in memory here. See lib/apiAuth.ts,
+ * whose COOKIE_MAX_AGE_SECONDS comment explains why "long-lived" means ~6
+ * months only if the OAuth app is published, and 7 DAYS if it is not.
  *
  * Why the access token is NOT persisted: it would buy nothing. It expires
  * in an hour, and restoreSession() can mint a fresh one from the cookie on

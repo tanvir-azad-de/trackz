@@ -3,12 +3,26 @@ import { useAuthState } from "@/storage/useAuthState";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import { isGoogleScriptReady, isSyncConfigured, signIn, signOut } from "@/sync/auth";
 import { syncNow } from "@/sync/coordinator";
+import { fetchFromDrive, readRemoteMetadata } from "@/sync/drive";
 import type { ToastState } from "@/components/Toast";
 import "./SyncSettings.css";
 
 interface SyncSettingsProps {
   onToast?: (toast: ToastState) => void;
 }
+
+/**
+ * What the "check Drive" readout currently knows. A discriminated union so
+ * "not asked yet" and "asked, and there is nothing there" cannot be
+ * conflated — they mean very different things to a user wondering whether
+ * their data is backed up.
+ */
+type RemoteState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "empty" }
+  | { kind: "loaded"; rows: number; modifiedTime: string }
+  | { kind: "error"; message: string };
 
 /**
  * Phase 15b: the Google Drive connection control.
@@ -28,8 +42,45 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
   const auth = useAuthState();
   const syncState = useSyncStatus();
   const [busy, setBusy] = useState(false);
+  const [remote, setRemote] = useState<RemoteState>({ kind: "idle" });
 
   const configured = isSyncConfigured();
+
+  /**
+   * Ask Drive what it is actually holding.
+   *
+   * This exists because the data lives in Drive's hidden appDataFolder, so
+   * the user cannot open Drive and look. Without a readout, "is my data
+   * really up there?" would be unanswerable by any means available to
+   * them — and the status indicator is no substitute: it reports what this
+   * device last ATTEMPTED, which is exactly the thing in doubt.
+   *
+   * On demand rather than on render: it costs two Drive round trips, and
+   * firing those every time Settings is opened would spend the user's
+   * quota to answer a question they usually aren't asking.
+   */
+  async function handleCheckRemote() {
+    setRemote({ kind: "loading" });
+    try {
+      const metadata = await readRemoteMetadata();
+      if (!metadata) {
+        setRemote({ kind: "empty" });
+        return;
+      }
+      // Row count has to come from the content; file metadata cannot know it.
+      const doc = await fetchFromDrive("settings-readout");
+      setRemote({
+        kind: "loaded",
+        rows: doc?.transactions.length ?? 0,
+        modifiedTime: metadata.modifiedTime,
+      });
+    } catch (error) {
+      setRemote({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not reach Google Drive.",
+      });
+    }
+  }
 
   async function handleSignIn() {
     setBusy(true);
@@ -113,6 +164,9 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
             )}
           </p>
           {syncState.lastError && <p class="sync-settings__error">{syncState.lastError}</p>}
+          {remote.kind !== "idle" && (
+            <p class="sync-settings__remote">{describeRemote(remote)}</p>
+          )}
           <div class="sync-settings__actions">
             <button
               type="button"
@@ -121,6 +175,14 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
               disabled={busy}
             >
               Sync now
+            </button>
+            <button
+              type="button"
+              class="settings-data-button"
+              onClick={handleCheckRemote}
+              disabled={busy || remote.kind === "loading"}
+            >
+              Check what's on Drive
             </button>
             <button
               type="button"
@@ -135,9 +197,9 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
       ) : (
         <>
           <p class="settings-screen__hint">
-            Connect Google Drive to keep this app in step across your devices. trackz asks only
-            for permission to the single file it creates — it cannot see anything else in your
-            Drive.
+            Connect Google Drive to keep this app in step across your devices. trackz stores its
+            data in a private app folder that only trackz can reach — it cannot see your own
+            files in Drive, and the folder won't show up there either.
           </p>
           <div class="sync-settings__actions">
             <button
@@ -194,4 +256,30 @@ function formatRelativeTime(timestamp: number): string {
   if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
   const days = Math.round(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/**
+ * Describe what Drive is holding. Says "no data yet" rather than anything
+ * reassuring when the file is missing: with no visible file to check, a
+ * vague message here would leave the user believing they have a backup
+ * they do not have.
+ */
+function describeRemote(remote: RemoteState): string {
+  switch (remote.kind) {
+    case "idle":
+      return "";
+    case "loading":
+      return "Checking Drive…";
+    case "empty":
+      return "Nothing on Drive yet — no data has been uploaded from any device.";
+    case "loaded": {
+      const rows = `${remote.rows} ${remote.rows === 1 ? "transaction" : "transactions"}`;
+      const when = remote.modifiedTime
+        ? formatRelativeTime(new Date(remote.modifiedTime).getTime())
+        : "an unknown time ago";
+      return `Drive holds ${rows}, last changed ${when}.`;
+    }
+    case "error":
+      return remote.message;
+  }
 }

@@ -22,7 +22,17 @@ endpoint. Vercel's Node.js runtime docs say to keep shared utilities outside
 | --- | --- | --- | --- |
 | Authorization code | ~10 min, single use | Never stored | Exchanged immediately |
 | Access token | ~1 hour | Frontend memory only | Needed for direct Drive API calls |
-| Refresh token | ~6 months | httpOnly cookie, server-set | A long-lived Drive credential must be unreadable by script |
+| Refresh token | ~6 months **if published**, else 7 days | httpOnly cookie, server-set | A long-lived Drive credential must be unreadable by script |
+
+> **The OAuth app must be published.** Google issues a **7-day** refresh
+> token to apps whose External consent screen is in *Testing*, unless the
+> only scopes requested are a subset of name/email/profile — and
+> `drive.appdata` is not in that subset. Left in Testing, sync connects,
+> works, and then stops about a week later, while a 150-day cookie keeps
+> being rejected as `invalid_grant`. A day-one smoke test cannot catch
+> this; only waiting a week can. `drive.appdata` is a *non-sensitive*
+> scope, so publishing needs only basic verification — no security
+> assessment.
 
 The refresh token is **never** returned in a response body. Anything
 JavaScript can read, XSS can steal, and this one would hand an attacker
@@ -116,15 +126,22 @@ myaccount.google.com/permissions.
 
 1. [Google Cloud Console](https://console.cloud.google.com/) → new project
 2. Enable the **Google Drive API**
-3. Configure the OAuth consent screen. While the app is in "testing" status
-   it only works for accounts listed as test users — add yourself.
-4. Credentials → OAuth 2.0 Client ID → **Web application**
-5. Add **Authorized JavaScript origins** (origins, *not* redirect URIs —
+3. Configure the OAuth consent screen (Branding + Audience → External),
+   and add yourself as a test user so you can sign in before publishing.
+4. Data Access → add the scope
+   `https://www.googleapis.com/auth/drive.appdata`. That is the app's own
+   hidden folder and nothing else; see `driveScope` in
+   `trackz-app/src/app/config.ts`. It is a **non-sensitive** scope, so
+   publishing the app needs only basic verification — no security assessment.
+5. Credentials → OAuth 2.0 Client ID → **Web application**
+6. Add **Authorized JavaScript origins** (origins, *not* redirect URIs —
    GIS popup mode uses the calling page's origin, so there is no redirect
-   path to register):
+   path to register). Origin only — scheme and host, **no trailing slash**;
+   a slash simply never matches, and the resulting `invalid_grant` reads
+   like an app bug rather than a console typo:
    - `http://localhost:5173`
-   - `https://your-app.vercel.app`
-6. Put the credentials in `.env.local` (server) and
+   - `https://trackz-sable.vercel.app`
+7. Put the credentials in `.env.local` (server) and
    `trackz-app/.env.local` (client) — see `.env.example`.
 
 There is deliberately no `GOOGLE_REDIRECT_URI` setting: popup-mode exchange
@@ -166,7 +183,11 @@ hand:
 - [ ] Reload the page → still connected, with **no** second consent popup
       (this is the whole point of the cookie; if it fails, check Path and
       SameSite)
-- [ ] `trackz-data-v2.json` appears in Drive
+- [ ] Settings shows a remote-state readout (row count + modified time)
+      confirming data really is on Drive. This replaces the old "see the
+      file in Drive" check, which `drive.appdata` makes impossible: the
+      app folder is invisible in the Drive UI, so this readout is the only
+      way to answer "is my data actually up there?"
 - [ ] Disconnect → cookie gone, status reads "Not syncing"
 - [ ] Reload after disconnect → still signed out
 - [ ] Edit on device A, confirm it lands on device B
@@ -182,6 +203,8 @@ hand:
       time — Vite inlines it into the bundle; setting it afterwards has no
       effect until the next deploy)
 - [ ] Production origin added to Authorized JavaScript origins
-- [ ] OAuth consent screen published, or all intended users added as test users
+- [ ] OAuth consent screen **published** — not left in Testing. Adding test
+      users is not an equivalent alternative here: it still caps the refresh
+      token at 7 days (see the token model above)
 - [ ] End-to-end auth flow tested on the deployed URL
 - [ ] Verified on real iPhone Safari, including the installed PWA

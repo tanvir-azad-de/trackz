@@ -1,8 +1,14 @@
 import type { SyncDocument } from "./document";
+import type { Transaction } from "@/domain/transaction";
 import { merge } from "./merge";
 import { localToSync } from "./document";
 import { getTransactionsIncludingDeleted, replaceAllTransactions, setSyncNotifier } from "@/storage/repository";
-import { fetchFromDrive, uploadToDrive } from "./drive";
+import {
+  getAccountTypeEntries,
+  mergeAccountTypes,
+  type AccountTypeMap,
+} from "@/storage/accountTypes";
+import { fetchFromDrive, readVersion, uploadToDrive } from "./drive";
 import { getAuthState, subscribeToAuth } from "./auth";
 import { categorizeSyncError } from "./errors";
 
@@ -77,6 +83,14 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY_MS = 1000;
 
+/**
+ * How many times a single sync will re-merge because another device wrote
+ * mid-flight. Low on purpose: three losses in a row means the other device
+ * is writing continuously, and the right answer then is to report a
+ * conflict and let the next debounce try, not to keep spinning on Drive.
+ */
+const MAX_CONVERGENCE_ROUNDS = 3;
+
 // Device ID for this client (used in sync metadata)
 // Persisted in localStorage so the same device keeps the same ID across sessions
 function getDeviceId(): string {
@@ -101,8 +115,11 @@ function getDeviceId(): string {
 
 let deviceId = getDeviceId();
 
-// Current remote state (for conflict detection and ETag)
-let currentETag: string | null = null;
+// No cached remote version is kept between syncs, deliberately. The
+// version only means anything relative to the content fetched alongside
+// it, so performSync reads it fresh each round; a value held from a
+// previous sync would be a stale comparison basis, which is the failure
+// mode the old `currentETag = ""` line had.
 
 // Teardown for initializeSync's auth subscription, so repeat calls (and
 // tests) don't accumulate listeners.
@@ -155,8 +172,24 @@ export function initializeSync(): void {
     notifyListeners();
   });
 
-  syncState.status = getAuthState().isSignedIn ? "pending" : "signed-out";
+  const signedIn = getAuthState().isSignedIn;
+  syncState.status = signedIn ? "pending" : "signed-out";
   notifyListeners();
+
+  // Already signed in at startup — a restored session. Sync NOW rather than
+  // waiting for the auth subscription above, which fires only on a CHANGE:
+  // restoreSession() has already resolved by this point, so no change is
+  // coming and the status would sit on "pending" ("syncing…") forever.
+  //
+  // Found during Phase 15c live verification, on the first reload of a
+  // signed-in session. It was unreachable until then — sign-in had never
+  // worked end to end, so no session had ever survived a reload to expose
+  // it.
+  if (signedIn) {
+    performSync().catch((error) => {
+      console.error("Sync on startup failed:", error);
+    });
+  }
 }
 
 /**
@@ -220,6 +253,21 @@ export async function syncNow(): Promise<void> {
 
 /**
  * Core sync operation: fetch from Drive, merge, upload if changed.
+ *
+ * CONVERGENCE, NOT ATOMICITY. Drive v3 gives us no compare-and-swap: it
+ * removed `Files.etag` and `files.update` takes no precondition parameter,
+ * so "upload only if nobody else has written" is not expressible. What it
+ * does give us is `version`, a counter the server bumps on every change.
+ * So we re-read `version` immediately before uploading, and if it moved
+ * since the content we merged was fetched, we throw that merge away and
+ * start over against the newer remote state rather than overwriting it.
+ *
+ * This narrows the race to the gap between the version check and the
+ * upload; it does not close it. Bounded rounds, because two devices
+ * writing continuously could otherwise restart each other forever —
+ * better to report "conflict" and let the next debounce try again than to
+ * spin. merge.ts's last-writer-wins is untouched: it decides WHICH record
+ * wins, this decides whether we were merging against current data at all.
  */
 async function performSync(): Promise<void> {
   const auth = getAuthState();
@@ -243,35 +291,95 @@ async function performSync(): Promise<void> {
   try {
     syncState.lastError = null;
 
-    // 1. Fetch from Drive
-    const remoteDoc = await fetchFromDrive(deviceId);
+    let settled = false;
 
-    // 2. Get local state
-    const local = getTransactionsIncludingDeleted();
+    for (let round = 0; round < MAX_CONVERGENCE_ROUNDS; round++) {
+      // 1. Note the remote version BEFORE fetching content, then fetch.
+      //    This order is load-bearing. Reading the version afterwards would
+      //    be actively unsafe: a write landing between the content fetch and
+      //    the version read would leave us holding stale content stamped
+      //    with the writer's NEW version, the pre-upload check below would
+      //    see no change, and we would overwrite their write. Reading first
+      //    can only cause a spurious restart, which is the harmless
+      //    direction to be wrong in.
+      const versionAtFetch = await readVersion();
+      const remoteDoc = await fetchFromDrive(deviceId);
 
-    // 3. Merge
-    const mergeResult = remoteDoc
-      ? merge(local, remoteDoc)
-      : { merged: local, conflicts: [], shouldUpload: true };
+      // 2. Get local state
+      const local = getTransactionsIncludingDeleted();
 
-    // Track conflicts for UI
-    syncState.hasConflicts = mergeResult.conflicts.length > 0;
-    syncState.conflictCount = mergeResult.conflicts.length;
+      // 3. Merge
+      const mergeResult = remoteDoc
+        ? merge(local, remoteDoc)
+        : { merged: local, conflicts: [], shouldUpload: true };
 
-    // 4. Apply merged result locally
-    replaceAllTransactions(mergeResult.merged);
+      // Track conflicts for UI
+      syncState.hasConflicts = mergeResult.conflicts.length > 0;
+      syncState.conflictCount = mergeResult.conflicts.length;
 
-    // 5. Upload if needed
-    if (mergeResult.shouldUpload) {
+      // 4. Apply merged result locally, unless the merge changed nothing.
+      //    Skipping a no-op write matters because every write notifies UI
+      //    subscribers, and re-rendering every screen on a 5-second timer
+      //    that found no news is pure waste. `silent` keeps this write from
+      //    looking like a local change and re-arming the debounce.
+      if (mergeChangedLocal(local, mergeResult.merged)) {
+        replaceAllTransactions(mergeResult.merged, { silent: true });
+      }
+
+      // Account types merge per account on their own timestamps, not as
+      // part of the transaction merge: they are independent user decisions
+      // and a whole-map overwrite would discard the other device's.
+      mergeAccountTypes(remoteDoc?.accountTypes);
+      const localAccountTypes = getAccountTypeEntries();
+
+      // 5. Upload if local holds anything Drive does not. Checked for
+      //    account types as well as transactions: a device where the user
+      //    only reclassified an account has nothing new in `transactions`,
+      //    and gating the upload on that alone would leave the
+      //    classification stranded on one device forever.
+      const needsUpload =
+        mergeResult.shouldUpload || !sameAccountTypes(localAccountTypes, remoteDoc?.accountTypes);
+
+      if (!needsUpload) {
+        settled = true;
+        break;
+      }
+
+      // Did anyone write while we were merging? If so this merge is stale:
+      // uploading it would overwrite whatever they just wrote with a
+      // document that never saw it.
+      const versionBeforeUpload = await readVersion();
+      if (versionBeforeUpload !== versionAtFetch) {
+        continue;
+      }
+
       const localRevision = (remoteDoc?.revision ?? -1) + 1;
       const docToUpload: SyncDocument = localToSync(
         mergeResult.merged,
         localRevision,
         deviceId,
+        localAccountTypes,
       );
 
-      await uploadToDrive(docToUpload, currentETag);
-      currentETag = ""; // In a real app, capture the ETag from the response
+      // The returned version is deliberately discarded. Nothing reads it:
+      // each round re-reads the version fresh (see above), and the Settings
+      // readout asks Drive directly via readRemoteMetadata. Storing it here
+      // would be write-only state that looks like a guarantee.
+      await uploadToDrive(docToUpload);
+      settled = true;
+      break;
+    }
+
+    // Rounds exhausted: another device kept writing and our changes are
+    // still only local. Saying "Synced" here would be the exact lie the
+    // status set exists to prevent, so report the clash instead.
+    if (!settled) {
+      syncState.status = "conflict";
+      syncState.lastError =
+        "Another device kept changing data while syncing. Your changes are saved here and will sync shortly.";
+      retryCount = 0;
+      notifyListeners();
+      return;
     }
 
     // 6. Mark as synced
@@ -310,6 +418,49 @@ async function performSync(): Promise<void> {
       scheduleRetry();
     }
   }
+}
+
+/**
+ * Did the merge actually change what we hold locally?
+ *
+ * Compares by id and updatedAt rather than deep-equality, because those two
+ * fields are exactly what merge.ts selects on: it never returns a record
+ * that is a field-level blend of two versions, only one side or the other
+ * whole. So a matching (id, updatedAt) pair in the same position means the
+ * same record survived, and a full deep compare would cost more to reach
+ * the same answer.
+ *
+ * Order matters and is stable: merge.ts emits remote-ordered records first,
+ * then local-only ones, so an unchanged merge reproduces the same sequence.
+ */
+function mergeChangedLocal(before: Transaction[], after: Transaction[]): boolean {
+  if (before.length !== after.length) return true;
+  for (let i = 0; i < before.length; i++) {
+    if (before[i]?.id !== after[i]?.id) return true;
+    if (before[i]?.updatedAt !== after[i]?.updatedAt) return true;
+  }
+  return false;
+}
+
+/**
+ * Would uploading change the account types Drive holds?
+ *
+ * Compares on (type, updatedAt) per account, because those are exactly
+ * what mergeAccountTypes resolves on. An absent remote map is NOT equal to
+ * an empty local one: absent means no device has ever uploaded types, so
+ * local types — even none — still need to establish the field.
+ */
+function sameAccountTypes(local: AccountTypeMap, remote: AccountTypeMap | undefined): boolean {
+  if (!remote) return Object.keys(local).length === 0;
+
+  const localKeys = Object.keys(local);
+  if (localKeys.length !== Object.keys(remote).length) return false;
+
+  return localKeys.every(
+    (key) =>
+      local[key]?.type === remote[key]?.type &&
+      local[key]?.updatedAt === remote[key]?.updatedAt,
+  );
 }
 
 /**
@@ -367,7 +518,6 @@ export function resetCoordinatorForTesting(): void {
   debounceTimer = null;
   retryTimer = null;
   retryCount = 0;
-  currentETag = null;
 
   syncState = {
     status: "signed-out",

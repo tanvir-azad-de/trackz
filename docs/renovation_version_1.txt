@@ -1159,8 +1159,215 @@ code. This phase wired it up and fixed what that exposed.
     number + ETag/If-Match for conflict detection" is therefore still
     not actually delivered, and the "conflict" status is currently
     unreachable in practice.
+    [SUPERSEDED BY PHASE 15c / T3 — read that before acting on this.
+    The framing above is WRONG: it reads as a one-line fix (assign the
+    etag properly), but Drive v3 removed Files.etag entirely and
+    files.update accepts no If-Match, so the 412 branch was unreachable
+    even with the assignment corrected. The spec item needed a DIFFERENT
+    MECHANISM, and Phase 15c replaced it with version-based convergence.]
   - Phase 6 / 13b / 14 and the dummyData fixture gap — all still open,
     untouched, same as the previous phase.
+
+PHASE 15c (BUILT — STEPS 1-6 OF 8; STEP 7, LIVE VERIFICATION, STILL OPEN).
+Supersedes the Phase 15c PLAN that previously occupied this slot. BASELINE
+AT START: commit 680bc52, 219 tests. NOW: 274 tests, tsc -b clean,
+typecheck:api clean, vite build clean. The plan's steps 1-6 are done,
+step 7 needs the user at the Google Cloud console, step 8 is this entry.
+
+WHAT THIS PHASE WAS FOR. The previous phase closed by queueing live
+verification. Reading sync/drive.ts against the Drive v3 REST reference
+first found that the transport could not work at all, so verification
+would have died on the first sync after paying the whole setup cost. This
+phase fixed the transport. Every bug below was invisible to both the type
+checker and the test suite, because sync/__tests__/drive.test.ts was a
+placeholder asserting expect(true).toBe(true).
+
+CORROBORATION FOUND MID-PHASE, worth recording because it upgrades T1/T2
+from "derived from the docs" to "confirmed against working code": the
+LEGACY app still in public/js/drive-sync.js already did this correctly —
+appDataFolder, /upload/ URIs, uploadType=media for update,
+multipart/related for create. The rewrite in trackz-app/ had regressed
+behaviour the old app had right. Phase 18 deletes public/, so that
+reference disappears; the knowledge now lives in drive.ts's header
+comment instead.
+
+THE FOUR TRANSPORT BUGS, AS FIXED:
+  T1  uploadToDrive never uploaded content. It PATCHed the METADATA URI
+      with the SyncDocument as the body; revision/device/transactions are
+      not File resource fields, so Drive returned 200 and stored nothing.
+      FIXED: content now goes to /upload/drive/v3/files/{id}?uploadType=
+      media. drive.test.ts asserts positively (the media URI is used) AND
+      negatively (no PATCH to the metadata host exists), because only the
+      second assertion fails if someone reintroduces the old call.
+  T2  First-ever sync failed by construction. The file was created with
+      {name, mimeType, content}; `content` is not a File field either, so
+      the file was created EMPTY, and the next fetch called
+      response.json() on an empty body -> SyntaxError -> "unknown" -> 5
+      retries -> permanent "error". FIXED two ways, deliberately both:
+      creation is a single multipart/related upload carrying metadata AND
+      content (no window in which the file exists and is empty), and
+      fetchFromDrive now reads response.text() and treats empty-or-
+      unparseable as "no remote document" rather than throwing. The second
+      half is the recovery path for any file ALREADY left empty by the old
+      code — without it, an account that ran the broken version could
+      never heal.
+  T3  ETag conflict detection was impossible, not merely unimplemented.
+      Drive v3 lists Files.etag as "n/a" and files.update documents no
+      If-Match or precondition, so metadata.etag was always undefined and
+      the 412 branch unreachable. REPLACED with convergence on Drive's
+      server-side `version` counter: read version, fetch content, merge,
+      re-read version, and upload only if it did not move; otherwise
+      restart (max 3 rounds, then report "conflict"). ORDERING IS
+      LOAD-BEARING and was corrected during implementation: the plan said
+      "re-read it immediately before upload", but reading the version
+      AFTER the content is actively unsafe — a write landing in between
+      leaves us holding stale content stamped with the writer's NEW
+      version, the pre-upload check sees no change, and we overwrite them.
+      Version is read FIRST; being wrong that way causes only a spurious
+      restart. There is a test asserting the call order for exactly this
+      reason.
+      Version is kept as a STRING and only compared for equality: Drive
+      serialises int64 as a string, and "did anyone write?" is an equality
+      question, so parsing to Number would add a precision hazard to buy
+      an ordering nothing uses.
+      This narrows the race, it does not close it. Drive offers no
+      compare-and-swap, so that is the best available; the doc comment
+      says so rather than implying atomicity.
+  T4  Sync was an infinite loop. performSync -> replaceAllTransactions ->
+      notify() -> markLocalChanged() unconditionally -> "pending" + fresh
+      5s debounce -> performSync, forever: a Drive round trip every five
+      seconds for as long as the app was open, and a status indicator that
+      could never settle on "Synced". FIXED: replaceAllTransactions takes
+      { silent: true }, which still notifies UI subscribers (a transaction
+      from another device must appear without a manual refresh) but not
+      the sync notifier. Plus the write is skipped entirely when the merge
+      changed nothing. The test asserts BOTH directions — no debounce from
+      a sync write, and a debounce still armed by a genuine local edit —
+      because the obvious over-correction is to silence the notifier
+      everywhere.
+
+SECONDARY FINDINGS, ALL ADDRESSED:
+  - REACTIVE TOKEN REFRESH now exists. auth.ts claimed refresh happened
+    "by the Drive layer if a token is rejected early", but drive.ts never
+    called refreshAccessToken(). Only the proactive setTimeout covered
+    expiry, and iOS freezes timers in a backgrounded PWA — this app's
+    primary target. driveFetch() now refreshes once on a 401 and retries;
+    exactly once, because if a token minted seconds ago is also rejected,
+    the grant is gone and retrying harder cannot bring it back.
+  - accountTypes NOW SYNCS, with per-account updatedAt, merged by the same
+    last-writer-wins rule as transactions (tie -> local, matching
+    merge.ts deliberately: two different rules for the same question is a
+    bug generator). Shape migrated from the old flat map at read time, and
+    migrated entries are BACKDATED TO THE EPOCH — stamped "now" they would
+    look freshly authoritative and beat genuine recent edits from another
+    device. The SyncDocument field is OPTIONAL, and absent must mean "this
+    writer had no opinion" rather than "there are none", or an older
+    device would wipe a newer one's classifications.
+    Discovered while wiring this up: merge.shouldUpload is NOT the whole
+    upload decision. A device where the user only reclassified an account
+    has nothing new in `transactions`, so gating on that flag alone would
+    strand the classification forever. The coordinator now also compares
+    the account-type maps.
+  - SEED_DEFAULTS PHANTOM WRITER fixed. readRaw merged {...SEED_DEFAULTS,
+    ...parsed} on every read, hardcoding SCLB: "investment". Harmless
+    while device-local; destructive once synced. Now applied once, gated
+    on a separate trackz.v2.accountTypes.seeded key, and epoch-dated so a
+    seed loses to any real user edit.
+  - ETAG STRING-MATCHING DELETED from errors.ts, and its "412" rule with
+    it. That rule could never fire, and worse, "412" was a bare substring:
+    any message containing those digits (e.g. a transaction id) was
+    reported to the user as "another device uploaded changes" AND
+    suppressed the retry that might have fixed it. errors.ts also gained
+    an invalid_grant branch naming the one action that works ("reconnect
+    Google Drive in Settings") instead of burning five retries into a
+    generic "error". errors.ts had NO tests before this phase despite
+    deciding retry-vs-don't; it has nine now.
+
+THE 7-DAY REFRESH TOKEN. Google issues a refresh token EXPIRING IN 7 DAYS
+to apps whose External consent screen is in "Testing", unless the only
+scopes requested are a subset of name/email/profile — and drive.appdata is
+not in that subset. Four places asserted "~6 months" with no mention of
+the precondition (lib/apiAuth.ts:40, api/README.md:25, sync/auth.ts:16,
+api/auth/exchange.ts:15); all four now state the condition. The failure
+mode is nastily delayed: Drive connects, works, and stops about a week
+later while a 150-day cookie keeps being rejected as invalid_grant. It
+would have PASSED api/README.md's "reload -> still connected" check on day
+one and failed on day eight — invisible to exactly the verification the
+previous phase queued up. api/README.md's production checklist no longer
+offers "or add all intended users as test users" as an equivalent
+alternative, because it is not one.
+
+DECISIONS FROM THE PLANNING SESSION, ALL HONOURED:
+  - appDataFolder + drive.appdata scope (was drive.file). Free to do now
+    only because no grant has ever been issued; deferring would force a
+    re-consent. Consequences accepted: the folder is deleted if the user
+    removes the app from Drive, files cannot be trashed or shared, so CSV
+    export is the ONLY recovery path — which makes Phase 13a's still-
+    unverified real-iOS export path MORE load-bearing, not less.
+  - SyncSettings' user-facing copy rewritten: "only the single file it
+    creates" described drive.file, not drive.appdata.
+  - "trackz-data-v2.json appears in Drive" was unverifiable by eye under
+    appdata, so it is replaced by an in-app readout: a "Check what's on
+    Drive" button in Settings reporting remote row count + modified time.
+    Deliberately on demand, not on render — it costs two Drive round trips
+    and would otherwise spend quota answering a question nobody asked. It
+    distinguishes "not asked yet" from "asked, nothing there": with no
+    visible file to inspect, a vague message would leave the user
+    believing in a backup they do not have.
+  - Production origin https://trackz-sable.vercel.app, NO trailing slash,
+    recorded in both .env.example and api/README.md as the second most
+    likely setup error after confusing origins with redirect URIs.
+  - PUBLISH the OAuth app (see the 7-day note above).
+
+HOW THE TESTS WERE VALIDATED. Every new test was checked by MUTATION: the
+original bug (or its nearest equivalent) was reintroduced and the suite
+re-run to confirm the test actually fails. 14 mutations across drive.ts,
+coordinator.ts, repository.ts, accountTypes.ts and errors.ts, every one
+caught by the intended test, then reverted. This matters more than the
+test count: a test that passes both with and without the fix documents
+nothing, and this phase is replacing a file that asserted
+expect(true).toBe(true).
+
+WHAT WOULD MAKE THIS WRONG — unchanged from the plan, and still the most
+important paragraph here. Steps 2-5 are verified against MOCKED fetch, so
+a passing test proves self-consistency with this session's READING of the
+Drive docs, not that Google agrees. Step 7 is the real gate and should be
+expected to surface at least one thing steps 2-5 got wrong. The legacy
+public/js/drive-sync.js corroboration raises confidence in the URI/
+multipart shapes specifically, since that code demonstrably worked against
+real Drive; it says nothing about the version-convergence scheme, which is
+new and has never run against a real account.
+
+STEP 7, STILL OPEN — LIVE VERIFICATION (needs the user at the console).
+Work api/README.md's checklist, with the amendments already made to it:
+the "file appears in Drive" item replaced by the in-app readout, and an
+added check that /api/auth/* actually reaches the functions IN PRODUCTION
+(root vercel.json's catch-all /(.*) -> /index.html rewrite was validated
+in Phase 13a against STATIC ASSETS, when api/ did not yet exist; the Vite
+proxy covers dev, so this is a classic works-in-dev-only trap). Then
+two-device convergence, and the installed iOS PWA, where the
+backgrounded-timer refresh path finally becomes testable.
+
+ALSO NOT DONE: the Google Cloud wizard (scripts/setup-google-oauth.sh, 9
+stages) remains scoped but unwritten — see the previous plan's write-up in
+git history (commit before this one) for its full staging. Its two
+template overrides still stand: ENV_FILE must be set per stage (this
+project needs TWO env files, root for the server and trackz-app/ because
+Vite only reads its own directory), and set_secret/set_var are dead weight
+(no .github/, no CI, Vercel builds from a Git push). VITE_GOOGLE_CLIENT_ID
+must be set BEFORE the next deploy — Vite inlines it at build time, so
+setting it afterwards does nothing until a rebuild. That is bug B7's
+failure mode in a new place, and B7 has now recurred twice.
+README.md is also still STALE (it describes an Express server, data/ JSON
+files, npm start, port 3000 — none of which is the Vite+Preact app in
+trackz-app/) and was deliberately left alone this phase to keep the diff
+reviewable.
+
+STILL OPEN, UNTOUCHED BY THIS PHASE: Phase 6 (merchant merge), Phase 13b
+(categories edit/delete, including deriveCategories' first-write-wins
+categoryType conflict), Phase 14 (charts), the 5-file gitignored-fixture
+CI gap, and the Activity-vs-Home "today" anchor inconsistency flagged at
+the end of the Phase 11 notes for resolution before Phase 18's cutover.
 
 
           - EUR-only — delete currency field plumbing entirely.

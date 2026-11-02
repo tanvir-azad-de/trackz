@@ -25,7 +25,7 @@ import {
 
 vi.mock("@/app/config", () => ({
   googleClientId: "test-client-id.apps.googleusercontent.com",
-  driveScope: "https://www.googleapis.com/auth/drive.file",
+  driveScope: "https://www.googleapis.com/auth/drive.appdata",
 }));
 
 /** Stand in for a fetch Response, with only the bits auth.ts reads. */

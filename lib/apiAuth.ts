@@ -8,7 +8,9 @@
  * third, pointless endpoint.
  *
  * Why cookies rather than returning the refresh token as JSON: the refresh
- * token is a ~6-month credential for the user's Drive. Handing it to
+ * token is a long-lived credential for the user's Drive (~6 months once
+ * the OAuth app is published — see COOKIE_MAX_AGE_SECONDS below, the
+ * lifetime is conditional on that). Handing it to
  * JavaScript means any XSS (or a malicious dependency) exfiltrates
  * long-lived Drive access. As an httpOnly cookie it is never readable by
  * script, and it persists across reloads for free, which is what makes
@@ -37,7 +39,26 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 export const REFRESH_COOKIE = "trackz_rt";
 const COOKIE_PATH = "/api/auth";
 
-/** Google refresh tokens last ~6 months; expire ours slightly sooner. */
+/**
+ * How long the refresh cookie is kept.
+ *
+ * THE REFRESH TOKEN'S LIFETIME DEPENDS ON THE OAUTH APP'S PUBLISHING
+ * STATUS, which is the detail that makes this number a trap:
+ * - PUBLISHED (in production): ~6 months of inactivity before expiry.
+ * - TESTING: SEVEN DAYS. Google issues a 7-day refresh token to apps with
+ *   an External consent screen in Testing, unless the only scopes
+ *   requested are a subset of name/email/profile. trackz requests
+ *   drive.appdata, so it does NOT qualify for that exemption.
+ *
+ * trackz therefore requires the OAuth app to be PUBLISHED. While it is in
+ * Testing, the failure is nastily delayed: Drive connects, syncs fine, and
+ * roughly a week later stops — while this cookie happily sits in the
+ * browser for another 143 days, being rejected as invalid_grant on every
+ * refresh. A day-one smoke test cannot see that; only waiting can.
+ *
+ * Slightly shorter than the published ~6 months so the cookie expires
+ * before the credential inside it does, rather than after.
+ */
 const COOKIE_MAX_AGE_SECONDS = 150 * 24 * 60 * 60;
 
 /**

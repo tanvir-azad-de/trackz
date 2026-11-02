@@ -98,11 +98,17 @@ describe("markLocalChanged", () => {
 });
 
 describe("initializeSync", () => {
-  it("reports pending when a session was already restored", () => {
+  it("leaves signed-out behind when a session was already restored", () => {
     signInForTest();
     initializeSync();
 
-    expect(getSyncState().status).toBe("pending");
+    // Not "signed-out": a restored session IS a session. The exact status
+    // depends on how the sync that initializeSync kicks off gets on (this
+    // file stubs no navigator or Drive, so it lands on "offline"); what
+    // matters here is that a returning user is never shown "not syncing".
+    // The startup sync itself is covered in coordinator-sync.test.ts,
+    // which has the Drive mocks to assert it properly.
+    expect(getSyncState().status).not.toBe("signed-out");
   });
 
   it("returns to signed-out when the user signs out", async () => {
