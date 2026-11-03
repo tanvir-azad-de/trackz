@@ -3,7 +3,6 @@ import { useTransactions } from "@/storage/useTransactions";
 import { useAccountTypes } from "@/storage/useAccountTypes";
 import { setAccountType } from "@/storage/accountTypes";
 import { deriveAccounts, getAllAccountBalances } from "@/storage/derive";
-import { replaceAllTransactions } from "@/storage/repository";
 import type { AccountType } from "@/domain/transaction";
 import { getLocalToday } from "@/domain/dates";
 import { Card } from "@/components/Card";
@@ -11,6 +10,7 @@ import { Money } from "@/components/Money";
 import { Sheet } from "@/components/Sheet";
 import type { ToastState } from "@/components/Toast";
 import { buildExportCsv, canCommit, exportFileName, previewImport, type ImportPreview } from "@/features/settings/exportImport";
+import { commitImport } from "@/features/settings/commitImport";
 import { SyncSettings } from "@/features/settings/SyncSettings";
 import "./SettingsScreen.css";
 import "@/components/Sheet.css";
@@ -146,12 +146,35 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
     input.value = ""; // allow re-selecting the same file name later
   }
 
-  function handleConfirmImport() {
+  /**
+   * Commit the previewed import.
+   *
+   * Delegates to commitImport() rather than calling
+   * replaceAllTransactions() directly: with Drive connected, a plain
+   * local replace was undone ~5 seconds later by the debounced union
+   * merge, so "Replace anyway" did not replace. See commitImport.ts.
+   */
+  async function handleConfirmImport() {
     if (!importPreview || !canCommit(importPreview)) return;
-    replaceAllTransactions(importPreview.transactions);
-    onToast?.({ id: Date.now(), message: `Imported ${importPreview.transactions.length} transactions from ${importPreview.fileName}` });
+
+    const { transactions: imported, fileName } = importPreview;
+    // Close the sheet first: the Drive overwrite is a network round trip,
+    // and leaving the preview open behind a spinner invites a second tap.
     setImportPreview(null);
     setExportedSinceLastChange(false);
+
+    const result = await commitImport(imported);
+
+    const summary = `Imported ${imported.length} transactions from ${fileName}`;
+    onToast?.({
+      id: Date.now(),
+      message:
+        result.kind === "local-but-drive-failed"
+          ? // Name the recovery rather than just reporting failure: Drive
+            // still holds the old copy and nothing will retry on its own.
+            `${summary} on this device, but Google Drive still holds the old copy. Use "Replace Drive copy with this device" in Sync settings.`
+          : summary,
+    });
   }
 
   const hasExistingData = transactions.length > 0;

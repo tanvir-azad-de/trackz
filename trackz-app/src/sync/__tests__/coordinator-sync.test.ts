@@ -534,3 +534,113 @@ describe("overwriteRemoteWithLocal", () => {
     expect(getSyncState().status).toBe("error");
   });
 });
+
+/**
+ * CSV import, and whether it survives contact with sync.
+ *
+ * These exist because the import path promised something it did not
+ * deliver: the UI says "This will permanently replace your current N
+ * transactions" and labels the button "Replace anyway", but a plain
+ * replaceAllTransactions() armed the 5s debounce, and the resulting merge
+ * is a union by id — so every row that was on Drive but absent from the
+ * imported file came back a few seconds later. Reproduced before fixing:
+ * a 2-row import over 3 synced rows returned to 3.
+ *
+ * features/settings/commitImport.ts is the fix. Tested here rather than
+ * beside it because the bug was never in the commit itself — it was in
+ * what the coordinator did afterwards, which is what this file's harness
+ * (mocked Drive, real repository, real debounce) can actually observe.
+ */
+describe("committing a CSV import", () => {
+  it("does not let the debounced union restore rows the import dropped", async () => {
+    const { commitImport } = await import("@/features/settings/commitImport");
+    const { replaceAllTransactions, getTransactions } = await import("@/storage/repository");
+
+    const synced = [
+      tx("row-1", "2026-01-02T00:00:00Z"),
+      tx("row-2", "2026-01-02T00:00:00Z"),
+      tx("row-3", "2026-01-02T00:00:00Z"),
+    ];
+    replaceAllTransactions(synced);
+    await startSignedIn();
+
+    // Drive holds all three. If anything merges after the import, row-3
+    // is what comes back.
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc(synced));
+
+    vi.useFakeTimers();
+    try {
+      // The user imports a file that deliberately omits row-3.
+      await commitImport([synced[0]!, synced[1]!]);
+
+      // Drain any timer the commit might have armed. THE BUG: a
+      // non-silent write arms the debounce here, performSync unions local
+      // with Drive, and row-3 returns.
+      await vi.advanceTimersByTimeAsync(10_000);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(getTransactions().map((t) => t.id)).toEqual(["row-1", "row-2"]);
+    // And Drive was told, so another device won't reintroduce it either.
+    expect(driveMock.deleteRemoteSyncFile).toHaveBeenCalled();
+    const uploaded = driveMock.uploadToDrive.mock.calls.at(-1)?.[0] as SyncDocument;
+    expect(uploaded.transactions.map((t) => t.id)).toEqual(["row-1", "row-2"]);
+  });
+
+  it("touches Drive not at all when signed out", async () => {
+    const { commitImport } = await import("@/features/settings/commitImport");
+    const { getTransactions } = await import("@/storage/repository");
+
+    const result = await commitImport([tx("row-1", "2026-01-02T00:00:00Z")]);
+
+    // Sync is optional; the app is fully usable on localStorage alone. An
+    // import must not require it, nor report a Drive problem there isn't one.
+    expect(result.kind).toBe("local-only");
+    expect(driveMock.deleteRemoteSyncFile).not.toHaveBeenCalled();
+    expect(driveMock.uploadToDrive).not.toHaveBeenCalled();
+    expect(getTransactions().map((t) => t.id)).toEqual(["row-1"]);
+  });
+
+  it("reports a failed Drive overwrite instead of implying the import is synced", async () => {
+    const { commitImport } = await import("@/features/settings/commitImport");
+    const { replaceAllTransactions, getTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z")]);
+    await startSignedIn();
+    driveMock.uploadToDrive.mockRejectedValue(new Error("Failed to upload to Drive: 500"));
+
+    const result = await commitImport([tx("row-2", "2026-01-02T00:00:00Z")]);
+
+    // The local import stands — it already committed, and throwing it away
+    // because the network blinked would be worse.
+    expect(getTransactions().map((t) => t.id)).toEqual(["row-2"]);
+    // But this MUST be distinguishable from success. Drive still holds the
+    // old copy and nothing will retry: the local write was silent, so no
+    // debounce is armed. Unreported, the next ordinary edit would merge
+    // against stale remote data and resurrect the dropped rows — the
+    // original bug, just delayed.
+    expect(result.kind).toBe("local-but-drive-failed");
+  });
+
+  it("still lets a brand-new device pull Drive's data down", async () => {
+    const { syncNow } = await import("@/sync/coordinator");
+    const { getTransactions } = await import("@/storage/repository");
+
+    // Empty local store, as on a freshly installed second device.
+    await startSignedIn();
+    driveMock.fetchFromDrive.mockResolvedValue(
+      remoteDoc([tx("remote-1", "2026-01-02T00:00:00Z"), tx("remote-2", "2026-01-02T00:00:00Z")]),
+    );
+
+    await syncNow();
+
+    // THE GUARD on the fix above: union-by-id must stay intact for
+    // ordinary sync. It is what makes adding a device safe — an empty
+    // store can only pull data down, never delete Drive's copy. If the
+    // import fix ever leaked into the normal path, this is what would
+    // catch it, and the symptom would be data loss rather than a stale row.
+    expect(getTransactions().map((t) => t.id)).toEqual(["remote-1", "remote-2"]);
+    expect(driveMock.deleteRemoteSyncFile).not.toHaveBeenCalled();
+  });
+});

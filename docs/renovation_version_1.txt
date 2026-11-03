@@ -1369,6 +1369,184 @@ categoryType conflict), Phase 14 (charts), the 5-file gitignored-fixture
 CI gap, and the Activity-vs-Home "today" anchor inconsistency flagged at
 the end of the Phase 11 notes for resolution before Phase 18's cutover.
 
+PHASE 15c STEP 7 (LIVE VERIFICATION) — DONE. This closes Phase 15c and
+with it the whole of Phase 15. BASELINE AT START: commit 6a0effd, 294
+tests. NOW: 298 tests, tsc -b clean, typecheck:api clean, vite build
+clean, production bundle 48.53KB gzipped (was 46.58KB).
+
+THE HEADLINE: sync works against real Google, on real devices, with two
+devices both editing. The user ran steps 0-3 and reported them working as
+expected. That retires the single most important caveat in this file — the
+"WHAT WOULD MAKE THIS WRONG" paragraph in the Phase 15c entry above, which
+said a passing test proved only self-consistency with this session's
+READING of the Drive docs, not that Google agreed. Google agrees. What was
+verified live, none of which a single device can reach:
+  - Both readouts agree at 1456 rows: the app's own count AND Settings'
+    "Check what's on Drive" remote readout. The 4368-row duplicate
+    incident is resolved at the source, not just locally.
+  - T3 VERSION-BASED CONVERGENCE, the scheme that replaced the impossible
+    ETag/If-Match mechanism. This was the newest and least-proven thing in
+    the codebase: never run against a real account, and unreachable on one
+    device, since `versionBeforeUpload !== versionAtFetch` can only fire
+    when something else writes.
+  - Tombstone propagation: a delete on one device actually deletes on the
+    other, rather than being resurrected by the union.
+  - accountTypes propagation on its own independent path, including the
+    epoch-backdating that stops a migrated entry from beating a real edit.
+  - The concurrent-write race: both devices edited inside the 5s debounce
+    window, both edits survived, status settled on "Synced".
+
+STEP 4 RETIRED BY INFERENCE, NOT SKIPPED. The planned check was that
+/api/auth/* actually reaches the Vercel functions IN PRODUCTION, since root
+vercel.json's catch-all /(.*) -> /index.html rewrite was only ever
+validated against STATIC ASSETS back in Phase 13a, when api/ did not yet
+exist (a classic works-in-dev-only trap, as the Vite proxy covers dev).
+But connecting Drive on a second device against the production origin IS
+/api/auth/exchange succeeding through that rewrite, and staying connected
+across a reload IS /api/auth/refresh. The trap cannot be true if step 2
+worked. Recorded as reasoning rather than quietly ticked off.
+
+THE BUG THIS PHASE FOUND AND FIXED: CSV IMPORT DID NOT REPLACE.
+SettingsScreen's handleConfirmImport called replaceAllTransactions(...)
+with no `silent` flag, so the write notified the sync coordinator, armed
+the 5s debounce, and the resulting merge is a UNION BY ID (merge.ts step
+2 keeps every id on either side). So every row that was on Drive but
+absent from the imported file came back about five seconds later.
+Importing a 1,000-row file over 1,456 synced rows ended up back at 1,456.
+
+  Reproduced before fixing, not argued from reading the code: a temporary
+  test drove the exact call the UI makes — a 2-row replace over 3 synced
+  rows — and asserted the dropped row stayed gone. It failed with
+  ['row-1','row-2','row-3'], row-3 restored from Drive. The demo was then
+  deleted and rewritten as the permanent regression tests below.
+
+  SCOPE IS NARROWER THAN IT LOOKS, because of the content-derived ids
+  added in commit 1d1e988: re-importing the SAME file, or an export of
+  this app's own V3 format (which carries an explicit id column), produces
+  ids that already match, so those converge correctly. Only a smaller or
+  edited file is affected. This is therefore a broken PROMISE, not data
+  corruption — the UI says "This will permanently replace your current N
+  transactions" and labels the button "Replace anyway", and then didn't.
+  Worth stating plainly rather than inflating: the data was never at risk,
+  the honesty of the UI was.
+
+  FIX: new features/settings/commitImport.ts — commit locally, then call
+  the existing overwriteRemoteWithLocal() when signed in, returning a
+  result that distinguishes local-only (signed out), synced, and
+  local-but-drive-failed. A new module rather than an edit in place
+  because exportImport.ts is deliberately pure (no DOM, no side effects —
+  that is why it is the tested half) and SettingsScreen.tsx is
+  deliberately thin and untested; orchestration touching both the
+  repository and the coordinator belongs in neither.
+
+  WHY OVERWRITE RATHER THAN RECONCILE (decision gate, user chose option
+  A): the alternative was to express the dropped rows as tombstones so
+  they propagate through the already-verified last-writer-wins path.
+  Rejected because it does not close the hole: a device importing into an
+  EMPTY store cannot tombstone rows it has never seen, so sync would still
+  restore them and overwriteRemoteWithLocal() would be needed anyway. Two
+  mechanisms where one suffices, on the one code path whose failure mode
+  is losing real financial data. Union-by-id is deliberately left intact
+  everywhere else — it is what makes adding a new device safe.
+
+  THE FAILURE PATH IS REPORTED, NOT SWALLOWED. If the Drive overwrite
+  fails (network drops mid-import), local holds the new data, Drive holds
+  the old, and — because the local write is silent — NOTHING IS
+  SCHEDULED to retry. Left unreported that is latent: the user's next
+  ordinary edit arms a debounce, that sync merges against the stale remote
+  copy, and the dropped rows return. The original bug, just delayed. So
+  the toast names the recovery button ("Replace Drive copy with this
+  device") rather than saying "export failed".
+
+MUTATION TESTING CORRECTED A CLAIM IN THIS PHASE'S OWN CODE COMMENT. All
+four new tests were validated by reintroducing the bug and confirming
+failure, per the discipline established in Phase 15c. The first mutation —
+removing `{ silent: true }` from the local write — PASSED, meaning that
+test did not prove what the comment beside it claimed. Investigated rather
+than papered over: overwriteRemoteWithLocal() clears the debounce timer as
+its first synchronous act, so it cancels whatever the write armed
+regardless of the flag. The load-bearing line is the overwrite call, not
+`silent` (removing the overwrite fails 2 tests). `silent` is kept as
+defence in depth and as the honest description of the write, and the code
+comment was rewritten to say so. This is exactly the failure this
+discipline exists to catch: a test that passes either way documents
+nothing, and the comment would have mislead the next reader.
+  Mutations run, all reverted afterwards (coordinator.ts confirmed back to
+  a zero diff):
+    1. drop `{ silent: true }`                  -> PASSED (see above)
+    2. drop the overwriteRemoteWithLocal() call -> 2 tests fail
+    3. drop the signed-out guard                -> 1 test fails
+    4. bypass merge() in performSync (simulating the import fix leaking
+       into the normal sync path) -> 4 tests fail, including the
+       fresh-device guard, whose symptom was [] instead of Drive's two
+       rows — i.e. data loss, the dangerous direction.
+
+  The four tests live in sync/__tests__/coordinator-sync.test.ts, not
+  beside commitImport.ts: the bug was never in the commit itself but in
+  what the coordinator did AFTERWARDS, which only that file's harness
+  (mocked Drive, real repository, real debounce) can observe. They cover
+  the dropped-rows case, the signed-out case, the failed-upload case, and
+  — as a guard, not a feature — that a brand-new device still pulls Drive's
+  data DOWN rather than wiping it.
+
+TWO STALE CLAIMS IN THIS FILE, NOW CORRECTED:
+  - The "5-file gitignored-fixture CI gap" named in the STILL OPEN lists
+    above (and at the Phase 13a entry) is FIXED, and was fixed back in
+    commit 8184b2d. All SIX fixture-dependent test files now skip
+    gracefully. verify-import.test.ts was the hard case and documents the
+    trap in its own header: describe.skipIf still RUNS the describe
+    callback body to discover tests, so its readFileSync calls needed
+    `hasFixture ?` ternaries too — skipIf alone still threw at collection
+    time. One wart remains, not worth a phase: csv.test.ts guards with an
+    early `return` inside the `it`, so its skipped real-data assertion
+    reports as PASSED rather than SKIPPED. The REAL remaining gap is that
+    there is no CI at all (no .github/workflows; Vercel runs build, never
+    test), so a fixture-less run would be green while silently skipping
+    ~51 assertions. Fixing that needs a committed SYNTHETIC fixture — the
+    repo is public and dummyData/ is real financial data.
+  - The ETag framing in the Phase 15b entry was already marked SUPERSEDED
+    BY PHASE 15c / T3; left in place as a record of the wrong turn, since
+    the superseding note is what makes it useful.
+
+ALSO NOTED, NOT ACTED ON:
+  - appDataFolder is scoped per (app, Google account), NOT per origin. So
+    localhost:5173 and trackz-sable.vercel.app share the SAME Drive file
+    while having SEPARATE localStorage, and both are registered OAuth
+    origins — a dev build can sign in and write to the real sync file.
+    This is the topology that produced the 4368-row incident. Mostly
+    defused now (the dev seed is a V1 file, so content-derived ids make it
+    converge rather than triple, and its epoch-ish updatedAt loses LWW to
+    anything edited since), but the guardrail stands: do not connect Drive
+    from `npm run dev`. Device B should be the production URL.
+  - purgeOldTombstones() has NO CALLER anywhere, so tombstones accumulate
+    forever. That is the SAFE direction for multi-device (no resurrection
+    risk from a device offline longer than the retention window) and
+    irrelevant at 1,456 rows, but it means merge.ts's 90-day retention
+    hazard comment describes a mechanism that never runs.
+  - PHASE 18 TRAP: deleting public/ will make .githooks/pre-commit exit 1
+    on its own grep for public/js/version.js and BLOCK EVERY COMMIT until
+    the hook and scripts/setup-git-hooks.sh are updated too. The hook
+    force-stages that file (git add on line 20), which is why every commit
+    in this rebuild touches a version string only the non-deployed legacy
+    app can read.
+
+STILL OPEN AFTER THIS PHASE: Phase 6 (merchant merge), Phase 13b
+(categories edit/delete, including deriveCategories' first-write-wins
+categoryType conflict — note that Home's insight cards compute from 151
+expense rows for "Shopping" but drill through to an Activity view showing
+154, because the delta engine filters by type while the drill-down filter
+keys on name alone), Phase 14 (charts — getTopCategoriesForMonth and
+getMonthlyExpenseSeries still have no UI consumer, and Sparkline.tsx
+cannot render them as-is: its points prop is hardcoded to balanceCents,
+it draws only a line, and it is aria-hidden decoration), the no-CI gap
+above, the Activity-vs-Home "today" anchor inconsistency, and Phase 18
+cutover. Phase 6 is the next real piece of unstarted work, and is now
+better-founded than before: a merchant merge must rewrite tx.merchant on
+~150 rows and bump each updatedAt to propagate, which is a 150-row sync
+delta through the LWW path this phase just verified live. Doing it before
+this verification would have been running the largest-ever mass rewrite
+through an unproven merge.
+
 
           - EUR-only — delete currency field plumbing entirely.
           - Money as integer cents.

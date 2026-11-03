@@ -130,14 +130,48 @@ accessibility regression for users who rely on zoom.
         confirm it actually behaves differently, not just that the code
         says so).
 
+## 7. CSV import with Drive connected (added by the Phase 15c step 7 fix)
+
+New in this pass, because the behaviour it checks did not exist before:
+importing a CSV now also **overwrites the Drive copy** when Drive is
+connected (`features/settings/commitImport.ts`). Previously the import
+committed locally and the debounced union merge quietly restored every
+row the imported file had omitted, about five seconds later — so
+"Replace anyway" did not replace. Covered by four regression tests, but
+the live multi-device half can only be checked on real devices.
+
+Do this with a CSV that is deliberately SMALLER than what is currently
+synced (e.g. export, delete a handful of rows in a spreadsheet, re-import),
+since an identical re-import converges either way and would pass even if
+the fix were absent.
+
+- [ ] Export a backup FIRST. This path deletes and rewrites the Drive
+      file, and `appDataFolder` has no trash — the CSV is the only undo.
+- [ ] Import the smaller file on device A. Confirm the toast reports the
+      imported count and does NOT mention Drive having the old copy.
+- [ ] Settings → "Check what's on Drive" → row count matches the
+      SMALLER file, not the previous total.
+- [ ] Wait at least 10 seconds on device A, then re-check. The count must
+      stay at the smaller number (this is the actual bug: the debounce
+      fired at 5s and unioned the dropped rows back).
+- [ ] Open device B and let it sync. Confirm it converges DOWN to the
+      smaller set rather than pushing the old rows back up.
+- [ ] Offline variant: enable Airplane Mode, import a file, and confirm
+      the toast says Drive still holds the old copy and names
+      "Replace Drive copy with this device" — then go online, use that
+      button, and confirm Drive catches up. (Nothing retries this
+      automatically, by design; the local write is silent so no debounce
+      is armed.)
+
 ## What this checklist does NOT cover
 
-- Google Drive sync — out of scope for THIS checklist. (It no longer
-  "doesn't exist": Phase 15b has since wired up sign-in and token
-  persistence. But it has never been run against live Google, and
-  verifying it needs its own two-device pass — see api/README.md's "Not
-  yet verified" section, which is the checklist for that.) Nothing here
-  exercises cross-device behavior.
+- Google Drive sync — out of scope for THIS checklist, EXCEPT section 7's
+  import interaction above. (It no longer "doesn't exist": Phase 15b wired
+  up sign-in and token persistence, and Phase 15c step 7 verified
+  two-device convergence, tombstone propagation and account-type
+  propagation against live Google — see docs/renovation_version_1.txt's
+  step 7 entry. api/README.md's "Not yet verified" list is the checklist
+  for the auth half.) Nothing else here exercises cross-device behavior.
 - The 7-day Safari storage-eviction window itself — this would require
   leaving the NON-installed browser-tab version untouched for 7+ real
   days to actually observe eviction, which is out of scope for a
