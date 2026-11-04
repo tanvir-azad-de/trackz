@@ -1530,22 +1530,150 @@ ALSO NOTED, NOT ACTED ON:
     in this rebuild touches a version string only the non-deployed legacy
     app can read.
 
-STILL OPEN AFTER THIS PHASE: Phase 6 (merchant merge), Phase 13b
+PHASE 6, PART 1 (merchant normalization + duplicate DETECTION) — done.
+Deliberately scoped to ONE pure module and its tests at the user's
+instruction: domain/merchant.ts. No repository change, no UI, no
+merge-APPLY logic. Detection only, so nothing in the app can yet rewrite
+a merchant name. 322 tests (up from 298), tsc -b clean, production build
+48.53KB gzipped — UNCHANGED, because the module has no consumer yet and
+is tree-shaken out of the bundle entirely.
+
+  THIS FILE'S OWN "7 groups / 150 rows" FIGURE WAS UNDER-SPECIFIED, and
+  that was found by measuring before writing code rather than trusting
+  the plan. The Phase 13a entry above says Phase 6's scope is "7 pure-
+  duplicate groups covering 150 rows (case-fold + first-token matching)".
+  Measured against dummyData/snapshot-2026-10-31/transactions.csv:
+    - PURE case-folding gives 6 groups / 148 rows.
+    - Case-folding PLUS punctuation-stripping gives 7 groups / 150 rows.
+  So the headline number is right but only reachable with punctuation
+  stripping, which the plan never stated. The 7th group is
+  "Spc Indian Wholesales" / "SPC*Indian Wholesales", which merges only
+  once "*" is discarded. The 7 groups, all 100% expense rows:
+  Edeka 64 (Edeka 53 / EDEKA 11), Rossmann 21, Tedi 18, Aldi 17,
+  Penny 17, Euroshop 11, Spc Indian Wholesales 2.
+
+  FIRST-TOKEN MATCHING — MEASURED AND REJECTED (decision gate, user
+  chose case-fold + punct-strip only). The plan named first-token
+  matching as part of the algorithm. It finds 5 more groups, and
+  checking what they actually contain showed three of them are
+  SEMANTICALLY WRONG merges that would destroy a distinction the user
+  deliberately encoded:
+    - "Vodafone" is Mobile/expense (12 rows) but "Vodafone Frankfurt"
+      is WiFi/non_expense (13 rows) — plus 3 more Vodafone variants.
+    - "DM" is Shopping (8) but "dm drogerie" is Groceries (1).
+    - "Amazon" is Shopping+Refunds (54) but "Amazon Prime" is
+      Subscriptions (8).
+  A suggestion list the user must police for wrong entries is worse than
+  a shorter one they can trust, so detection is equality-of-normalized-
+  form ONLY. "Niemerszein"/"NIEMERSZEIN & CO.KG" (35 rows) and
+  "Kaufland"/"KAUFLAND HAMBURG BRAMF" (10 rows) are REAL missed wins and
+  are deliberately left to an explicit manual merge (user names both
+  sides) in part 2, rather than bought with a rule that also breaks
+  Vodafone. There is a regression test asserting all five of those pairs
+  stay SEPARATE, so reintroducing first-token matching fails a test that
+  explains why.
+
+  normalizeMerchant: trim -> casefold -> NFD-decompose and strip
+  combining marks -> discard non-alphanumerics. THE ORDER IS LOAD-
+  BEARING and is tested as such: with the NFD step removed or moved
+  after the alphanumeric filter, the filter eats the combining mark and
+  leaves the base letter stripped, so "Café" folds to "caf" not "cafe"
+  and "Müller" to "mller" not "muller" — which both splits a name from
+  its unaccented spelling AND merges it with unrelated "Caf…" names.
+  Confirmed there are ZERO non-ASCII merchant names in the real data
+  today, so this guards a latent bug, not a current one; merchants are
+  hand-typed free text, so it is a matter of time.
+  Deliberately NOT merged with features/activity/filter.ts's
+  normalizeForSearch despite sharing its first two steps: that one must
+  KEEP spaces and punctuation because it powers substring search (typing
+  "indian whole" has to match "SPC*Indian Wholesales"), while this one
+  must DISCARD them to test whole-string equality. Each now carries a
+  comment pointing at the other so the next reader doesn't "de-
+  duplicate" them into a bug.
+
+  MUTATION TESTING FOUND THREE PROBLEMS IN THIS PHASE'S OWN WORK — the
+  discipline from Phase 15b/15c (reintroduce the bug, confirm the test
+  fails) earning its keep on a module small enough to look obviously
+  correct:
+    1. A VACUOUS TEST. "skips blank and whitespace-only merchants"
+       passed with the blank guard deleted. Cause: "" and "   " both
+       trim to "", so they collapse to ONE spelling and the 2+-variants
+       rule suppressed the group on its own. Rewritten with four
+       DISTINCT whitespace strings that all normalize to "", which is
+       falsifiable. Exactly the Phase 15c finding repeated: a test that
+       passes either way documents nothing.
+    2. DEAD CODE, deleted. pickCanonical had an all-caps ("not
+       SHOUTING") tie-break; removing it broke no test. Investigated
+       rather than papered over, and it is genuinely redundant: names
+       within a group differ only by case and punctuation, and
+       localeCompare ALREADY ranks "Edeka" before "EDEKA" and "Aldi"
+       before "ALDI" in every pure-case pair. Removed, because a rule
+       that never fires implies a decision this function does not make.
+       A test now pins the mixed-case-wins behaviour so nobody re-adds it
+       believing the case is uncovered.
+    3. A REAL RULE THAT WAS UNTESTED. The punctuation tie-break looked
+       equally dead at first — but it is not: for "*Aldi" vs "Aldi",
+       localeCompare picks "*Aldi" (leading punctuation sorts first),
+       i.e. suggests the raw bank-statement spelling. The rule was right
+       and the TEST was missing; added, and re-verified by mutation.
+       Worth recording because the superficially identical finding to
+       (2) had the opposite correct answer.
+    Also collapsed two guards into one: a `name === ""` check was
+    unreachable-by-consequence, since normalizeMerchant("") is "" and
+    the key check already covers it.
+  Mutations run and reverted: drop NFD; move NFD after the alphanumeric
+  filter; drop each tie-break separately; drop each blank guard
+  separately; drop the 2+-variants rule (5 tests fail); and switch the
+  whole fold to first-token matching (7 tests fail, including the
+  load-bearing negative test).
+
+  TWO HAZARDS CHECKED SO PART 2 DOESN'T DISCOVER THEM LATE:
+  - "LENT OUT" IS SAFE. insights/engine.ts:271 groups receivables/
+    payables BY MERCHANT (that is where the counterparty name lives for
+    those rows), so a merge touching one would silently move money
+    between counterparties on the Accounts screen. Verified all 7 groups
+    are 100% expense rows; the receivable merchants (Kaution, Chayan
+    Mitra, Towkir, Al Imran Ahmed, Imranul Hoq Limon, Nur Islam) are
+    untouched. There is a test asserting no proposed group contains a
+    receivable/payable merchant, so this cannot silently change.
+  - IDS DO NOT MOVE. domain/id.ts's contentDerivedTransactionId includes
+    `merchant` in its hash material, which looks like a merge would
+    re-key 150 rows and strand them in sync. It does not: ids are minted
+    only at CSV PARSE time, so rewriting tx.merchant in the store leaves
+    tx.id alone and the delta flows through the verified LWW path as 150
+    ordinary edits. CONSEQUENCE FOR PART 2, worth stating now:
+    re-importing the ORIGINAL V1 backup after a merge REVERTS it, since
+    those ids derive from the original "EDEKA" strings and will match
+    the stored rows. That is correct for a "replace" import, but needs a
+    line of UI copy. A V3 export taken AFTER merging round-trips fine
+    (it carries an explicit id column and the merged name).
+  - The 265 blank-merchant rows (130 Transfer, 124 Restaurant) are
+    skipped, not grouped: blank is a legitimate value for a transaction
+    with no counterparty, and grouping them would offer to merge a fifth
+    of the ledger into one invented merchant.
+
+  NOT DONE — PHASE 6 PART 2, deliberately out of scope this session:
+  the bulk repository write (updateTransactions, needed so a 150-row
+  rewrite is one write + one notify + one armed debounce rather than
+  150 of each), the pure applyMerge() logic, the guided merge sheet, and
+  the manual-merge escape hatch for Niemerszein/Kaufland. Nothing can
+  rewrite a merchant name until those exist. No Playwright pass was run
+  this session, correctly — the module has no UI to drive.
+
+STILL OPEN AFTER THIS PHASE: Phase 6 part 2 (the merge APPLY path and
+its UI — see the entry above for exactly what remains), Phase 13b
 (categories edit/delete, including deriveCategories' first-write-wins
 categoryType conflict — note that Home's insight cards compute from 151
 expense rows for "Shopping" but drill through to an Activity view showing
 154, because the delta engine filters by type while the drill-down filter
-keys on name alone), Phase 14 (charts — getTopCategoriesForMonth and
-getMonthlyExpenseSeries still have no UI consumer, and Sparkline.tsx
+keys on name alone; measured this session, the real data has exactly TWO
+such conflicts: Shopping expense 151/non_expense 2/non_income 1, and WiFi
+non_expense 14/expense 4), Phase 14 (charts — getTopCategoriesForMonth
+and getMonthlyExpenseSeries still have no UI consumer, and Sparkline.tsx
 cannot render them as-is: its points prop is hardcoded to balanceCents,
 it draws only a line, and it is aria-hidden decoration), the no-CI gap
 above, the Activity-vs-Home "today" anchor inconsistency, and Phase 18
-cutover. Phase 6 is the next real piece of unstarted work, and is now
-better-founded than before: a merchant merge must rewrite tx.merchant on
-~150 rows and bump each updatedAt to propagate, which is a 150-row sync
-delta through the LWW path this phase just verified live. Doing it before
-this verification would have been running the largest-ever mass rewrite
-through an unproven merge.
+cutover.
 
 
           - EUR-only — delete currency field plumbing entirely.
