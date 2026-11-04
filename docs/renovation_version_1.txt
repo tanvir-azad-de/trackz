@@ -1660,20 +1660,181 @@ is tree-shaken out of the bundle entirely.
   rewrite a merchant name until those exist. No Playwright pass was run
   this session, correctly — the module has no UI to drive.
 
-STILL OPEN AFTER THIS PHASE: Phase 6 part 2 (the merge APPLY path and
-its UI — see the entry above for exactly what remains), Phase 13b
-(categories edit/delete, including deriveCategories' first-write-wins
-categoryType conflict — note that Home's insight cards compute from 151
-expense rows for "Shopping" but drill through to an Activity view showing
-154, because the delta engine filters by type while the drill-down filter
-keys on name alone; measured this session, the real data has exactly TWO
-such conflicts: Shopping expense 151/non_expense 2/non_income 1, and WiFi
-non_expense 14/expense 4), Phase 14 (charts — getTopCategoriesForMonth
-and getMonthlyExpenseSeries still have no UI consumer, and Sparkline.tsx
-cannot render them as-is: its points prop is hardcoded to balanceCents,
-it draws only a line, and it is aria-hidden decoration), the no-CI gap
-above, the Activity-vs-Home "today" anchor inconsistency, and Phase 18
-cutover.
+DOMAIN NOTE — WHAT non_expense / non_income MEAN (recorded at the user's
+instruction during Phase 6 part 2, because every phase so far has treated
+these as opaque enum values and they are not).
+
+  non_expense   Money LEFT my account, but the WHOLE AMOUNT IS NOT MY
+                EXPENSE. It can be entirely someone else's money (a loan
+                to a friend) or only PARTLY mine (a shared bill I paid in
+                full and will be partly reimbursed for).
+  non_income    The mirror: money ARRIVED, but it is not my income — a
+                reimbursement or a refund of money I had already spent.
+
+  Two consequences the code already depends on, now written down:
+  1. These rows are NOT spending. They must never be summed into an
+     expense total or a "what did I spend this month" insight.
+     getSignedAmountCents' "net-worth" perspective treats non_income as
+     +amount and non_expense as -amount (both are real cash movements),
+     while insights/engine.ts's category deltas filter on
+     categoryType === "expense" alone — which is correct, and is also
+     the reason Home's Shopping card counts 151 rows where Activity's
+     name-keyed drill-down shows 154 (the open Phase 13b item).
+  2. On these rows `merchant` names a COUNTERPARTY — a PERSON ("Alif
+     Elahi", "Chayan Mitra"), not a shop. Same for receivable/payable,
+     which is where insights/engine.ts gets the names it groups Lent out
+     / I owe by. So anything rewriting merchant in bulk is touching
+     people and partly-not-mine amounts, not just tidying shop
+     spellings.
+  In the real 1,456-row backup: 25 non_expense rows totalling 1.349,19 €
+  (Alif Elahi repayments, Vodafone Frankfurt WiFi shared with a flatmate,
+  ARD broadcasting fee, Lemfi transfers) and 78 non_income rows totalling
+  1.940,25 € (45 Reimbursements, 26 Refunds, 6 Sold Items).
+  Now also recorded in code at domain/transaction.ts's CategoryType
+  declaration, so it is visible where the type is used rather than only
+  in this file.
+
+PHASE 6, PART 2 (merchant merge APPLY path + guided UI) — done. 355 tests
+(up from 322), tsc -b clean, production build 50.93KB gzipped (was
+48.53KB; +2.40KB for the sheet, its CSS, and the bulk write).
+
+  THE USER'S non_expense CLARIFICATION CHANGED THE DESIGN, it was not
+  just noted. Part 1 had verified that all 7 auto-detected groups are
+  100% expense rows and concluded a merge was therefore safe. That is
+  true of this data TODAY but is not a property of the feature: the
+  moment a counterparty name gains a second spelling, a merge group
+  contains rows where the amount is wholly or partly someone else's
+  money and where the name is a person feeding Lent out / I owe. So:
+  - domain/merchant.ts's MergeGroup gained `categoryTypes` (row counts
+    per category type) and `touchesCounterpartyRows` (true for any
+    non_expense / non_income / receivable / payable row).
+  - The sheet SHOWS the per-type breakdown for every group and renders
+    an explicit warning when the group is a counterparty one, instead of
+    presenting all merges as interchangeable cosmetic tidying.
+  - The warning is rendered on the MANUAL path too, not just the
+    suggested one — that is where it matters most, since the user can
+    reach a counterparty name there that the conservative auto-detector
+    deliberately never proposes.
+  Verified live, and on REAL data rather than a synthetic fixture: the
+  "Alif Elahi" group in the actual backup reads "7 × Money back / 5 ×
+  Paying someone back / 1 × Expense" and raises the warning.
+
+  Built:
+  - storage/repository.ts gained updateTransactions(). Not a
+    convenience: a loop over updateTransaction() would do a 150-row
+    merge as 150 readRaw/writeRaw pairs, 150 notify() calls (so 150 UI
+    re-renders), and 150 markLocalChanged() calls each clearing and
+    re-arming the 5s sync debounce. One write, one notify, one armed
+    debounce. Bumps updatedAt on every row, which is what carries the
+    rename to other devices through the LWW path verified live in Phase
+    15c. ALL-OR-NOTHING on unknown ids (validated before any write),
+    because a half-applied merge — some rows renamed, some not, no
+    record of how far it got — is a genuinely bad state. No-ops entirely
+    on an empty batch so a "nothing to change" merge doesn't arm a
+    pointless Drive round trip.
+  - features/settings/merchantMerge.ts: pure planMerge() +
+    validateMerge(), no repository and no DOM, so the whole decision is
+    testable against the real CSV. Same split as exportImport.ts
+    (tested) vs SettingsScreen.tsx (thin, untested).
+    planMerge matches on EXACT STORED SPELLING, not normalized form —
+    deliberately the safer of the two, because it does exactly what the
+    sheet showed the user and cannot silently pull in a spelling created
+    between the group being computed and the user tapping Merge. It also
+    separates rows that ALREADY carry the canonical name from rows that
+    change, so a 64-row Edeka group writes 11 rows, not 64 (the other 53
+    would each still bump updatedAt and sync for no reason).
+    validateMerge blocks renaming a group to an unrelated merchant
+    ("Edeka"/"EDEKA" -> "Aldi"), which is a mass reassignment rather
+    than a merge and would be a nasty surprise from a screen labelled
+    "merge duplicates". It DOES allow a canonical name absent from the
+    data ("Tedi" when the stored spellings are "TEDi"/"TEDI").
+  - features/settings/MerchantMergeSheet.tsx + .css: reuses the Sheet
+    primitive (as Phase 8 anticipated) rather than a new modal concept.
+    Suggested groups one at a time with Merge/Skip, plus a manual tab
+    for the real wins the safe detector will not propose
+    ("Niemerszein"/"NIEMERSZEIN & CO.KG", "Kaufland"/"KAUFLAND HAMBURG
+    BRAMF"). Skips are session-only state, NOT persisted: skipping means
+    "not now", and a persisted skip would hide a real duplicate forever.
+  - SettingsScreen gained a Merchants section showing the outstanding
+    group count, and handleMerge, whose Undo restores the PREVIOUS name
+    PER ROW rather than one blanket name — a merge collapses several
+    spellings at once, so a single-name revert would flatten them all
+    into one of them, which is the very thing being undone.
+
+  A REAL BUG PLAYWRIGHT FOUND THAT NO UNIT TEST COULD: the Undo toast
+  was physically untappable. Toast.css was z-index 60 ("above the tab
+  bar's 50") while Sheet.css is 100, so the toast rendered UNDERNEATH
+  the open sheet. Every earlier Undo flow closed its sheet first
+  (ActivityScreen's handleSaveEdit/handleDelete both setOpenTransaction
+  (null)), so 60 had always been enough and the overlap had never
+  happened; this sheet deliberately STAYS OPEN so the user can work
+  through several groups in a row. Playwright reported the sheet
+  "intercepts pointer events"; the toast was fully VISIBLE, so a human
+  manually checking would most likely have read it as working and only
+  discovered the dead button later. Fixed to z-index 110 with a comment
+  explaining why it must beat Sheet, not just the tab bar.
+
+  Verified end-to-end against a live `npm run dev` instance via
+  Playwright (390x844, deviceScaleFactor 2), 19 assertions across two
+  runs, all passing with zero console errors (the one 502 observed is
+  the pre-existing /api/auth/refresh proxy failing with no `vercel dev`
+  running, unrelated to this phase):
+  - Settings reads "Tidy up merchants (7 to review)"; sheet opens on the
+    Edeka group showing "Edeka 53 rows / EDEKA 11 rows", breakdown
+    "64 × Expense", no counterparty warning, suggestion "Edeka", summary
+    "Renames 11 rows. Amounts and categories don't change."
+  - After Merge: row count UNCHANGED at 1456, EDEKA 11 -> 0, Edeka 53 ->
+    64, the group's total amount identical at 84701 cents (checked
+    arithmetically, not "it changed"), distinct merchants 161 -> 160.
+  - Undo restores all of it EXACTLY: 53/11 again, same 84701 cents, 161
+    merchants, 1456 rows.
+  - Counterparty path on real data: the Alif Elahi group shows
+    "7 × Money back / 5 × Paying someone back / 1 × Expense" AND the
+    warning.
+  - Validation: renaming that group to "Kaufland" shows "is a different
+    merchant, not a spelling of this one" and DISABLES Merge; a blank
+    name shows "Enter a name to merge into."
+  - Manual merge of "Niemerszein" + "NIEMERSZEIN & CO.KG" -> 7+28
+    becomes 35 under the short name, long spelling gone, amounts
+    preserved at 24447 cents, row count unchanged.
+
+  HOW THE TESTS WERE VALIDATED. 10 mutations, every one caught by the
+  intended test, all reverted (confirmed back to a zero diff): drop the
+  updatedAt bump; notify per row instead of once; drop the all-or-nothing
+  id validation; drop the empty-batch guard; match on normalized form
+  instead of exact spelling; fold unchanged rows into changed; drop the
+  different-merchant guard; force touchesCounterpartyRows to false; omit
+  non_expense/non_income from COUNTERPARTY_TYPES (a PARTIAL fix — caught
+  by 3 tests, which is the point of testing each type separately rather
+  than only receivable); and leave the categoryTypes breakdown empty.
+  Unlike part 1, no test was found vacuous this time.
+
+  Explicitly NOT done:
+  - A merge is NOT reflected back into the original CSV. Re-importing
+    the ORIGINAL V1 backup after merging REVERTS the merge, because
+    content-derived ids are computed from the original "EDEKA" strings
+    and will match the stored rows. Correct behaviour for a "replace"
+    import, but there is no UI copy warning about it yet. A V3 export
+    taken AFTER merging round-trips correctly (explicit id column plus
+    the merged name).
+  - No real-device pass. The sheet is new UI with a scrolling list and
+    text inputs inside a Sheet; the z-index bug above is exactly the
+    class of thing that behaves differently on real iOS Safari.
+  - purgeOldTombstones still has no caller (unchanged from Phase 15c).
+
+STILL OPEN AFTER THIS PHASE: Phase 13b (categories edit/delete,
+including deriveCategories' first-write-wins categoryType conflict —
+Home's insight cards compute from 151 expense rows for "Shopping" but
+drill through to an Activity view showing 154, because the delta engine
+filters by type while the drill-down filter keys on name alone; the real
+data has exactly TWO such conflicts: Shopping expense 151/non_expense
+2/non_income 1, and WiFi non_expense 14/expense 4), Phase 14 (charts —
+getTopCategoriesForMonth and getMonthlyExpenseSeries still have no UI
+consumer, and Sparkline.tsx cannot render them as-is: its points prop is
+hardcoded to balanceCents, it draws only a line, and it is aria-hidden
+decoration), the no-CI gap, the Activity-vs-Home "today" anchor
+inconsistency, and Phase 18 cutover (whose pre-commit-hook trap is
+described above).
 
 
           - EUR-only — delete currency field plumbing entirely.

@@ -7,6 +7,32 @@ import type { ISODate } from "./dates";
  * column `category_type`). UI labels are plain-English per the renovation
  * decisions (see docs/renovation_version_1.txt) and live in categoryLabel()
  * below, NOT by renaming these identifiers.
+ *
+ * WHAT non_expense / non_income ACTUALLY MEAN — confirmed with the user,
+ * and load-bearing rather than trivia:
+ *
+ *   non_expense  Money LEFT my account, but the whole amount is not my
+ *                expense. It can be entirely someone else's (a loan to a
+ *                friend) or only PARTLY mine (a shared bill I paid in
+ *                full and will be partly reimbursed for).
+ *   non_income   The mirror: money ARRIVED, but it is not my income —
+ *                a reimbursement or refund of money I had already spent.
+ *
+ * Two consequences the code depends on:
+ *
+ * 1. These rows are NOT spending, so they must never be summed into an
+ *    expense total or a "what did I spend this month" insight. That is
+ *    why getSignedAmountCents' "net-worth" perspective treats
+ *    non_income as +amount and non_expense as -amount (a real cash
+ *    movement) while the insight engine's category deltas filter on
+ *    categoryType === "expense" only.
+ * 2. On these rows the `merchant` field names a COUNTERPARTY — a
+ *    PERSON ("Alif Elahi", "Chayan Mitra"), not a shop. Same for
+ *    receivable/payable, which is where insights/engine.ts gets the
+ *    names for Lent out / I owe. Anything that rewrites merchant in
+ *    bulk (Phase 6's merchant merge) is therefore touching people and
+ *    partly-not-mine amounts, not just tidying shop spellings — see
+ *    domain/merchant.ts's CategoryTypeBreakdown.
  */
 export type CategoryType =
   | "income"

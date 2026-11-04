@@ -1,4 +1,4 @@
-import type { Transaction } from "./transaction";
+import type { CategoryType, Transaction } from "./transaction";
 
 /**
  * Phase 6: merchant normalization and duplicate detection.
@@ -75,6 +75,27 @@ export interface MerchantVariant {
   rowCount: number;
 }
 
+/**
+ * How many rows of each category type a merge would touch.
+ *
+ * SURFACED IN THE UI ON PURPOSE, not debug data. The `merchant` field
+ * does double duty in this dataset: for ordinary expense rows it is a
+ * shop ("Edeka"), but for non_expense / non_income / receivable /
+ * payable rows it is a COUNTERPARTY — a person. Confirmed with the user:
+ * non_expense means "this money left my account but the whole amount is
+ * not my expense" (e.g. a loan to a friend, or a bill partly reimbursed
+ * by someone else), and non_income is its mirror. In the real data those
+ * rows carry names like "Alif Elahi" and "Chayan Mitra", and
+ * insights/engine.ts groups Lent out / I owe BY MERCHANT.
+ *
+ * So a merge of two counterparty spellings is usually RIGHT (same
+ * person), but it moves money between people in a view the user cares
+ * about, and it is not the same kind of decision as tidying two
+ * spellings of a supermarket. The merge sheet therefore shows this
+ * breakdown instead of presenting every group as interchangeable.
+ */
+export type CategoryTypeBreakdown = Partial<Record<CategoryType, number>>;
+
 /** A set of merchant spellings that normalize to the same key. */
 export interface MergeGroup {
   /** The shared normalized key (see normalizeMerchant). */
@@ -85,7 +106,29 @@ export interface MergeGroup {
   suggestedCanonical: string;
   /** Transactions affected if this group is merged. */
   totalRows: number;
+  /** Row counts per category type across the whole group (see CategoryTypeBreakdown). */
+  categoryTypes: CategoryTypeBreakdown;
+  /**
+   * True when the group touches any row whose amount is not a plain
+   * expense/income — i.e. non_expense, non_income, receivable or
+   * payable. These are the rows where `merchant` is a counterparty and
+   * where part or all of the amount is someone else's money, so the UI
+   * warns before merging rather than treating it as cosmetic tidying.
+   */
+  touchesCounterpartyRows: boolean;
 }
+
+/**
+ * Category types whose `merchant` field holds a counterparty (a person),
+ * not a shop — and whose amounts are wholly or partly not the user's own
+ * expense/income. See CategoryTypeBreakdown for the full reasoning.
+ */
+const COUNTERPARTY_TYPES: readonly CategoryType[] = [
+  "non_expense",
+  "non_income",
+  "receivable",
+  "payable",
+];
 
 /**
  * Pick the spelling to suggest as canonical.
@@ -144,6 +187,8 @@ function pickCanonical(variants: MerchantVariant[]): string {
 export function findMergeGroups(transactions: Transaction[]): MergeGroup[] {
   // normalized key -> original spelling -> row count
   const byKey = new Map<string, Map<string, number>>();
+  // normalized key -> category type -> row count
+  const typesByKey = new Map<string, Map<CategoryType, number>>();
 
   for (const tx of transactions) {
     const name = tx.merchant.trim();
@@ -162,6 +207,13 @@ export function findMergeGroups(transactions: Transaction[]): MergeGroup[] {
       byKey.set(key, spellings);
     }
     spellings.set(name, (spellings.get(name) ?? 0) + 1);
+
+    let types = typesByKey.get(key);
+    if (!types) {
+      types = new Map<CategoryType, number>();
+      typesByKey.set(key, types);
+    }
+    types.set(tx.categoryType, (types.get(tx.categoryType) ?? 0) + 1);
   }
 
   const groups: MergeGroup[] = [];
@@ -173,11 +225,17 @@ export function findMergeGroups(transactions: Transaction[]): MergeGroup[] {
       .map(([name, rowCount]) => ({ name, rowCount }))
       .sort((a, b) => (a.rowCount !== b.rowCount ? b.rowCount - a.rowCount : a.name.localeCompare(b.name)));
 
+    const types = typesByKey.get(normalized) ?? new Map<CategoryType, number>();
+    const categoryTypes: CategoryTypeBreakdown = {};
+    for (const [type, count] of types) categoryTypes[type] = count;
+
     groups.push({
       normalized,
       variants,
       suggestedCanonical: pickCanonical(variants),
       totalRows: variants.reduce((sum, v) => sum + v.rowCount, 0),
+      categoryTypes,
+      touchesCounterpartyRows: COUNTERPARTY_TYPES.some((t) => (categoryTypes[t] ?? 0) > 0),
     });
   }
 

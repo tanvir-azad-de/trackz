@@ -238,6 +238,72 @@ describe("findMergeGroups (synthetic)", () => {
   });
 });
 
+describe("category-type breakdown (counterparty warning)", () => {
+  /**
+   * Confirmed with the user: non_expense means "this money left my
+   * account but the whole amount is not my expense" — e.g. a loan to a
+   * friend, or a bill partly reimbursed by someone else — and non_income
+   * is its mirror. On those rows (plus receivable/payable) the `merchant`
+   * field names a PERSON, not a shop, and insights/engine.ts groups
+   * Lent out / I owe by it. So the sheet must be able to warn.
+   */
+  it("flags a group touching non_expense rows", () => {
+    const groups = findMergeGroups([
+      makeTransaction("Alif Elahi", { categoryType: "non_expense" }),
+      makeTransaction("ALIF ELAHI", { categoryType: "non_expense" }),
+    ]);
+
+    expect(groups[0]!.touchesCounterpartyRows).toBe(true);
+    expect(groups[0]!.categoryTypes).toEqual({ non_expense: 2 });
+  });
+
+  it("flags a group touching non_income rows", () => {
+    const groups = findMergeGroups([
+      makeTransaction("Chayan Mitra", { categoryType: "non_income", cashflow: "in" }),
+      makeTransaction("chayan mitra", { categoryType: "non_income", cashflow: "in" }),
+    ]);
+    expect(groups[0]!.touchesCounterpartyRows).toBe(true);
+  });
+
+  it("flags receivable and payable groups too", () => {
+    for (const categoryType of ["receivable", "payable"] as const) {
+      const groups = findMergeGroups([
+        makeTransaction("Towkir", { categoryType }),
+        makeTransaction("TOWKIR", { categoryType }),
+      ]);
+      expect(groups[0]!.touchesCounterpartyRows).toBe(true);
+    }
+  });
+
+  it("does NOT flag a plain expense group", () => {
+    const groups = findMergeGroups([makeTransaction("Edeka"), makeTransaction("EDEKA")]);
+    expect(groups[0]!.touchesCounterpartyRows).toBe(false);
+    expect(groups[0]!.categoryTypes).toEqual({ expense: 2 });
+  });
+
+  it("flags a MIXED group, where only some rows are counterparty rows", () => {
+    // The dangerous case: 10 harmless expense rows make the group look
+    // routine, and one non_expense row means a merge still moves a
+    // partly-someone-else's-money row.
+    const groups = findMergeGroups([
+      makeTransaction("Amazon"),
+      makeTransaction("AMAZON", { categoryType: "non_expense" }),
+    ]);
+
+    expect(groups[0]!.touchesCounterpartyRows).toBe(true);
+    expect(groups[0]!.categoryTypes).toEqual({ expense: 1, non_expense: 1 });
+  });
+
+  it("counts every category type present in the group", () => {
+    const groups = findMergeGroups([
+      makeTransaction("Shop"),
+      makeTransaction("SHOP"),
+      makeTransaction("shop", { categoryType: "non_income", cashflow: "in" }),
+    ]);
+    expect(groups[0]!.categoryTypes).toEqual({ expense: 2, non_income: 1 });
+  });
+});
+
 describe.skipIf(!hasFixture)("findMergeGroups (real 1,456-row backup)", () => {
   it("finds exactly 7 groups covering exactly 150 rows", () => {
     const groups = findMergeGroups(transactions);
@@ -343,6 +409,22 @@ describe.skipIf(!hasFixture)("findMergeGroups (real 1,456-row backup)", () => {
 
     for (const tx of counterpartyRows) {
       expect(groupedNames.has(tx.merchant)).toBe(false);
+    }
+  });
+
+  /**
+   * Today none of the 7 auto-detected groups touches a counterparty row
+   * (all 150 are plain expense). That is a fact about THIS data, not a
+   * guarantee of the algorithm — "Alif Elahi" gaining a second spelling
+   * would legitimately produce a flagged group. Asserted so that if it
+   * ever changes, it changes visibly here rather than silently in the UI.
+   */
+  it("flags no auto-detected group as touching counterparty rows (true of this data today)", () => {
+    const groups = findMergeGroups(transactions);
+
+    expect(groups.every((g) => g.touchesCounterpartyRows === false)).toBe(true);
+    for (const g of groups) {
+      expect(Object.keys(g.categoryTypes)).toEqual(["expense"]);
     }
   });
 

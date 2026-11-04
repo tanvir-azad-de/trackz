@@ -13,7 +13,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  z-index: 60; /* above the tab bar's 50 */
+  /* Above Sheet's 100, not just the tab bar's 50.
+     Every toast before Phase 6 was raised by a flow that CLOSED its
+     sheet first (see ActivityScreen's handleSaveEdit/handleDelete), so
+     60 was enough and the overlap never happened. The merchant-merge
+     sheet deliberately stays open — the user works through several
+     groups in a row — which put its Undo button underneath the sheet
+     and made it physically untappable. Caught by Playwright, which
+     reported the sheet "intercepts pointer events"; a human might well
+     have read the visible toast as working. */
+  z-index: 110;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   animation: toast-in var(--duration-base) var(--ease-standard);
 }

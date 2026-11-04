@@ -11,6 +11,9 @@ import { Sheet } from "@/components/Sheet";
 import type { ToastState } from "@/components/Toast";
 import { buildExportCsv, canCommit, exportFileName, previewImport, type ImportPreview } from "@/features/settings/exportImport";
 import { commitImport } from "@/features/settings/commitImport";
+import { planMerge } from "@/features/settings/merchantMerge";
+import { MerchantMergeSheet, countDuplicateMerchantGroups } from "@/features/settings/MerchantMergeSheet";
+import { updateTransactions } from "@/storage/repository";
 import { SyncSettings } from "@/features/settings/SyncSettings";
 import "./SettingsScreen.css";
 import "@/components/Sheet.css";
@@ -69,6 +72,9 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   // ordinary transaction write) so a second import later in the same
   // session can't skip the safety step by riding a stale true value.
   const [exportedSinceLastChange, setExportedSinceLastChange] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+
+  const duplicateGroupCount = useMemo(() => countDuplicateMerchantGroups(transactions), [transactions]);
 
   const accounts = useMemo(() => {
     const names = deriveAccounts(transactions).map((a) => a.name);
@@ -180,6 +186,41 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   const hasExistingData = transactions.length > 0;
   const importBlockedByUnexportedData = hasExistingData && !exportedSinceLastChange;
 
+  /**
+   * Apply a merchant merge.
+   *
+   * planMerge is pure and returns only the rows that actually change, so
+   * a group where every row already carries the canonical name writes
+   * nothing at all — no pointless sync round trip. The write goes
+   * through updateTransactions() (one write, one notify, one armed
+   * debounce) rather than a loop over updateTransaction().
+   *
+   * Undo restores the PREVIOUS merchant name per row rather than a
+   * single name, because a merge collapses several spellings at once and
+   * a blanket revert would flatten them all to one of them — which is
+   * the very thing being undone.
+   */
+  function handleMerge(variants: string[], canonical: string): number {
+    const plan = planMerge(transactions, variants, canonical);
+    if (plan.changed.length === 0) return 0;
+
+    const before = plan.changed.map((row) => {
+      const original = transactions.find((t) => t.id === row.id)!;
+      return { ...original };
+    });
+
+    updateTransactions(plan.changed);
+
+    onToast?.({
+      id: Date.now(),
+      message: `Renamed ${plan.changed.length} ${plan.changed.length === 1 ? "row" : "rows"} to "${plan.canonical}"`,
+      actionLabel: "Undo",
+      onAction: () => updateTransactions(before),
+    });
+
+    return plan.changed.length;
+  }
+
   return (
     <main class="settings-screen">
       <h1 class="settings-screen__title">Settings</h1>
@@ -224,6 +265,19 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
       )}
 
       <SyncSettings onToast={onToast} />
+
+      <h2 class="settings-screen__section-title">Merchants</h2>
+      <p class="settings-screen__hint">
+        Merge names that mean the same shop, so your merchant list and autocomplete stop offering
+        duplicates. Renaming only changes the name — amounts, categories and dates stay as they are.
+      </p>
+      <div class="settings-data-actions">
+        <button type="button" class="settings-data-button" onClick={() => setMergeOpen(true)}>
+          {duplicateGroupCount === 0
+            ? "Tidy up merchants"
+            : `Tidy up merchants (${duplicateGroupCount} to review)`}
+        </button>
+      </div>
 
       <h2 class="settings-screen__section-title">Data</h2>
       <p class="settings-screen__hint">
@@ -320,6 +374,13 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
           </div>
         )}
       </Sheet>
+
+      <MerchantMergeSheet
+        open={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        transactions={transactions}
+        onMerge={handleMerge}
+      />
     </main>
   );
 }
