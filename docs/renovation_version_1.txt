@@ -78,19 +78,30 @@ have been wrong about something in every phase so far (see AGENTS.md's
        sw.js (idempotence, which is what stops a spurious reload prompt on
        every deploy); an app.tsx change moves the id; an index.html-only
        change moves the id.
-       NOT VERIFIABLE YET, carried into docs/device-check-phase16.md
-       section 6 (rewritten): the FIX's own deploy cannot show the toast,
-       because the installed worker must be replaced once before the
-       mechanism engages. The toast is observable from the SECOND deploy
-       onward. That section also now checks that Cache Storage holds
-       exactly one trackz-* key, since the frozen name meant sw.js's
-       activate-handler cache cleanup had never deleted anything either.
-       DEVICE UPDATE 2026-11-09, after deploying f4c67b8: Cache Storage on
-       the real device reads trackz-<16 hex>, so the STAMPING half is
-       confirmed on real iOS. The PROMPT half (does the toast actually
-       appear, does Reload pick up new code, does the old cache get
-       deleted) still needs the next deploy — it is the one remaining
-       unverified piece of this bug.
+       DEVICE-VERIFIED 2026-11-09 after deploying f4c67b8: Cache Storage
+       reads trackz-<16 hex> AND the "A new version of trackz is
+       available." toast appeared. Both the stamping and the prompt are
+       now observed on real iOS.
+       MY CARRIED CAVEAT WAS WRONG, recorded because the reasoning error
+       is the reusable part: I claimed the fix's own deploy could not
+       show the toast, since the installed worker "must be replaced once
+       before the mechanism engages". Installing the new worker IS the
+       update event. The old trackz-v1 worker still controlled the page,
+       so the new one landed in `waiting` with a non-null
+       navigator.serviceWorker.controller, and registerServiceWorker.ts:28
+       fired at once. The caveat holds only for a first-ever install with
+       no prior controller — the case that file's line 39 already guards.
+       Predicting a mechanism's behaviour from a half-understood spec is
+       the same failure as trusting this document: measure it.
+       STILL UNVERIFIED, carried in docs/device-check-phase16.md section
+       6: the toast APPEARING is not the toast WORKING. Whether "Reload"
+       actually lands on the new build, whether it skips the 5s
+       auto-dismiss, and whether the activate handler finally deletes the
+       stale trackz-v1 cache all need the next deploy. The cache cleanup
+       in particular runs on ACTIVATE, which only happens after the user
+       taps Reload, so a lingering trackz-v1 key before that point is
+       expected rather than a bug.
+
     2. No keyboard avoidance exists anywhere. Phase 7 scoped it; it was
        never built and never recorded as skipped. No visualViewport
        handling in the codebase. The device pass found both new sheets'

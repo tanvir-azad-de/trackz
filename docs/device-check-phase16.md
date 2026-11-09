@@ -139,46 +139,54 @@ ONLY `index.html` (id moved `4f58ae95` → `672e9eff` — this last case is
 why the id hashes content rather than reading Vite's filename hashes;
 index.html is not content-hashed).
 
-**CARRIED CAVEAT, cannot be checked on the first deploy.** The currently
-installed worker on any existing device is still `trackz-v1`. The deploy
-carrying this fix is the first whose sw.js differs, so that deploy is the
-one that gets installed — and from the SECOND deploy onward the toast
-becomes observable. Do not read "no toast on the fix deploy" as a
-failure; it is expected. The check below needs two deploys.
+**THE CARRIED CAVEAT WAS WRONG — corrected 2026-11-09 by observation.**
+It claimed the fix's own deploy could not show the toast, on the reasoning
+that "the installed worker must be replaced once before the mechanism
+engages", so the toast would only be observable from the SECOND deploy.
+The toast appeared on the FIRST deploy. The reasoning conflated two
+different things: installing the new worker IS the update event. The old
+`trackz-v1` worker was still controlling the page, so the new worker
+landed in `waiting`, `navigator.serviceWorker.controller` was non-null,
+and `registerServiceWorker.ts:28` fired immediately. The caveat would only
+have held for a first-ever install, where there is no prior controller —
+which is exactly the case line 39 of that file guards against. Left here
+rather than deleted, because a doc that over-warns earns distrust as fast
+as one that under-warns.
 
 - [x] **Deploy 1 (the fix).** Open the installed app, then force-quit and
       relaunch once. In a remote inspector, confirm
       `navigator.serviceWorker.controller.scriptURL` resolves and that the
       active worker's `CACHE_VERSION` is no longer `trackz-v1` (check
-      Cache Storage: the key should read `trackz-<16 hex chars>`). No
-      toast is expected here.
+      Cache Storage: the key should read `trackz-<16 hex chars>`).
       **CONFIRMED on a real device 2026-11-09**, commit f4c67b8: Cache
-      Storage reads `trackz-<16 hex>`. The stamping half of this bug is
-      now verified end-to-end on real iOS, not just in a local build. The
-      PROMPT half is still unverified and needs Deploy 2 below.
-- [ ] **Deploy 2 (any later change).** Leave the installed app OPEN,
-      deploy, then return to the still-open session. Confirm:
-  - [ ] A toast reading "A new version of trackz is available." with a
-        "Reload" action appears (not instantly — may take a background
-        fetch cycle; backgrounding and foregrounding the app once is fine
-        to prompt the check).
+      Storage reads `trackz-<16 hex>`, AND the "A new version of trackz is
+      available." toast appeared — one deploy earlier than this doc
+      predicted. See the correction above. Both halves of the bug are now
+      observed on real iOS: the worker's bytes change, and the prompt
+      fires.
+- [ ] **Still unverified, needs the NEXT deploy.** The toast appearing is
+      not the same as the toast WORKING. Four things remain, and none of
+      them can be checked from the prompt alone:
   - [ ] Tapping "Reload" actually picks up the new code (check something
         simple that changed in that deploy, or the build's asset-hash
-        filename in a remote inspector).
+        filename in a remote inspector). This is the one that matters: a
+        toast that appears and then reloads into the SAME build is worse
+        than no toast, because it trains the prompt to be ignored.
   - [ ] The toast does NOT auto-dismiss after 5 seconds like the normal
         save/delete toasts do (this is the `durationMs: Infinity` case —
         confirm it behaves differently, not just that the code says so).
-  - [ ] Cache Storage now holds exactly ONE `trackz-*` key, not two. This
-        is the second half of the same bug: sw.js's activate handler
-        deletes caches whose name differs from the current
+  - [ ] Cache Storage holds exactly ONE `trackz-*` key afterwards, not
+        two. This is the second half of the same bug: sw.js's activate
+        handler deletes caches whose name differs from the current
         `CACHE_VERSION`, so with a frozen name it had never deleted
-        anything. This is the first deploy where that cleanup can run, and
-        a leftover key means it still is not running.
-  - [ ] Confirm the reload did NOT lose unsaved quick-entry state in a
-        way that feels abrupt (the deliberate design is that activation
-        waits for the user's tap — if the app swaps code without the
-        toast, `skipWaiting` is firing on its own and that is a
-        regression).
+        anything. Note the cleanup runs on ACTIVATE, which only happens
+        after "Reload" is tapped — so a leftover `trackz-v1` key is
+        expected right up until then, and is only a bug if it survives
+        the reload.
+  - [ ] The reload did NOT lose unsaved quick-entry state in a way that
+        feels abrupt (the deliberate design is that activation waits for
+        the user's tap — if the app swaps code without the toast,
+        `skipWaiting` is firing on its own and that is a regression).
 
 ## 7. CSV import with Drive connected (added by the Phase 15c step 7 fix)
 
