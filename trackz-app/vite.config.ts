@@ -1,10 +1,58 @@
 import preact from '@preact/preset-vite'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
+import { stampServiceWorker } from './src/pwa/stampServiceWorker.ts'
+
+/**
+ * Stamp a build id into dist/sw.js so the browser actually notices deploys.
+ *
+ * Thin half by design: every decision lives in the pure, tested
+ * src/pwa/stampServiceWorker.ts, and this only gathers bytes and writes
+ * one file. See that module for why the bug existed and why the id hashes
+ * content rather than reading Vite's filename hashes.
+ *
+ * writeBundle, not closeBundle: writeBundle receives the emitted bundle,
+ * and Vite has already copied publicDir into dist by this point, so
+ * dist/sw.js exists and is not overwritten afterwards.
+ *
+ * apply: 'build' because publicDir is served from memory in dev — there is
+ * no dist/sw.js to rewrite, and registerServiceWorker.ts refuses to
+ * register at all outside PROD.
+ */
+function stampServiceWorkerPlugin(): Plugin {
+  return {
+    name: 'stamp-service-worker',
+    apply: 'build',
+    writeBundle(options, bundle) {
+      const outDir = options.dir
+      if (!outDir) throw new Error('stamp-service-worker: no output dir')
+
+      // Rollup splits these two: chunks carry `code`, static assets carry
+      // `source`. Both are needed — index.html arrives as an asset, and it
+      // is the file whose changes the filename-hash approach missed.
+      const files = Object.values(bundle).map((entry) => ({
+        fileName: entry.fileName,
+        content:
+          entry.type === 'chunk'
+            ? entry.code
+            : typeof entry.source === 'string'
+              ? entry.source
+              : Buffer.from(entry.source).toString('base64'),
+      }))
+
+      const swPath = resolve(outDir, 'sw.js')
+      const source = readFileSync(swPath, 'utf8')
+
+      writeFileSync(swPath, stampServiceWorker(source, files))
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [preact()],
+  plugins: [preact(), stampServiceWorkerPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

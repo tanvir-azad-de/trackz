@@ -114,21 +114,67 @@ accessibility regression for users who rely on zoom.
       Home screen) — confirming the fix didn't overshoot into disabling
       zoom entirely.
 
-## 6. Update flow (do this on a LATER deploy, not this one)
+## 6. Update flow (REWRITTEN 2026-11-09 — the mechanism was broken)
 
-- [ ] After a future deploy, re-open the installed app with existing
-      data present. Confirm:
+**Why this section was wrong before.** It read "do this on a LATER
+deploy", which was correct advice for a reason nobody had identified: the
+toast could never have fired on ANY deploy. `CACHE_VERSION` in
+`public/sw.js` was the frozen literal `"trackz-v1"`, and a browser
+installs a new service worker only when sw.js's BYTES change. Nineteen
+commits shipped a byte-identical worker. The deployed copy was confirmed
+byte-identical to the repo's by shasum. Everything downstream was built
+and correct — `registerServiceWorker.ts` watches for a waiting worker,
+`app.tsx` raises the toast with `durationMs: Infinity` — and none of it
+could run. The app still picked up new code on a fresh load via the
+worker's network-first navigation strategy, which is why this went
+unnoticed for so long; what was broken is a session left OPEN across a
+deploy, which keeps running stale JS with no prompt.
+
+Now fixed: a build id hashed from every emitted file's name and content
+is stamped into sw.js at build time (`src/pwa/stampServiceWorker.ts`,
+wired by the `stamp-service-worker` plugin in `vite.config.ts`). Verified
+in-session by building twice unchanged (byte-identical sw.js), then
+changing `src/app.tsx` (id moved `4f58ae95` → `0191e07f`), then changing
+ONLY `index.html` (id moved `4f58ae95` → `672e9eff` — this last case is
+why the id hashes content rather than reading Vite's filename hashes;
+index.html is not content-hashed).
+
+**CARRIED CAVEAT, cannot be checked on the first deploy.** The currently
+installed worker on any existing device is still `trackz-v1`. The deploy
+carrying this fix is the first whose sw.js differs, so that deploy is the
+one that gets installed — and from the SECOND deploy onward the toast
+becomes observable. Do not read "no toast on the fix deploy" as a
+failure; it is expected. The check below needs two deploys.
+
+- [ ] **Deploy 1 (the fix).** Open the installed app, then force-quit and
+      relaunch once. In a remote inspector, confirm
+      `navigator.serviceWorker.controller.scriptURL` resolves and that the
+      active worker's `CACHE_VERSION` is no longer `trackz-v1` (check
+      Cache Storage: the key should read `trackz-<16 hex chars>`). No
+      toast is expected here.
+- [ ] **Deploy 2 (any later change).** Leave the installed app OPEN,
+      deploy, then return to the still-open session. Confirm:
   - [ ] A toast reading "A new version of trackz is available." with a
         "Reload" action appears (not instantly — may take a background
-        fetch cycle; reloading the app once manually first is fine to
-        prompt the check).
+        fetch cycle; backgrounding and foregrounding the app once is fine
+        to prompt the check).
   - [ ] Tapping "Reload" actually picks up the new code (check something
-        simple that changed in that deploy, or check the build's
-        asset-hash filename in a remote inspector if available).
+        simple that changed in that deploy, or the build's asset-hash
+        filename in a remote inspector).
   - [ ] The toast does NOT auto-dismiss after 5 seconds like the normal
         save/delete toasts do (this is the `durationMs: Infinity` case —
-        confirm it actually behaves differently, not just that the code
-        says so).
+        confirm it behaves differently, not just that the code says so).
+  - [ ] Cache Storage now holds exactly ONE `trackz-*` key, not two. This
+        is the second half of the same bug: sw.js's activate handler
+        deletes caches whose name differs from the current
+        `CACHE_VERSION`, so with a frozen name it had never deleted
+        anything. This is the first deploy where that cleanup can run, and
+        a leftover key means it still is not running.
+  - [ ] Confirm the reload did NOT lose unsaved quick-entry state in a
+        way that feels abrupt (the deliberate design is that activation
+        waits for the user's tap — if the app swaps code without the
+        toast, `skipWaiting` is firing on its own and that is a
+        regression).
 
 ## 7. CSV import with Drive connected (added by the Phase 15c step 7 fix)
 

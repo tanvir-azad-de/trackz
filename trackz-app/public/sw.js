@@ -9,7 +9,9 @@
 // That reduces this to ~2 fetch strategies and no new dependency, which
 // matches this codebase's measured-bytes posture (see Sparkline.tsx's
 // uPlot writeup) — Workbox would land in this SW file, not the main
-// bundle, so it wouldn't move the 41.96KB gzipped main-bundle figure;
+// bundle, so it wouldn't move the main-bundle gzipped figure (41.96KB when
+// this was written, 51.4KB now — see the renovation doc for the current
+// number rather than trusting this comment);
 // the argument against it is dependency surface and opacity, not size.
 //
 // Caching strategy:
@@ -27,14 +29,47 @@
 //     could lag a cache cycle; acceptable for icons/manifest, which the
 //     user is not actively looking at for correctness.
 //
-// This app currently makes ZERO runtime network calls (src/sync/ is an
-// empty placeholder — see docs/renovation_version_1.txt Phase 15, not yet
-// built), so "cache the shell and it works offline" is true for the whole
-// app today. That stops being automatically true the moment Drive sync
-// lands; this SW is scoped to the static shell only, deliberately not
-// anticipating a sync strategy that doesn't exist yet.
+// This SW is scoped to the STATIC SHELL only — it deliberately caches no
+// user data. Drive sync (Phase 15) has since landed, so the older claim
+// here that the app makes zero runtime network calls is no longer true.
+// It stays safe for two specific reasons, both enforced by the fetch
+// handler below and neither accidental:
+//   - every /api/* auth call is a POST, and the handler returns early on
+//     any non-GET request;
+//   - every Drive call goes to googleapis.com, and the handler returns
+//     early on any cross-origin request.
+// So no sync response can land in the shell cache. If a same-origin GET
+// API endpoint is ever added, it needs an explicit bypass here BEFORE it
+// ships — cacheFirst would otherwise serve a stale financial payload from
+// cache indefinitely.
 
-const CACHE_VERSION = "trackz-v1";
+// __BUILD_ID__ is substituted at build time by the stamp-service-worker
+// plugin in vite.config.ts (pure half: src/pwa/stampServiceWorker.ts).
+//
+// THIS LINE IS THE UPDATE MECHANISM, not a cache-naming detail. A browser
+// installs a new service worker only when the BYTES of this file change.
+// This was a frozen literal ("trackz-v1") for 19 commits, so every deploy
+// served a byte-identical worker, so the browser never installed one, so
+// the update Toast below — fully built and correctly wired — had never
+// fired in production once. The app still got new code on a fresh load via
+// the network-first navigation strategy, which is why nobody noticed; what
+// was broken is a session left OPEN across a deploy, running stale JS with
+// no prompt. Do not replace this with a hand-bumped version number: that
+// is what the old public/js/version.js hook did, and a step a human must
+// remember is a step that gets skipped.
+//
+// It is also why the activate handler's cache cleanup below had never
+// deleted anything — it filters on a name that never changed.
+//
+// The ternary is the unstamped fallback. Both occurrences are substituted
+// together (replaceAll), so after stamping this reads
+// "DEADBEEF".startsWith("__") ? "dev" : "DEADBEEF" and yields the build id;
+// unstamped it yields "dev". Written this way rather than as a bare token
+// (CACHE_VERSION = __BUILD_ID__) because a bare unstamped token is a
+// ReferenceError that kills the worker at install and takes offline
+// support with it.
+const BUILD_ID = "__BUILD_ID__".startsWith("__") ? "dev" : "__BUILD_ID__";
+const CACHE_VERSION = `trackz-${BUILD_ID}`;
 const SHELL_URLS = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -42,9 +77,9 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE_VERSION).then((cache) => cache.addAll(SHELL_URLS)),
   );
   // Don't auto-activate — wait for the client to explicitly accept the
-  // update (see src/sw-register.ts's SKIP_WAITING message), so a reload
-  // is a deliberate user action via the Toast prompt, not a surprise
-  // mid-session swap of the running app's code.
+  // update (see src/pwa/registerServiceWorker.ts's SKIP_WAITING message),
+  // so a reload is a deliberate user action via the Toast prompt, not a
+  // surprise mid-session swap of the running app's code.
 });
 
 self.addEventListener("activate", (event) => {

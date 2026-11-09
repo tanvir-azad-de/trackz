@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-09, commit 0b17cf2)
+5. WHERE THIS STANDS  (last updated 2026-11-09, commit d2c1d64 + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -12,9 +12,12 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 402 tests passing, tsc -b clean, typecheck:api clean,
-  production build 51.98KB gzipped. Production = HEAD = origin/main =
-  0b17cf2, deployed at https://trackz-sable.vercel.app.
+  Baseline: 415 tests passing (402 before this change), tsc -b clean,
+  typecheck:api clean, production build 51,383 bytes gzipped JS
+  (unchanged by this change — measured with
+  `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
+  the same number rounded). Production = origin/main = d2c1d64, deployed
+  at https://trackz-sable.vercel.app.
 
   DONE: Phases 0-13 inclusive, 15, 16, 17. That is the whole app —
   domain/storage/insights, Home, Activity, Accounts, Settings, quick
@@ -27,38 +30,85 @@ have been wrong about something in every phase so far (see AGENTS.md's
       getMonthlyExpenseSeries are tested but have NO UI consumer.
       Sparkline.tsx cannot render them as-is: its points prop is
       hardcoded to balanceCents, it draws only a line, and it is
-      aria-hidden decoration. Note before starting: uPlot costs a
-      MEASURED 22.3KB gzipped and does not tree-shake, so whether more
-      charts are worth it is a real question, not a foregone conclusion.
+      aria-hidden decoration.
+      CORRECTED 2026-11-09: this entry used to warn that uPlot "costs a
+      MEASURED 22.3KB gzipped", framing the byte cost as a Phase 14
+      decision. It is not — that cost is ALREADY SUNK. Sparkline.tsx:2
+      imports uPlot today and it ships in the production bundle
+      (confirmed: u-over / u-under / u-wrap present in
+      dist/assets/index-*.js). A net-worth line is therefore a
+      near-zero-byte addition reusing Sparkline.tsx's existing
+      ResizeObserver and retina-canvas CSS fix; ranked bars cost a little
+      more for the bars path config. The open question for Phase 14 is
+      whether the charts EARN THEIR SCREEN SPACE against the insight
+      feed, not whether they are affordable.
     - Phase 18 (cutover). Delete public/, tag a rollback commit first.
       TRAP: .githooks/pre-commit greps public/js/version.js and exits 1
-      without it, which BLOCKS EVERY COMMIT until that hook and
-      scripts/setup-git-hooks.sh are updated in the same change.
+      without it, which BLOCKS EVERY COMMIT until that hook is updated in
+      the same change.
+      CORRECTED 2026-11-09: this entry (and AGENTS.md) also named
+      scripts/setup-git-hooks.sh as needing the same update. It does not —
+      it only runs `git config core.hooksPath .githooks` and contains no
+      reference to version.js. Only .githooks/pre-commit needs changing.
 
   KNOWN BUGS, none blocking, roughly by severity:
-    1. The service-worker update toast has NEVER fired in production. A
-       browser installs a new worker only when sw.js changes bytes, and
-       sw.js is untouched since Phase 16 across 18 commits (deployed copy
-       byte-identical to the repo's, confirmed by shasum). The app still
-       updates via network-first navigation, which is why this went
-       unnoticed; what is broken is a session left OPEN across a deploy —
-       it keeps running stale JS with no prompt. Fix: stamp the build hash
-       into sw.js's CACHE_VERSION, which also makes its activate
-       handler's cache cleanup run for the first time.
-       docs/device-check-phase16.md section 6 is superseded by this.
+    1. FIXED 2026-11-09. The service-worker update toast had never fired
+       in production because sw.js's CACHE_VERSION was the frozen literal
+       "trackz-v1" and a browser installs a new worker only when sw.js's
+       BYTES change. A build id, hashed from every emitted file's name and
+       content, is now stamped into sw.js at build time: pure half in
+       src/pwa/stampServiceWorker.ts (13 tests, each mutation-tested),
+       thin Vite plugin half in vite.config.ts.
+       Two things worth keeping:
+         - The id hashes CONTENT, not Vite's emitted filenames. The
+           filename shortcut is subtly broken and was caught by measuring:
+           index.html is NOT content-hashed, so an index.html-only edit
+           (manifest link, theme-color, viewport meta) left the id
+           byte-identical and would have shipped with no prompt.
+         - Two tests in this batch were VACUOUS on the first attempt and
+           only mutation testing exposed them. (a) Asserting that the
+           stamped sw.js text "contains" the build id passed while
+           CACHE_VERSION sat frozen, because sw.js mentions __BUILD_ID__
+           in its own comments — fixed by EVALUATING sw.js and asserting
+           the computed CACHE_VERSION. (b) A rename test using a
+           multi-file bundle passed against an implementation that
+           ignored filenames entirely, because the rename also moved the
+           file's sort position — fixed by reducing it to one file.
+       Verified end-to-end: two unchanged builds produce a byte-identical
+       sw.js (idempotence, which is what stops a spurious reload prompt on
+       every deploy); an app.tsx change moves the id; an index.html-only
+       change moves the id.
+       NOT VERIFIABLE YET, carried into docs/device-check-phase16.md
+       section 6 (rewritten): the FIX's own deploy cannot show the toast,
+       because the installed worker must be replaced once before the
+       mechanism engages. The toast is observable from the SECOND deploy
+       onward. That section also now checks that Cache Storage holds
+       exactly one trackz-* key, since the frozen name meant sw.js's
+       activate-handler cache cleanup had never deleted anything either.
     2. No keyboard avoidance exists anywhere. Phase 7 scoped it; it was
        never built and never recorded as skipped. No visualViewport
        handling in the codebase. The device pass found both new sheets'
        inputs reachable, so this is latent by luck, not by design.
     3. No CI at all (no .github/workflows; Vercel runs build, never
-       test). A fixture-less run is GREEN while silently skipping ~51
-       assertions, because dummyData/ is real financial data and
-       gitignored in a public repo. Fixing it needs a committed SYNTHETIC
-       fixture.
+       test). A fixture-less run is GREEN while silently skipping the
+       dummyData-dependent assertions, because dummyData/ is real
+       financial data and gitignored in a public repo. Fixing it needs a
+       committed SYNTHETIC fixture.
+       CORRECTED 2026-11-09: NINE test files read dummyData/, not the
+       five/six claimed here and in AGENTS.md — domain/merchant,
+       activity/filter, activity/group, entry/recall,
+       settings/categoryRename, settings/merchantMerge, insights/engine,
+       storage/csv, storage/verify-import. Worse, storage/csv.test.ts:97
+       guards with a bare `return` instead of describe.skipIf, so it
+       reports as a PASS rather than a skip and is invisible even in the
+       skip tally. The old "~51 assertions" figure was never verified and
+       should be re-measured rather than repeated.
     4. Activity anchors "Today" to getLocalToday() while Home anchors
        "this month" to the LATEST TRANSACTION DATE. Each is right alone;
        the inconsistency between them was flagged for resolution before
-       Phase 18.
+       Phase 18. Scope is THREE screens, not two: AccountsScreen.tsx:49
+       also anchors to the latest transaction date via getLatestMonthKey,
+       and activity/filter.ts:120,161 use getLocalToday for preset ranges.
     5. purgeOldTombstones() has no caller, so tombstones accumulate
        forever. That is the SAFE direction (no resurrection risk) and
        irrelevant at 1,456 rows, but merge.ts's 90-day retention comment

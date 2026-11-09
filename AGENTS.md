@@ -80,15 +80,20 @@ it works.
   (app, Google account), not per origin, so dev shares the real sync file with
   production while having separate localStorage. This produced a 4368-row
   triplication incident. Device B is the production URL.
-- **`dummyData/` is real financial data and gitignored** in a public repo. Six
+- **`dummyData/` is real financial data and gitignored** in a public repo. Nine
   test files read it and skip gracefully without it. There is no CI, so a
-  fixture-less run is green while silently skipping ~51 assertions.
+  fixture-less run is green while silently skipping those assertions — and
+  `storage/csv.test.ts:97` guards with a bare `return` rather than
+  `describe.skipIf`, so it reports as a pass and is invisible even in the
+  skip tally.
 - **`VITE_GOOGLE_CLIENT_ID` is inlined at build time.** Setting it after a
   deploy does nothing until the next build. This failure mode has recurred
   twice.
 - **The pre-commit hook reads `public/js/version.js`** and exits 1 without it,
   blocking every commit. Deleting `public/` means updating
-  `.githooks/pre-commit` and `scripts/setup-git-hooks.sh` in the same change.
+  `.githooks/pre-commit` in the same change. (`scripts/setup-git-hooks.sh`
+  only sets `core.hooksPath` and needs no change — the doc claimed otherwise
+  until it was checked.)
 
 ## Conventions
 
@@ -103,8 +108,10 @@ it works.
   Toast's z-index must out-rank Sheet's so an Undo stays tappable over an open
   sheet.
 - **Measure bytes before adding a dependency.** uPlot cost a measured 22.3KB
-  gzipped for a 6-point sparkline because it does not tree-shake. The
-  production bundle is the number to watch; report it after each change.
+  gzipped for a 6-point sparkline because it does not tree-shake. That cost is
+  already paid and shipped — it is an argument against the NEXT dependency, not
+  against using uPlot further. The production bundle is the number to watch
+  (`gzip -c dist/assets/*.js | wc -c`); report it after each change.
 - **Comment the load-bearing line**, including why a plausible alternative is
   wrong. A rule that never fires implies a decision the code does not make —
   delete it and pin the real behaviour with a test instead.
