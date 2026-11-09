@@ -54,11 +54,27 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     );
   }
 
+  /**
+   * Deep-link an insight card into Activity.
+   *
+   * categoryTypes: ["expense"] is LOAD-BEARING, not a default. The delta
+   * that produced this card was computed over expense rows ONLY
+   * (insights/engine.ts's getCategoryDeltasForMonth filters
+   * categoryType !== "expense" before keying by name), so a drill-down
+   * without it filtered on the bare NAME and pulled in every other type
+   * sharing it. Real data: tapping Shopping showed a delta over 151 rows
+   * and landed on 154 (+2 non_expense, +1 non_income), so the figure on
+   * the card could not be reconciled with the screen it opened — the
+   * extra rows moved the in/out totals too. A card whose number
+   * disagrees with its own destination is worse than one that scopes
+   * the destination, so the type constraint now travels with the name.
+   */
   function handleDrillDown(category: string) {
     if (!onDrillDown || !data) return;
     const filter: ActivityFilter = {
       ...emptyFilter(),
       categories: [category],
+      categoryTypes: ["expense"],
       from: getMonthStartDate(data.monthKey),
       to: getMonthEndDate(data.monthKey),
     };

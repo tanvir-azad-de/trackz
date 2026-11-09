@@ -1,9 +1,9 @@
 import { useMemo, useState } from "preact/hooks";
 import type { Transaction } from "@/domain/transaction";
-import { categoryTypeLabel, type CategoryType } from "@/domain/transaction";
-import { findMergeGroups, normalizeMerchant, type MergeGroup } from "@/domain/merchant";
+import { findMergeGroups, normalizeMerchant } from "@/domain/merchant";
 import { planMerge, validateMerge } from "@/features/settings/merchantMerge";
 import { Sheet } from "@/components/Sheet";
+import { TypeBreakdown } from "@/components/TypeBreakdown";
 import "./MerchantMergeSheet.css";
 
 /**
@@ -37,21 +37,6 @@ interface MerchantMergeSheetProps {
   transactions: Transaction[];
   /** Applies the merge and reports what happened. Returns rows changed. */
   onMerge: (variants: string[], canonical: string) => number;
-}
-
-function TypeBreakdown({ categoryTypes }: { categoryTypes: MergeGroup["categoryTypes"] }) {
-  const entries = Object.entries(categoryTypes) as Array<[CategoryType, number]>;
-  return (
-    <ul class="merge-group__types">
-      {entries
-        .sort((a, b) => b[1] - a[1])
-        .map(([type, count]) => (
-          <li key={type}>
-            {count} × {categoryTypeLabel(type)}
-          </li>
-        ))}
-    </ul>
-  );
 }
 
 function CounterpartyWarning() {

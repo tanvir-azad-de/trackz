@@ -12,7 +12,9 @@ import type { ToastState } from "@/components/Toast";
 import { buildExportCsv, canCommit, exportFileName, previewImport, type ImportPreview } from "@/features/settings/exportImport";
 import { commitImport } from "@/features/settings/commitImport";
 import { planMerge } from "@/features/settings/merchantMerge";
+import { planCategoryRename } from "@/features/settings/categoryRename";
 import { MerchantMergeSheet, countDuplicateMerchantGroups } from "@/features/settings/MerchantMergeSheet";
+import { CategoriesSheet, countCategories } from "@/features/settings/CategoriesSheet";
 import { updateTransactions } from "@/storage/repository";
 import { SyncSettings } from "@/features/settings/SyncSettings";
 import "./SettingsScreen.css";
@@ -33,8 +35,10 @@ const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
  * rebuild actually usable outside dev, since src/dev/seed.ts is the
  * ONLY way real data reaches this app otherwise, and that path is
  * explicitly disabled in production builds (import.meta.env.DEV guard).
- * Categories edit/delete and the guided merchant-merge screen remain
- * Phase 13b scope, not duplicated here.
+ * Categories (Phase 13b): rename, which merges when the target name
+ * already exists — see CategoriesSheet.tsx for why that is one
+ * operation and why there is no delete. The guided merchant-merge
+ * screen is Phase 6 part 2, below it.
  *
  * Account types: each account gets a Cash/Investment segmented toggle.
  * Changes are immediate (no draft + Apply like FilterSheet) — unlike a
@@ -73,8 +77,10 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   // session can't skip the safety step by riding a stale true value.
   const [exportedSinceLastChange, setExportedSinceLastChange] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const duplicateGroupCount = useMemo(() => countDuplicateMerchantGroups(transactions), [transactions]);
+  const categoryCount = useMemo(() => countCategories(transactions), [transactions]);
 
   const accounts = useMemo(() => {
     const names = deriveAccounts(transactions).map((a) => a.name);
@@ -221,6 +227,38 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
     return plan.changed.length;
   }
 
+  /**
+   * Apply a category rename (which merges when the target already
+   * exists). Mirrors handleMerge above, including the per-row Undo:
+   * restoring one blanket name would be wrong for the same reason it is
+   * there — though for categories a rename has a single source name, so
+   * the per-row snapshot is defence in depth rather than load-bearing.
+   * Kept identical anyway so the two paths cannot drift.
+   */
+  function handleRenameCategory(from: string, to: string): number {
+    const plan = planCategoryRename(transactions, from, to);
+    if (plan.changed.length === 0) return 0;
+
+    const before = plan.changed.map((row) => {
+      const original = transactions.find((t) => t.id === row.id)!;
+      return { ...original };
+    });
+
+    updateTransactions(plan.changed);
+
+    const rows = `${plan.changed.length} ${plan.changed.length === 1 ? "row" : "rows"}`;
+    onToast?.({
+      id: Date.now(),
+      message: plan.isMerge
+        ? `Moved ${rows} into "${plan.canonical}"`
+        : `Renamed ${rows} to "${plan.canonical}"`,
+      actionLabel: "Undo",
+      onAction: () => updateTransactions(before),
+    });
+
+    return plan.changed.length;
+  }
+
   return (
     <main class="settings-screen">
       <h1 class="settings-screen__title">Settings</h1>
@@ -265,6 +303,17 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
       )}
 
       <SyncSettings onToast={onToast} />
+
+      <h2 class="settings-screen__section-title">Categories</h2>
+      <p class="settings-screen__hint">
+        Rename a category, or merge two by renaming one to the other's name. Amounts, types and
+        dates stay exactly as they are.
+      </p>
+      <div class="settings-data-actions">
+        <button type="button" class="settings-data-button" onClick={() => setCategoriesOpen(true)}>
+          Edit categories ({categoryCount})
+        </button>
+      </div>
 
       <h2 class="settings-screen__section-title">Merchants</h2>
       <p class="settings-screen__hint">
@@ -356,6 +405,20 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
                   </p>
                 )}
 
+                {/* Phase 13b. Not a hypothetical: transaction ids are
+                    derived from row CONTENT including category and
+                    merchant (domain/id.ts), and are minted at CSV parse
+                    time. So an OLD backup's rows still carry the ids of
+                    their pre-rename names and match the stored rows,
+                    reverting the rename. A V3 export taken after
+                    renaming carries an explicit id column and the new
+                    names, so it round-trips correctly. */}
+                <p class="import-preview__note" role="note">
+                  If you've renamed any categories or merged merchants, importing a backup made
+                  <em> before</em> those changes will undo them. A backup exported from this app
+                  afterwards is unaffected.
+                </p>
+
                 <div class="import-preview__actions">
                   <button type="button" class="import-preview__cancel" onClick={() => setImportPreview(null)}>
                     Cancel
@@ -374,6 +437,13 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
           </div>
         )}
       </Sheet>
+
+      <CategoriesSheet
+        open={categoriesOpen}
+        onClose={() => setCategoriesOpen(false)}
+        transactions={transactions}
+        onRename={handleRenameCategory}
+      />
 
       <MerchantMergeSheet
         open={mergeOpen}

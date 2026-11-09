@@ -124,9 +124,39 @@ export interface Account {
  */
 export type AccountType = "cash" | "investment";
 
+/**
+ * A category is identified by NAME ALONE. `categoryType` is deliberately
+ * NOT a field here: it is a property of each TRANSACTION, not of the
+ * category, so one category legitimately carries different types on
+ * different rows (Phase 13b decision, confirmed with the user against the
+ * real data).
+ *
+ * WHY, from the real 1,456-row backup — two names carry multiple types and
+ * BOTH are correct, not data-entry slips:
+ *
+ *   WiFi    14 x non_expense (2025-02 -> 2026-03, "Vodafone West GmbH
+ *           KdNr. 1315385071" — a flat share, partly reimbursed) then
+ *           4 x expense (2026-06 onward, "Vodafone GmbH KdNr. 134029559"
+ *           — a different contract after a flat move, wholly the user's).
+ *           Same concept, "my internet bill"; the circumstance changed.
+ *   Shopping 151 x expense, 2 x non_expense, 1 x non_income — a purchase
+ *           partly not the user's money, and a refund of one.
+ *
+ * The LEGACY app proves the opposite model fails: public/js/db.js:460-467
+ * pinned one categoryType per category and threw "Category type must
+ * match the selected category" on any mismatch, so it could not re-enter
+ * 10 of its own rows. Those rows only existed because CSV import bypassed
+ * that validation. Its category list also collapsed duplicates
+ * first-writer-wins (db.js:132-143,550-553), silently discarding the
+ * second type.
+ *
+ * Consequence for consumers: anything needing a type must read it from
+ * the transaction (or compute a per-type breakdown over rows, as
+ * features/settings/categoryRename.ts does). Nothing can ask a Category
+ * what type it "is", because that question has no single answer.
+ */
 export interface Category {
   name: string;
-  categoryType: CategoryType;
 }
 
 export interface Merchant {

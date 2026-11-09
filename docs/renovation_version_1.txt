@@ -1835,6 +1835,221 @@ hardcoded to balanceCents, it draws only a line, and it is aria-hidden
 decoration), the no-CI gap, the Activity-vs-Home "today" anchor
 inconsistency, and Phase 18 cutover (whose pre-commit-hook trap is
 described above).
+[Phase 13b is now DONE — see the entry below. The framing above was
+WRONG in one important way: it calls the categoryType conflict a
+first-write-wins BUG. The conflict is real and the arbitrary resolution
+was a bug, but the underlying DATA is correct: a category legitimately
+carries several types. Read the next entry before acting on this one.]
+
+PHASE 13b (categories) — done. 388 tests (up from 355), tsc -b clean,
+typecheck:api clean, production build 52.03KB gzipped (was 48.53KB;
++3.50KB for the sheet, its CSS, the pure rename module and the shared
+breakdown component).
+
+THE PLAN'S PREMISE WAS WRONG, AND MEASURING THE DATA FIRST IS WHAT
+CAUGHT IT. Every earlier entry in this file treats Shopping's and WiFi's
+multiple category types as a first-write-wins defect to be fixed. The
+notes field says otherwise:
+  - WiFi's 14 non_expense rows (2025-02-19 -> 2026-03-24) all read
+    "Vodafone West GmbH KdNr. 1315385071"; the 4 expense rows
+    (2026-06-25 onward) read "Vodafone GmbH KdNr. 134029559". Different
+    customer numbers, a clean 3-month gap: a flat move ended a shared
+    contract (partly reimbursed, hence non_expense) and began a sole one.
+  - Shopping spans a purchase (151 expense), a partly-not-mine purchase
+    (2 non_expense: Douglas 109 €, Amazon 141,75 €) and a refund of one
+    (1 non_income: Amazon 69,99 €, ten days after the 141,75 €).
+Neither is a typo. So categoryType is a property of the TRANSACTION, not
+of the category — the circumstance varies per row while the category
+concept ("my internet bill", "shopping") stays one thing.
+
+CORROBORATION FROM THE LEGACY APP, which had the opposite model and
+could not represent its own data: public/js/db.js:460-467 pinned one
+categoryType per category and THREW "Category type must match the
+selected category" on any mismatch. So the old app could not re-enter 10
+of its own 1,456 rows; they only exist because CSV import
+(db.js:190-219) bypassed that validation entirely. Its category list
+also collapsed duplicates first-writer-wins (db.js:132-143, 550-553),
+silently discarding the second type — the same bug the rewrite had
+faithfully reproduced in deriveCategories. Phase 18 deletes public/, so
+this evidence now lives in domain/transaction.ts's Category doc.
+
+DECISIONS FROM THE GRILL SESSION (user answered all six):
+  - A category is identified by NAME ALONE. Category's categoryType
+    field is DELETED rather than made an array: "WiFi (Expense)" and
+    "WiFi (Paying someone back)" as separate list items would have meant
+    maintaining WiFi twice and minting a third "Shopping" on every
+    refund. This also made most existing code correct as-is rather than
+    needing rework — FilterSheet's name-chips-plus-independent-type-facet
+    shape, EntryForm's independent Type select, and recall.ts's
+    (type, category, merchant, account) combo key were all ALREADY right
+    under this model and were left untouched.
+  - Insight drill-down shows only the rows the card counted.
+  - ONE operation, "rename", which merges when the target exists. No
+    bulk type-change (the user will fix the one misfiled Amazon row by
+    hand in Activity). No mixed-type review flow.
+  - Trim mismatch fixed; re-import caveat documented.
+
+"DELETE" WAS IMPOSSIBLE AS SPECIFIED, and saying so was more useful than
+building something. Phase 13's original text promises "Categories: edit +
+delete (both missing in v1)". But Phase 0 locked categories as DERIVED
+from transactions, so a category with zero rows cannot exist to be
+deleted, and deleting one WITH rows means reassigning them — which is
+what a rename already does. Delete collapses into merge, and merge
+collapses into rename. One operation, not three.
+
+NO AUTO-DETECTION, BECAUSE THERE IS NOTHING TO DETECT. Measured before
+writing any code: all 36 category names are distinct even after
+case-folding and punctuation-stripping — ZERO duplicate groups, against
+merchants' 7 groups / 150 rows. So a suggestion list would always be
+empty, and every genuine category tidy-up is a SEMANTIC judgement.
+Consequence for validateCategoryRename: merchantMerge.ts's
+"different merchant, not a spelling of this one" guard is deliberately
+NOT replicated. That guard would have blocked the only two renames the
+user actually wanted. Instead the sheet states the exact consequence
+("Moves 1 row into Restaurant, which has 144") and the user confirms.
+
+Built:
+  - domain/transaction.ts: Category is now { name }. The doc comment
+    carries the WiFi/Shopping evidence and the legacy-app counterexample,
+    so the next reader cannot mistake this for an oversight.
+  - storage/derive.ts: deriveCategories returns names only, keyed on the
+    TRIMMED name (draft.ts:154 trims on write while this keyed the raw
+    value, so an imported row with a stray space showed as a second
+    category identical to the eye). Blank names skipped — csv.ts rejects
+    them at parse time, so unlike a blank merchant ("no counterparty",
+    265 real rows) a blank category is not legitimate data.
+  - features/settings/categoryRename.ts: pure summarizeCategories() +
+    planCategoryRename() + validateCategoryRename(), no repository and
+    no DOM. Separates rows that CHANGE from rows already carrying the
+    target name, so merging Dining into Restaurant writes 1 row, not 145
+    — the other 144 would each bump updatedAt and sync for nothing.
+  - components/TypeBreakdown.{tsx,css}: extracted from
+    MerchantMergeSheet.tsx rather than copied. The counterparty-type list
+    was already hardcoded in three places; a fourth copy of the rendering
+    on top of that was not worth it. Deliberately carries no "this is a
+    problem" styling, because the same component now serves two opposite
+    meanings: in the merchant sheet a mixed breakdown warns "you are
+    about to move money between people", in the category sheet it just
+    means "this category has a history".
+  - features/settings/CategoriesSheet.{tsx,css} + a Settings section.
+    Reuses the Sheet primitive. Stays open after a rename so several can
+    be done in a row — which is only safe because Phase 6 part 2 already
+    fixed Toast's z-index to out-rank Sheet (verified again live here).
+  - HomeScreen.tsx: the drill-down now carries categoryTypes:["expense"].
+
+THE DRILL-DOWN BUG WAS WORSE THAN THIS FILE DESCRIBED. The entry above
+frames it as 151 rows vs 154. Reproduced live by MUTATION (removing the
+fix and re-running Playwright against the real data): the Shopping card
+read "98,16 € this month" while the Activity screen it opened read
+"8 transactions, +69,99 €, −239,91 €". So the refund appeared as INCOME
+on a screen reached from a spending card, and the out-total was 2.4x the
+figure on the card. With the fix: 6 transactions, −98,16 €, +0,00 €,
+which matches the card to the cent (independently checked: October's six
+Shopping expense rows are 13,84 + 28,99 + 4,74 + 6,99 + 39,11 + 4,49 =
+98,16 €). The filter sheet shows BOTH "Expense" and "Shopping" active,
+so the constraint is visible and removable rather than hidden state.
+
+ONE THING DELIBERATELY NOT CHANGED, having looked: InsightFeed.tsx:30's
+key={d.category}. It was on the plan as a fix, but deltas are
+expense-only and keyed by name, so each name appears at most once per
+array and the key cannot collide. Changing it would have implied a
+decision the code does not make — the same lesson as Phase 6 part 1's
+dead all-caps tie-break.
+
+HOW THE TESTS WERE VALIDATED. 11 mutations, every one caught by the
+intended test, all reverted (confirmed back to a zero diff): drop
+deriveCategories' trim; drop its blank guard; restore the original
+first-write-wins categoryType field (fails 5 tests, including an
+order-independence test written specifically to pin that behaviour);
+fold already-correct rows into `changed`; drop planCategoryRename's trim;
+drop the same-name guard; drop the source-exists guard; swap the unicode
+name check for ASCII-only (fails the "Café"/"食費" test); force
+hasMixedTypes false; drop summarizeCategories' trim; and remove
+categoryTypes:["expense"] from the drill-down (the live reproduction
+above). Unlike Phase 6 part 1, no test was found vacuous this time.
+  Also added storage/__tests__/derive.test.ts — derive.ts had NO test
+  file at all before this phase, which is precisely why the lossy
+  categoryType field survived from Phase 5 to now: nothing ever asserted
+  it. That absence, not the bug itself, is the real finding.
+
+Verified end-to-end against a live `npm run dev` instance via Playwright
+(390x844, deviceScaleFactor 2), 45 assertions, zero console errors (the
+one 502 observed is the pre-existing /api/auth/refresh proxy with no
+`vercel dev` running, unrelated to this phase):
+  - Settings reads "Edit categories (36)"; the sheet lists all 36 and
+    marks exactly Shopping and WiFi as mixed-type.
+  - Dining shows "1 × Expense" and the summary "Moves 1 row into
+    Restaurant, which has 144. Amounts and types don't change."
+  - After the merge: ledger size UNCHANGED at 1456, categories 36 -> 35,
+    Dining gone, Restaurant 144 -> 145, and Restaurant's total exactly
+    equal to the sum of the two previous totals (163875 cents, checked
+    arithmetically rather than "it changed").
+  - Undo restores all of it EXACTLY: 36 categories, Dining 1 row /
+    1119 cents, Restaurant 144 rows / 162756 cents.
+  - Fees -> Bank Charges: 7 -> 8 rows, 3957 cents = 490 + 3467.
+  - Mixed-type rename (WiFi -> Internet) preserves BOTH types intact
+    ({non_expense: 14, expense: 4}) and Undo restores them.
+  - Validation: self-rename shows "That's already the name." and
+    DISABLES Rename; a blank name shows "Enter a name."
+  - No horizontal overflow at 320px.
+
+THE TWO REAL RENAMES ARE NOW APPLIED to
+dummyData/trackz-backup-2026-10-31.csv at the user's instruction:
+Dining -> Restaurant (2026-09-19, Papa Johns, 11,19 €) and Fees ->
+Bank Charges (2026-09-30, CMRZ, 4,90 €). The second completes a monthly
+series that had broken: Bank Charges already held a CMRZ 4,90 €
+"Bank Fee" row on May 31, Jun 30, Jul 31 and Aug 31, and September's
+landed under "Fees" instead. Both are expense -> expense, so no
+type mixing is introduced. 36 categories -> 34.
+  A FULL-FILE REWRITE WAS THE WRONG TOOL AND WAS CAUGHT BY DIFFING. The
+  first attempt used python's csv writer and churned all 1,456 lines:
+  the file is CRLF with NO trailing newline, and the writer emitted LF
+  and added one. Redone as a byte-surgical replace of the two exact
+  lines. Verified: diff shows exactly 2 changed lines, byte delta is
+  exactly +12 (= "Restaurant"-"Dining" 4 + "Bank Charges"-"Fees" 8),
+  CRLF count and the absent trailing newline both preserved, row count
+  1456, and the summed amount column identical to the cent
+  (153168.36 before and after). Then re-parsed through the app's OWN
+  parser: zero errors, 1456 transactions, 34 categories, Restaurant 145
+  rows / 163875 cents, Bank Charges 8 rows / 3957 cents.
+  DELIBERATELY NOT TOUCHED: dummyData/snapshot-2026-10-31/ and
+  src/dev/seed-transactions.csv (byte-identical copies of the original).
+  The snapshot is Phase 0's immutable record and the fixture all 6
+  fixture-dependent test files read, with reference-totals.json's
+  "expense|Dining" / "expense|Fees" keys reconciled against it — editing
+  it would invalidate verified reference figures AND remove the live
+  Dining/Fees rows that Playwright exercises the rename against.
+
+Explicitly NOT done:
+  - BULK TYPE-CHANGE (user's decision). The one genuinely misfiled row
+    — Amazon's 69,99 € refund under Shopping/non_income rather than
+    Refunds — is fixable by tapping it in Activity, which already works.
+    Retyping rows changes what counts as spending and feeds Lent out /
+    I owe, so it is a sharper tool than rename and was kept out.
+  - No real-device pass. New UI with a scrolling list and text inputs
+    inside a Sheet — exactly the class of thing the Phase 6 part 2
+    z-index bug came from.
+  - A rename is NOT reflected back into the original CSV: re-importing a
+    backup made BEFORE the rename reverts it, since content-derived ids
+    hash `category` and still match. Unlike Phase 6 part 2, which left
+    this undocumented, the import preview now says so — covering
+    merchant merges too, which have carried the same trap since they
+    shipped.
+  - deriveCategories is now consistent with filter.ts and the engine on
+    name-keying, but getCategoryTotals still keys "categoryType|category"
+    and is deliberately unchanged: verify-import.test.ts reconciles
+    against reference-totals.json through that exact key format.
+
+STILL OPEN AFTER THIS PHASE: Phase 14 (charts — getTopCategoriesForMonth
+and getMonthlyExpenseSeries still have no UI consumer, and Sparkline.tsx
+cannot render them as-is: its points prop is hardcoded to balanceCents,
+it draws only a line, and it is aria-hidden decoration), the no-CI gap
+(which Phase 18 blocks: the pre-commit hook exit 1's without
+public/js/version.js, and a committed SYNTHETIC fixture is needed since
+dummyData/ is real financial data in a public repo), the Activity-vs-Home
+"today" anchor inconsistency, purgeOldTombstones having no caller, and
+Phase 18 cutover (whose pre-commit-hook trap is described above).
+
 
 
           - EUR-only — delete currency field plumbing entirely.

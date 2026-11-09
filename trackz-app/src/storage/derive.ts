@@ -19,14 +19,36 @@ export function deriveAccounts(transactions: Transaction[]): Account[] {
   return [...names].sort().map((name) => ({ name }));
 }
 
+/**
+ * Distinct category names, deduped and sorted.
+ *
+ * Returns NAMES ONLY. A category has no single categoryType — that lives
+ * on each transaction, and one name legitimately carries several types
+ * (real data: WiFi, Shopping). See domain/transaction.ts's Category doc
+ * for the evidence and for why the legacy per-category pin was wrong.
+ *
+ * This used to return { name, categoryType } and set the type from the
+ * FIRST transaction carrying each name. That was lossy in a way nothing
+ * surfaced: array order decided which of WiFi's two real types won, and
+ * the discarded one vanished. Dedup-by-name is now correct rather than
+ * lossy. Note the COUNT does not move (36 names either way, 39 distinct
+ * (name, type) pairs) — what changes is that the returned type is no
+ * longer an arbitrary pick presented as fact.
+ *
+ * TRIMMED, because features/entry/draft.ts trims `category` on write
+ * while this keyed the raw value — so an imported row with a stray
+ * trailing space would show up here as a SECOND category identical to
+ * the eye. Blank names are skipped: csv.ts rejects them at parse time
+ * and draft.ts's validation requires one, so a blank is not a legitimate
+ * category the way a blank merchant is a legitimate "no counterparty".
+ */
 export function deriveCategories(transactions: Transaction[]): Category[] {
-  const byName = new Map<string, Category>();
+  const names = new Set<string>();
   for (const tx of transactions) {
-    if (!byName.has(tx.category)) {
-      byName.set(tx.category, { name: tx.category, categoryType: tx.categoryType });
-    }
+    const name = tx.category.trim();
+    if (name !== "") names.add(name);
   }
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name }));
 }
 
 export function deriveMerchants(transactions: Transaction[]): Merchant[] {

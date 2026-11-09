@@ -71,17 +71,8 @@
   flex-shrink: 0;
 }
 
-.merge-group__types {
-  list-style: none;
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
+/* .merge-group__types moved to components/TypeBreakdown.css in Phase
+   13b — the category editor needed the same readout. */
 
 /* Counterparty rows (non_expense / non_income / receivable / payable):
    the amount is wholly or partly not the user's own money, and the
