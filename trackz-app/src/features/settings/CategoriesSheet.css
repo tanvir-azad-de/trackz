@@ -26,8 +26,10 @@
   gap: var(--space-1);
   /* The list is 34+ rows against a bounded dataset, so it scrolls inside
      the sheet rather than growing it past the viewport. Sheet.css already
-     contains overscroll behaviour; this just caps the height. */
-  max-height: 50vh;
+     contains overscroll behaviour; this just caps the height. dvh, not vh,
+     so the cap shrinks with the viewport when the iOS keyboard is up —
+     vh ignores the keyboard and would push the rename input off-screen. */
+  max-height: 50dvh;
   overflow-y: auto;
 }
 

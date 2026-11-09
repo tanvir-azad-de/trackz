@@ -3,8 +3,14 @@ import type { ComponentChildren } from "preact";
 import { Sheet } from "@/components/Sheet";
 import { CATEGORY_TYPES, categoryTypeLabel } from "@/domain/transaction";
 import type { Account, Category } from "@/domain/transaction";
-import { getLastNMonthsRange, getLocalToday, getThisMonthRange, getYearToDateRange } from "@/domain/dates";
-import { activeFacetCount, emptyFilter, type ActivityFilter } from "@/features/activity/filter";
+import {
+  activeFacetCount,
+  emptyFilter,
+  matchingPreset,
+  presetRange,
+  type ActivityFilter,
+  type PresetKey,
+} from "@/features/activity/filter";
 
 interface FilterSheetProps {
   open: boolean;
@@ -14,8 +20,6 @@ interface FilterSheetProps {
   onApply: (next: ActivityFilter) => void;
   onClose: () => void;
 }
-
-type PresetKey = "this-month" | "last-3-months" | "this-year" | "all-time";
 
 /**
  * Facet picker for the Activity screen (Phase 11). Reuses Sheet rather
@@ -41,16 +45,8 @@ export function FilterSheet({ open, filter, accounts, categories, onApply, onClo
   }
 
   function applyPreset(preset: PresetKey) {
-    const today = getLocalToday();
-    const range =
-      preset === "this-month"
-        ? getThisMonthRange(today)
-        : preset === "last-3-months"
-          ? getLastNMonthsRange(3, today)
-          : preset === "this-year"
-            ? getYearToDateRange(today)
-            : null;
-    setLocal((f) => ({ ...f, from: range?.from ?? "", to: range?.to ?? "" }));
+    const range = presetRange(preset);
+    setLocal((f) => ({ ...f, from: range.from, to: range.to }));
   }
 
   function handleApply() {
@@ -64,16 +60,36 @@ export function FilterSheet({ open, filter, accounts, categories, onApply, onClo
   }
 
   const facetCount = activeFacetCount(local);
+  // Derived, not stored: hand-editing a date input clears the highlight,
+  // and typing a range that equals a preset lights it up. See
+  // matchingPreset's comment for why a stored field would drift.
+  const activePreset = matchingPreset(local);
 
   return (
     <Sheet open={open} onClose={onClose} title="Filter">
       <div class="filter-sheet">
         <FilterSection title="Date">
           <div class="filter-sheet__presets">
-            <PresetButton label="This month" onClick={() => applyPreset("this-month")} />
-            <PresetButton label="Last 3 months" onClick={() => applyPreset("last-3-months")} />
-            <PresetButton label="This year" onClick={() => applyPreset("this-year")} />
-            <PresetButton label="All time" onClick={() => applyPreset("all-time")} />
+            <PresetButton
+              label="This month"
+              active={activePreset === "this-month"}
+              onClick={() => applyPreset("this-month")}
+            />
+            <PresetButton
+              label="Last 3 months"
+              active={activePreset === "last-3-months"}
+              onClick={() => applyPreset("last-3-months")}
+            />
+            <PresetButton
+              label="This year"
+              active={activePreset === "this-year"}
+              onClick={() => applyPreset("this-year")}
+            />
+            <PresetButton
+              label="All time"
+              active={activePreset === "all-time"}
+              onClick={() => applyPreset("all-time")}
+            />
           </div>
           <div class="filter-sheet__date-range">
             <label class="filter-sheet__date-field">
@@ -158,9 +174,22 @@ function FilterSection({ title, children }: { title: string; children: Component
   );
 }
 
-function PresetButton({ label, onClick }: { label: string; onClick: () => void }) {
+function PresetButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button type="button" class="filter-sheet__preset" onClick={onClick}>
+    <button
+      type="button"
+      class={`filter-sheet__preset ${active ? "filter-sheet__preset--active" : ""}`}
+      onClick={onClick}
+      aria-pressed={active}
+    >
       {label}
     </button>
   );

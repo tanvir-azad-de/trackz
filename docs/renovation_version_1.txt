@@ -897,6 +897,14 @@ data mid-test.
   Phase 17 (iOS hardening) scope check: most of the originally-listed
   items were ALREADY DONE in Phase 2 and verified directly in this
   phase's audit, not re-done here: 100dvh (zero 100vh in any CSS file),
+  [STALE — that parenthesis was true when written and did NOT stay true.
+  Phase 15b landed AFTER this phase despite the lower number and
+  reintroduced `height: 100vh` on .app-shell; a 50vh cap later arrived in
+  Phase 13b. Both fixed in the Phases 6b/13b real-device pass at the end
+  of this file, which also found the --safe-top double-count that same
+  commit caused. The lesson is about verification, not CSS: a claim
+  verified in phase order goes stale when a lower-numbered phase ships
+  later.]
   -webkit-tap-highlight-color: transparent, overscroll-behavior
   containment, prefers-reduced-motion (3 sites), 44px touch targets,
   the @media (hover: hover) guard, and the 16px input-font-size floor.
@@ -1992,6 +2000,12 @@ one 502 observed is the pre-existing /api/auth/refresh proxy with no
   - Validation: self-rename shows "That's already the name." and
     DISABLES Rename; a blank name shows "Enter a name."
   - No horizontal overflow at 320px.
+    [MISLEADING, corrected in the Phases 6b/13b device pass at the end of
+    this file. True of the CategoriesSheet this phase built, and the sheet
+    was all that was checked — but Home and Accounts were ALREADY
+    overflowing at the time, and Activity was already shrunk to 358px in a
+    390px viewport. Checking the new component in isolation passed while
+    the screen behind it was broken.]
 
 THE TWO REAL RENAMES ARE NOW APPLIED to
 dummyData/trackz-backup-2026-10-31.csv at the user's instruction:
@@ -2049,6 +2063,221 @@ public/js/version.js, and a committed SYNTHETIC fixture is needed since
 dummyData/ is real financial data in a public repo), the Activity-vs-Home
 "today" anchor inconsistency, purgeOldTombstones having no caller, and
 Phase 18 cutover (whose pre-commit-hook trap is described above).
+
+REAL-DEVICE PASS FOR PHASES 6b/13b — DONE, and it found the worst UI bug
+in the rebuild so far. 393 tests (up from 388), tsc -b clean,
+typecheck:api clean, production build 51.88KB gzipped — DOWN from 52.03KB,
+the first decrease in the rebuild, because this phase deletes a component.
+
+The checklist was docs/device-check-phase13b.md, written because three
+phases (6 part 1, 6 part 2, 13b) had shipped new sheet UI with no device
+pass at all. The user ran it. Everything the checklist actually asked
+about passed: both sheets open, scroll, rename/merge and undo correctly;
+the Undo toast is tappable over an open sheet on real iOS (the Phase 6b
+z-index fix holds); the keypad double-tap no longer zooms and pinch-zoom
+still works (closing the one item docs/device-check-phase16.md left
+unverified since Phase 16); sync still connected.
+
+THE FINDING CAME FROM OUTSIDE THE CHECKLIST. The user reported that the
+app header introduced with the sync status indicator was breaking the UI
+on every screen, and suggested removing it. Measured before acting, and
+the report was right with a specific mechanism: --safe-top WAS BEING
+APPLIED TWICE.
+  - TabBar.css's .app-header consumed var(--safe-top) as its top padding.
+  - Every screen's own container (HomeScreen.css, ActivityScreen.css,
+    AccountsScreen.css, SettingsScreen.css) ALSO consumed it, per the
+    Phase 16 fix, which was written when no fixed top bar existed.
+  Both were individually correct; together they double-counted. Measured
+  with Playwright at 390x844 dpr2, overriding --safe-top since
+  env(safe-area-inset-top) cannot be spoofed: Home's title moved 118.0px
+  for a 59px inset. Phase 16's own verification had asserted EXACTLY this
+  number was +59px and passing — it was, at the time. The regression
+  arrived with the header in 6698efb (Phase 15b), which landed AFTER
+  fc895b1 (Phase 16/17) despite the lower phase number, so Phase 16's
+  verified claim silently went stale. A phase-ordered plan verified in
+  phase order does not protect against this.
+
+REMOVED THE HEADER ENTIRELY rather than reconciling the two paddings.
+Reconciling would have meant every screen's padding depending on whether
+a header is mounted — a coupling that re-breaks the moment anything is
+added above a screen. Removal also cost nothing visually: all four
+screens ALREADY render their own <h1> ("Home", "Activity", "Accounts",
+"Settings"), so the header's "trackz" title was duplicate chrome on a
+390px-wide phone, and the app's name is on the Home Screen icon.
+
+  WHAT THE SYNC INDICATOR WAS DOING, AND WHERE IT WENT. Deleting it
+  needed more care than the title, since it was the only always-visible
+  sync state. Checked each status rather than assuming Settings covered
+  them: "error" was already toasted globally by app.tsx; "pending",
+  "offline" and "signed-out" are either self-resolving (scheduleRetry) or
+  a valid way to run the app; but "conflict" sets retryCount = 0 and
+  RETURNS WITHOUT SCHEDULING A RETRY (coordinator.ts), so dropping the
+  badge would have made it permanently invisible — the user's changes
+  sitting un-synced while the app said nothing. That would have traded a
+  layout bug for a silent-data-divergence bug.
+  So conflict is now toasted alongside error, and the decision of which
+  statuses interrupt the user moved into sync/alerts.ts: pure, no DOM,
+  5 tests, with app.tsx keeping only the setToast plumbing — the same
+  split as exportImport.ts / merchantMerge.ts / categoryRename.ts against
+  their screens. Settings' Sync section remains the full readout for all
+  six statuses, and describeStatus's comment now says so (it previously
+  pointed at the deleted component).
+
+TWO vh UNITS FIXED, both regressions against Phase 17's "zero 100vh in
+any CSS file" claim, which was also true when written:
+  - TabBar.css's .app-shell was `height: 100vh` (introduced in 6698efb,
+    the same commit as the header). On iOS 100vh is the TALLER,
+    toolbar-ignoring viewport, and `height` rather than `min-height`
+    additionally pins the shell to exactly one viewport. Now
+    `min-height: 100dvh`.
+  - CategoriesSheet.css's list cap was `max-height: 50vh`. vh does not
+    shrink for the keyboard, so the rename input could sit behind it.
+    Now 50dvh. HONEST LIMIT: this one is NOT verified. Desktop Chromium
+    has no dynamic toolbar, so vh and dvh resolve identically there —
+    confirmed by mutating it back to 50vh and watching the probe still
+    pass. Only a real device can settle it, and the device pass found
+    the input reachable even before the change.
+
+HOW THE WORK WAS VALIDATED. The layout fix was mutation-tested the same
+way code is: reintroducing .app-header reproduced 118.0px on all four
+screens and the probe failed; reverting restored 59.0px and it passed.
+The three alerts.ts mutations (drop the conflict branch, drop the
+empty-message guard, alert on every status) were each caught by the
+intended test and reverted to a zero diff. ONE TEST WAS FOUND VACUOUS
+that way and rewritten: "distinguishes the two labels" asserted only that
+conflict's label differed from error's, which passes when conflict
+returns null — precisely the regression the test beside it covers. It now
+asserts both are non-null first. Same failure as Phase 6 part 1's blank-
+merchant test and Phase 15c's idempotency test: the third time this
+discipline has caught a test that documented nothing.
+
+Verified against a live npm run dev via Playwright (390x844,
+deviceScaleFactor 2), 14 assertions, zero console errors (the one 502 is
+the pre-existing /api/auth/refresh proxy with no vercel dev running):
+.app-header is gone; all four screens' titles move EXACTLY 59.0px for a
+59px inset and clear the status bar; .app-shell's min-height tracks the
+viewport; Activity scrolls fully to its last row above the tab bar;
+Settings' Sync section still renders; the categories sheet still lists 36
+rows and scrolls within a 422px cap (= 50dvh of 844).
+
+SECOND BUG, FOUND BY THE USER RUNNING IT LOCALLY AFTER THE ABOVE: the
+Home account strip was scrolling the WHOLE PAGE sideways. The user's own
+diagnosis — "margin-auto of activity screen is problematic, it is making
+the content shrink" — was exactly right, and was the key: the strip was a
+symptom, not the cause, and the same rule was ALSO shrinking Activity.
+
+  ONE ROOT CAUSE, TWO OPPOSITE SYMPTOMS. Measured at a 390px viewport
+  before touching anything: Home 480px (overflowing), Accounts 473.8px
+  (overflowing), Activity 358.3px (SHRUNK, content visibly pinched),
+  Settings 390px (correct by luck — its content happened to be exactly
+  viewport-width).
+    .app-shell is a COLUMN flex container (added for the removed header,
+    kept for the layout). Per the flexbox spec a flex item stretches to
+    the cross size only when NEITHER cross-axis margin is auto. All four
+    screens carry `margin: 0 auto` to centre the column on a wide screen,
+    which DISABLES that stretch — so each screen shrink-to-fit its own
+    content, then max-width: 480px clamped whichever ones exceeded it.
+    Wide content overflowed the phone; narrow content pinched inward.
+    This is why it looked like an account-strip bug: the strip is the
+    widest intrinsic content on Home (7 cards x 110px min-width = 850px),
+    so it set Home's shrink-to-fit width and dragged the page with it.
+  FIX: `width: 100%` on all four screen containers. `align-self: stretch`
+  was tried first and measured NOT to work — auto margins beat stretch,
+  which is the part of this worth remembering. 100% resolves against
+  .app-shell's content box, and globals.css's box-sizing: border-box
+  keeps the padding inside it, so each screen is now exactly the viewport
+  width up to the 480px cap. Verified 390/320/430: all four screens
+  measure exactly min(viewport, 480) with zero horizontal page scroll.
+  The strip STILL scrolls internally with all 7 cards present — a fix
+  that hid its overflow would have silently truncated accounts, so that
+  is asserted separately rather than assumed.
+  Mutation-tested: removing `width: 100%` reproduces Home at 480px AND
+  Activity at 358.3px, 13 assertions failing; reverted to a zero diff.
+
+  WHY NEITHER THE PHASE 13b NOR THE DEVICE PASS CAUGHT IT. Phase 13b's
+  verification asserted "no horizontal overflow at 320px" — of the
+  CategoriesSheet it had just built, which was true. The screens behind
+  the sheet were already broken and were not measured. The device pass
+  then worked a checklist derived from the same per-component habit. The
+  user found it in thirty seconds by scrolling Home. The lesson is that
+  component-scoped verification passes while the page is broken, so a
+  layout claim needs a PAGE-level assertion (document.scrollWidth <=
+  clientWidth) and not only a component-level one.
+
+THIRD BUG, also found by the user running it locally: FilterSheet's date
+PRESET buttons had no active state at all. They set a range and then looked
+identical to the unselected ones, so the sheet could not answer "which
+range am I looking at?". The chips beside them have had --active styling
+since Phase 11; PresetButton simply never took an `active` prop, while
+ChipToggle three lines below it did. A gap from Phase 11, not a regression.
+
+  DERIVED BY COMPARISON, NOT STORED. The obvious fix is a
+  selectedPreset state field, which would immediately create two sources
+  of truth: hand-editing a date input would leave the field still claiming
+  "This month" while the dates said otherwise. filter.ts gained pure
+  presetRange() + matchingPreset() instead, so the highlight is computed
+  from the bounds — hand-editing a date correctly clears it, and typing a
+  range that happens to equal a preset correctly lights it up. Both live in
+  filter.ts rather than the component, matching the tested-pure /
+  untested-thin split the rest of the app uses; FilterSheet.tsx's own
+  applyPreset is now three lines that call the pure function.
+
+  A GENUINE AMBIGUITY, FOUND BY CHECKING AND NOW PINNED: throughout
+  JANUARY, this-month and this-year are the SAME range (both 1 Jan ->
+  today), so no comparison can distinguish them. Array order decides it and
+  this-month wins as the narrower claim, meaning that in January tapping
+  "This year" highlights "This month". Cosmetic and inherent to deriving
+  rather than storing, so it is documented in matchingPreset's comment and
+  asserted by a test rather than left to be rediscovered as a bug.
+
+  MUTATION TESTING CORRECTED THIS PHASE'S OWN COMMENT, for the second time
+  in this file (cf. the Phase 15c import fix). The first version of
+  matchingPreset's comment said all-time had to be checked FIRST so an
+  empty filter would not read as "no preset". Mutation M1 reordered the
+  array and ALL 402 TESTS STILL PASSED. Investigated instead of adding a
+  test to defend the claim: no other preset can ever produce empty bounds
+  (verified across 1 Jan, 9 Jan, 31 Dec and mid-month), so all-time cannot
+  be shadowed wherever it sits and the ordering is genuinely redundant
+  there. The comment now says plainly that all-time's position is NOT
+  load-bearing while this-month-before-this-year IS — the opposite of what
+  it first claimed. Same lesson as Phase 6 part 1's dead all-caps tie-break:
+  a rule that never fires implies a decision the code does not make.
+  Four further mutations, each caught and reverted to a zero diff: swap
+  this-month/this-year (1 test, the January tie); compare only the `to`
+  bound (4 tests); ignore the passed `today` and default it (4 tests);
+  make all-time return a computed range instead of empty bounds (2 tests).
+
+  Verified live via Playwright (390x844 dpr2), 14 assertions, zero console
+  errors: 4 buttons render; "All time" is active on an unfiltered sheet;
+  the active button differs from an inactive one in border, text colour AND
+  background (asserted on computed styles, since the whole bug was "shows
+  no active colour" — a class-only assertion would have passed while
+  looking identical); tapping each preset leaves exactly one active with
+  aria-pressed mirroring it; hand-editing a date input clears the highlight;
+  Reset returns to "All time".
+  402 tests (up from 393), production build 51.98KB gzipped (+0.10KB).
+
+STILL OPEN, UNCHANGED BY THIS PASS: everything in the list above, plus
+two things the device pass surfaced that are NOT fixed:
+  - THE UPDATE TOAST HAS NEVER BEEN REACHABLE IN PRODUCTION. A browser
+    installs a new service worker only when sw.js itself changes bytes,
+    and sw.js has been untouched since fc895b1 across 17 commits — the
+    deployed copy is byte-identical to the repo's (shasum). So
+    updatefound has never fired and the toast has never shown; the device
+    pass confirmed no toast appeared. The app still updates, because
+    navigations are network-first, which is why nobody noticed. What is
+    genuinely broken is a session left open across a deploy: it keeps
+    running stale JS with no prompt. The fix is to stamp the build hash
+    into sw.js's CACHE_VERSION, which would also make its activate
+    handler's cache cleanup run for the first time.
+    docs/device-check-phase16.md section 6 is superseded by this.
+  - NO KEYBOARD AVOIDANCE EXISTS ANYWHERE. Phase 7's scope listed
+    "keyboard-avoidance for the entry sheet"; it was never built and
+    never recorded as skipped. There is no visualViewport handling in the
+    codebase. The device pass found both new sheets' inputs reachable
+    anyway, so this is latent rather than live — but it is latent by
+    luck, not by design.
+
 
 
 

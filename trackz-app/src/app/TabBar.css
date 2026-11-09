@@ -1,28 +1,13 @@
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* min-height, not height, and dvh, not vh. `height: 100vh` pinned the
+     shell to iOS's TALLER (toolbar-ignoring) viewport, so the bottom of
+     every screen sat under Safari's toolbar; dvh tracks the viewport as
+     the toolbar collapses. min-height lets a long screen grow past it
+     instead of being clipped to exactly one viewport. */
+  min-height: 100dvh;
   width: 100%;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--safe-top) var(--space-3) var(--space-2) var(--space-3);
-  padding-left: calc(var(--safe-left) + var(--space-3));
-  padding-right: calc(var(--safe-right) + var(--space-3));
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-subtle);
-  z-index: 40;
-}
-
-.app-title {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  margin: 0;
-  color: var(--text-primary);
-  flex: 1;
 }
 
 .tab-bar {

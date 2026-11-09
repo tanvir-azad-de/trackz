@@ -11,12 +11,11 @@ import { deleteTransaction } from "@/storage/repository";
 import type { Transaction } from "@/domain/transaction";
 import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
 import { applyServiceWorkerUpdate, registerServiceWorker } from "@/pwa/registerServiceWorker";
-import { SyncStatusIndicator } from "@/app/SyncStatusIndicator";
 import { initializeSync, syncNow } from "@/sync/coordinator";
+import { describeSyncAlert } from "@/sync/alerts";
 import { restoreSession } from "@/sync/auth";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import "@/app/TabBar.css";
-import "@/app/SyncStatusIndicator.css";
 import "@/components/Card.css";
 import "@/components/Toast.css";
 
@@ -96,12 +95,15 @@ export function App() {
     };
   }, []);
 
-  // Phase 15b: Show sync error toasts
+  // Phase 15b: surface sync trouble as a toast. The decision of WHICH
+  // statuses interrupt the user lives in sync/alerts.ts (pure, tested);
+  // this keeps only the setToast plumbing.
   useEffect(() => {
-    if (syncState.status === "error" && syncState.lastError && !toast?.message.includes("Sync")) {
+    const alert = describeSyncAlert(syncState.status, syncState.lastError);
+    if (alert && !toast?.message.includes("Sync")) {
       setToast({
         id: Date.now(),
-        message: `Sync error: ${syncState.lastError}`,
+        message: `${alert.label}: ${syncState.lastError}`,
         actionLabel: "Retry",
         onAction: async () => {
           try {
@@ -117,10 +119,6 @@ export function App() {
 
   return (
     <div class="app-shell">
-      <div class="app-header">
-        <h1 class="app-title">trackz</h1>
-        <SyncStatusIndicator />
-      </div>
       {activeTab === "home" && <HomeScreen onDrillDown={navigateToActivity} />}
       {activeTab === "activity" && (
         <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />

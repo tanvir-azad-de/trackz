@@ -40,6 +40,15 @@
   background: var(--surface-3);
 }
 
+/* Same treatment as .filter-sheet__chip--active below, deliberately: both
+   answer "is this filter on?", so they should not look like two different
+   kinds of selection in one sheet. */
+.filter-sheet__preset--active {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-bg);
+}
+
 .filter-sheet__date-range {
   display: flex;
   gap: var(--space-3);

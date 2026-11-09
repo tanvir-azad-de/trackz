@@ -279,7 +279,14 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
 
 /**
  * Phrase the status for a settings page, where there is room for a full
- * sentence — unlike SyncStatusIndicator's one-or-two-word header badge.
+ * sentence.
+ *
+ * This is now the ONLY place every sync status is visible. The app header
+ * carried a one-or-two-word badge until it was removed for
+ * double-counting the safe-area inset on every screen; app.tsx toasts the
+ * two states that need attention (error and conflict), and the rest —
+ * synced, pending, offline, signed-out — resolve themselves or are a
+ * normal way to run the app, so they live here and nowhere else.
  */
 function describeStatus(status: ReturnType<typeof useSyncStatus>["status"]): string {
   switch (status) {

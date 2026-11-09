@@ -11,6 +11,8 @@ import {
   matchesQuery,
   normalizeForSearch,
   summarizeFiltered,
+  matchingPreset,
+  presetRange,
   type ActivityFilter,
 } from "@/features/activity/filter";
 import type { Transaction } from "@/domain/transaction";
@@ -215,5 +217,84 @@ describe.skipIf(!hasFixture)("summarizeFiltered against the real CSV", () => {
 describe("summarizeFiltered", () => {
   it("an empty result summarizes to all zeros", () => {
     expect(summarizeFiltered([])).toEqual({ count: 0, inCents: 0, outCents: 0, netCents: 0 });
+  });
+});
+
+/**
+ * The preset buttons had no active state at all before this: they set a
+ * date range and then looked identical to the unselected ones. These pin
+ * the derive-by-comparison approach, which is what makes hand-editing a
+ * date clear the highlight instead of leaving a stale "This month".
+ *
+ * A fixed `today` is passed everywhere rather than relying on the
+ * getLocalToday() default, so these do not start failing on the 1st of a
+ * month or in a different timezone.
+ */
+describe("presetRange / matchingPreset", () => {
+  const today = "2026-10-17";
+
+  it("computes each preset's bounds from the given day", () => {
+    expect(presetRange("this-month", today)).toEqual({ from: "2026-10-01", to: today });
+    expect(presetRange("last-3-months", today)).toEqual({ from: "2026-08-01", to: today });
+    expect(presetRange("this-year", today)).toEqual({ from: "2026-01-01", to: today });
+    expect(presetRange("all-time", today)).toEqual({ from: "", to: "" });
+  });
+
+  it("round-trips: every preset's own range matches that preset", () => {
+    for (const preset of ["this-month", "last-3-months", "this-year", "all-time"] as const) {
+      expect(matchingPreset(presetRange(preset, today), today)).toBe(preset);
+    }
+  });
+
+  it("reads an empty filter as All time, not as 'no preset'", () => {
+    // all-time is the absence of both bounds, so it is the one preset that
+    // a freshly-reset filter already satisfies — it must light up rather
+    // than leaving the row with nothing selected.
+    expect(matchingPreset(emptyFilter(), today)).toBe("all-time");
+  });
+
+  it("returns null for a hand-picked custom range", () => {
+    expect(matchingPreset({ from: "2026-03-07", to: "2026-04-02" }, today)).toBeNull();
+  });
+
+  it("returns null when only one end is set", () => {
+    // "everything after 1 Sept" is a legitimate filter state here (see
+    // ActivityFilter's comment) and is not any preset.
+    expect(matchingPreset({ from: "2026-09-01", to: "" }, today)).toBeNull();
+    expect(matchingPreset({ from: "", to: "2026-09-01" }, today)).toBeNull();
+  });
+
+  it("distinguishes this-month from last-3-months rather than matching the first with the same 'to'", () => {
+    // Both presets end at `today`, so comparing only the upper bound would
+    // conflate them.
+    expect(matchingPreset({ from: "2026-10-01", to: today }, today)).toBe("this-month");
+    expect(matchingPreset({ from: "2026-08-01", to: today }, today)).toBe("last-3-months");
+  });
+
+  it("stops matching once the day moves on", () => {
+    // Yesterday's "this month" range is not today's, so a sheet left open
+    // across midnight must not keep claiming the preset is active.
+    const yesterdayRange = presetRange("this-month", "2026-10-16");
+    expect(matchingPreset(yesterdayRange, "2026-10-17")).toBeNull();
+  });
+
+  it("matches in January, where last-3-months crosses a year boundary", () => {
+    const jan = "2027-01-09";
+    expect(presetRange("last-3-months", jan)).toEqual({ from: "2026-11-01", to: jan });
+    expect(matchingPreset({ from: "2026-11-01", to: jan }, jan)).toBe("last-3-months");
+  });
+
+  it("resolves the January this-month/this-year tie toward this-month", () => {
+    // GENUINELY AMBIGUOUS, and worth pinning rather than pretending it
+    // isn't: throughout January, this-month and this-year are the SAME
+    // range (both 1 Jan -> today), so no comparison can tell them apart.
+    // matchingPreset's array order decides it, and this-month is the
+    // narrower, more specific claim. The consequence is cosmetic (in
+    // January, tapping "This year" highlights "This month"), but it is a
+    // consequence of the derive-by-comparison design and not a bug to
+    // hunt later.
+    const jan = "2027-01-09";
+    expect(presetRange("this-month", jan)).toEqual(presetRange("this-year", jan));
+    expect(matchingPreset({ from: "2027-01-01", to: jan }, jan)).toBe("this-month");
   });
 });

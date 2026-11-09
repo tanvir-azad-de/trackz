@@ -1,6 +1,11 @@
 .activity-screen {
   /* See HomeScreen.css for why --safe-top is added here. */
   padding: calc(var(--space-1) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
+  /* width: 100% is load-bearing — see HomeScreen.css for the full
+     reasoning: .app-shell is a column flex container, and `margin: 0
+     auto` disables flex stretching, so without this each screen
+     shrink-to-fits its content instead of filling the viewport. */
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
   /* Sticky month headers in ActivityList.css stick just below the

@@ -4,6 +4,21 @@
      black-translucent extends the page under it — see index.html). Zero
      in a normal browser tab since env(safe-area-inset-top) is 0px there. */
   padding: calc(var(--space-1) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
+  /* width: 100% is LOAD-BEARING, not redundant with max-width.
+     .app-shell is a column flex container, and the flexbox spec stretches
+     a flex item to the cross size only when NEITHER cross-axis margin is
+     auto. `margin: 0 auto` (needed to centre the column on a wide screen)
+     therefore DISABLES stretching, leaving each screen to shrink-to-fit
+     its own content: measured at 390px viewport, Home came out 480px
+     (clamped by max-width, overflowing the phone and scrolling the page
+     sideways) while Activity came out 358px (narrower than the screen,
+     content visibly pinched). Same rule, opposite symptoms, depending on
+     how wide the content happened to be.
+     `align-self: stretch` does NOT fix it — auto margins beat stretch,
+     verified by measuring. 100% resolves against .app-shell's content
+     box, and box-sizing: border-box (globals.css) keeps the padding
+     inside it, so this is exactly the viewport width up to the 480px cap. */
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
 }
