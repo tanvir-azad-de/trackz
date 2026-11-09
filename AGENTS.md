@@ -28,8 +28,11 @@ is the project's history and single source of truth for decisions, and parts
 of it are stale or superseded. Check a claim against the code or the CSV
 before building on it, then correct the doc in the same change.
 
-Read that doc before planning work. Later entries supersede earlier ones and
-say so where it matters.
+Read that doc before planning work. Section 5, "WHERE THIS STANDS", is at
+the top and is the maintained one — current baseline, what is done, what is
+left, and the known bugs. The rest is chronological history where later
+entries supersede earlier ones. Update section 5 in the same change as any
+work.
 
 ## Verification earns the claim
 
