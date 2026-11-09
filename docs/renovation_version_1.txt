@@ -85,6 +85,12 @@ have been wrong about something in every phase so far (see AGENTS.md's
        onward. That section also now checks that Cache Storage holds
        exactly one trackz-* key, since the frozen name meant sw.js's
        activate-handler cache cleanup had never deleted anything either.
+       DEVICE UPDATE 2026-11-09, after deploying f4c67b8: Cache Storage on
+       the real device reads trackz-<16 hex>, so the STAMPING half is
+       confirmed on real iOS. The PROMPT half (does the toast actually
+       appear, does Reload pick up new code, does the old cache get
+       deleted) still needs the next deploy — it is the one remaining
+       unverified piece of this bug.
     2. No keyboard avoidance exists anywhere. Phase 7 scoped it; it was
        never built and never recorded as skipped. No visualViewport
        handling in the codebase. The device pass found both new sheets'

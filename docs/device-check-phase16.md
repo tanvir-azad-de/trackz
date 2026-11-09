@@ -146,12 +146,16 @@ one that gets installed — and from the SECOND deploy onward the toast
 becomes observable. Do not read "no toast on the fix deploy" as a
 failure; it is expected. The check below needs two deploys.
 
-- [ ] **Deploy 1 (the fix).** Open the installed app, then force-quit and
+- [x] **Deploy 1 (the fix).** Open the installed app, then force-quit and
       relaunch once. In a remote inspector, confirm
       `navigator.serviceWorker.controller.scriptURL` resolves and that the
       active worker's `CACHE_VERSION` is no longer `trackz-v1` (check
       Cache Storage: the key should read `trackz-<16 hex chars>`). No
       toast is expected here.
+      **CONFIRMED on a real device 2026-11-09**, commit f4c67b8: Cache
+      Storage reads `trackz-<16 hex>`. The stamping half of this bug is
+      now verified end-to-end on real iOS, not just in a local build. The
+      PROMPT half is still unverified and needs Deploy 2 below.
 - [ ] **Deploy 2 (any later change).** Leave the installed app OPEN,
       deploy, then return to the still-open session. Confirm:
   - [ ] A toast reading "A new version of trackz is available." with a
