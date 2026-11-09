@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-09, commit d2c1d64 + this change)
+5. WHERE THIS STANDS  (last updated 2026-11-09, commit 2b1732a + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -50,6 +50,89 @@ have been wrong about something in every phase so far (see AGENTS.md's
       scripts/setup-git-hooks.sh as needing the same update. It does not —
       it only runs `git config core.hooksPath .githooks` and contains no
       reference to version.js. Only .githooks/pre-commit needs changing.
+    - Icon migration (lucide-preact). PLANNED 2026-11-09, NOT STARTED —
+      recorded here so a fresh session doesn't re-measure what is already
+      known. Unnumbered: orthogonal to Phases 14 and 18, lands as its own
+      change whenever it is picked up, not folded into either.
+
+      CURRENT STATE, measured by reading every .tsx, not assumed: zero
+      icon components, zero SVG in src/. Ten unicode glyphs act as icons:
+      TabBar.tsx:18-21 (⌂☰▦⚙, the 4 tabs), TabBar.tsx:39 (+ FAB),
+      ActivityScreen.tsx:111 (▤ filter), EntrySheet.tsx:116 (✕ clear
+      amount), Keypad.tsx:10,26,35 (⌫ backspace), HeroCard.tsx:39 and
+      InsightFeed.tsx:13,15 (↑↓ delta direction). Every size is inherited
+      font-size with no icon-specific CSS token anywhere. Separately,
+      EntryForm.css:68 has the one inline SVG in the app: a
+      data-URI chevron for the Type <select>, with a HARDCODED
+      stroke='%239aa0ad' — a background-image can't follow currentColor,
+      so it's the one icon-shaped thing that can't yet theme itself.
+      Typographic glyphs in amount strings (− × € → · …) are NOT in scope
+      — those format numbers, they aren't icons, and replacing them would
+      be wrong.
+
+      PACKAGE CHECKED, not assumed: lucide-preact 1.70.0, ISC license,
+      peerDependencies preact "^10.27.2 || ^11.0.0-0" (installed preact is
+      11.1.1 — compatible). sideEffects:false and every icon is its own
+      ESM module importing an ~8KB shared core (createLucideIcon/Icon/
+      context/buildLucideIconNode/mergeClasses/etc.) — this tree-shakes
+      per icon, unlike uPlot's one non-tree-shaking class. Default
+      stroke="currentColor" and auto aria-hidden="true" unless an a11y
+      prop is passed, both already fit this codebase (color comes from
+      CSS like .insight__icon--up, and aria-label already lives on the
+      wrapping <button>, not the glyph). The package's exports map only
+      declares ".", so no subpath imports — everything comes through one
+      274KB (unminified) barrel module that Rollup must tree-shake; this
+      is a measured fact about the package, not a design choice made
+      here. Measured upper bound on source size for 11 icons + shared
+      core (concatenated .mjs from the CDN, unminified, header comments
+      kept): 12,540 bytes raw / 3,191 bytes gzipped — an upper bound, not
+      the real bundle delta, which must be measured post-merge with
+      `gzip -c dist/assets/*.js | wc -c` against this entry's own
+      51,383-byte baseline (see line 16) and reported in this entry when
+      the work lands.
+
+      DECISIONS LOCKED for this migration (do not relitigate):
+        - Sizing: width="1em" height="1em" at the call site, nothing
+          else. Icons keep inheriting font-size exactly like the glyphs
+          they replace — .tab-bar__icon, .insight__icon etc. need zero
+          CSS changes. No new --icon-* tokens.
+        - Vocabulary: a curated src/components/icons.ts re-exporting only
+          the icons this app uses, so the icon vocabulary is one file to
+          read, not grep-discoverable import statements scattered across
+          components. Still tree-shakes — it's a re-export, not a bundle.
+        - Mapping: House / List / Wallet / Settings for the 4 tabs,
+          SlidersHorizontal for the filter button (FilterSheet is
+          multi-facet, not a single funnel — ListFilter or Filter would
+          undersell it), ArrowUp + ArrowDown for HeroCard's and
+          InsightFeed's delta indicators (kept literal and consistent
+          between the two instead of TrendingUp/Down, which would read as
+          a trend chart and, on InsightFeed's "up" tone — which is
+          colored NEGATIVE, since up means spending increased — would be
+          actively misleading).
+        - The <select> chevron (EntryForm.css:68) WILL be converted to a
+          ChevronDown component, removing the last hardcoded-color inline
+          SVG in the app. This needs a positioned wrapper around the
+          <select> with the icon absolutely placed and
+          pointer-events:none, since a CSS background-image can't be
+          swapped for a component without restructuring the markup.
+        - ⌫ at Keypad.tsx:10,26 is CONTROL FLOW, not decoration — line 26
+          does `key === "⌫"` to route the delete handler. Swapping the
+          glyph requires first extracting a discriminated-union key model
+          (e.g. {kind:"digit",value}|{kind:"delete"}|{kind:"blank"}) into
+          a pure features/entry/keypad.ts, mutation-tested, before the
+          render swaps to a Delete icon. This is the one site that is NOT
+          a pure visual swap.
+
+      TEST-INFRA GAP, found while planning: vitest.config.ts runs
+      environment:"node" and includes only src/**/*.test.ts — no
+      .tsx, no happy-dom, no @testing-library/preact. Icon rendering
+      cannot be unit tested without adding that devDep. Verification for
+      every site except the extracted keypad model has to be Playwright
+      against live `npm run dev` at 390x844/deviceScaleFactor:2, same as
+      every prior UI phase here — screenshot each of the 4 tabs, the FAB,
+      the filter button, keypad backspace, both up/down sites, and the
+      select chevron, and confirm currentColor tracks --accent-strong /
+      --negative / --positive where the old font-size-colored glyph did.
 
   KNOWN BUGS, none blocking, roughly by severity:
     1. FIXED 2026-11-09. The service-worker update toast had never fired
