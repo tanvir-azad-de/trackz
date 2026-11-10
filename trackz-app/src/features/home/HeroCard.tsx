@@ -1,5 +1,6 @@
 import { Card } from "@/components/Card";
 import { Money } from "@/components/Money";
+import { ArrowDown, ArrowUp } from "@/components/icons";
 import type { Cents } from "@/domain/money";
 
 interface HeroCardProps {
@@ -36,7 +37,7 @@ export function HeroCard({ liquidCashCents, incomeCents, expenseCents, surplusCe
         <Money cents={liquidCashCents} />
       </div>
       <div class={`hero-card__delta ${isSurplus ? "hero-card__delta--positive" : "hero-card__delta--negative"}`}>
-        {isSurplus ? "↑" : "↓"} <Money cents={Math.abs(surplusCents)} /> {isSurplus ? "surplus" : "deficit"} this month
+        {isSurplus ? <ArrowUp size="1em" /> : <ArrowDown size="1em" />} <Money cents={Math.abs(surplusCents)} /> {isSurplus ? "surplus" : "deficit"} this month
       </div>
       <div class="hero-card__stats">
         <div class="stat-tile">

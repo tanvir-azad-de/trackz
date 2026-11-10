@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
+import { SlidersHorizontal } from "@/components/icons";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
 import { getLocalToday } from "@/domain/dates";
 import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
@@ -126,7 +127,7 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
             onClick={() => setFilterSheetOpen(true)}
             aria-label="Filter"
           >
-            ▤
+            <SlidersHorizontal size="1em" />
             {filterIsActive && <span class="activity-screen__filter-badge" />}
           </button>
         </div>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "preact/hooks";
 import { Sheet } from "@/components/Sheet";
+import { X } from "@/components/icons";
 import { getLocalToday } from "@/domain/dates";
 import { addTransaction } from "@/storage/repository";
 import { loadRememberedEntry, saveRememberedEntry } from "@/storage/entryMemory";
@@ -92,7 +93,7 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
             <span class="tnum">{entryToDisplay(amount)}</span>
             {!isEmptyAmount(amount) && (
               <button type="button" class="entry-sheet__clear" onClick={() => setAmount(clearAmount())} aria-label="Clear amount">
-                ✕
+                <X size="1em" />
               </button>
             )}
           </div>

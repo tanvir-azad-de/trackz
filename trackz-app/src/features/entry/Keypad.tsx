@@ -1,14 +1,10 @@
+import { Delete } from "@/components/icons";
+import { KEYPAD_KEYS } from "@/features/entry/keypadKeys";
+
 interface KeypadProps {
   onDigit: (digit: string) => void;
   onDelete: () => void;
 }
-
-const ROWS: readonly (readonly string[])[] = [
-  ["1", "2", "3"],
-  ["4", "5", "6"],
-  ["7", "8", "9"],
-  ["", "0", "⌫"],
-];
 
 /**
  * 3x4 numeric keypad for the quick-entry sheet's ATM cent accumulator
@@ -17,13 +13,15 @@ const ROWS: readonly (readonly string[])[] = [
  * dense button grid (.icon-button at 36px) was below Apple's 44px HIG
  * minimum; every key here is a full touch-target-min square instead of
  * cramming in an unused symbol.
+ *
+ * Routes on key.kind, never on what the key displays (features/entry/keypadKeys.ts).
  */
 export function Keypad({ onDigit, onDelete }: KeypadProps) {
   return (
     <div class="keypad">
-      {ROWS.flat().map((key, i) => {
-        if (key === "") return <div key={`blank-${i}`} class="keypad__key keypad__key--blank" />;
-        if (key === "⌫") {
+      {KEYPAD_KEYS.map((key, i) => {
+        if (key.kind === "blank") return <div key={`blank-${i}`} class="keypad__key keypad__key--blank" />;
+        if (key.kind === "delete") {
           return (
             <button
               key="delete"
@@ -32,19 +30,19 @@ export function Keypad({ onDigit, onDelete }: KeypadProps) {
               onClick={onDelete}
               aria-label="Delete last digit"
             >
-              ⌫
+              <Delete size="1em" />
             </button>
           );
         }
         return (
           <button
-            key={key}
+            key={key.digit}
             type="button"
             class="keypad__key"
-            onClick={() => onDigit(key)}
-            aria-label={`Digit ${key}`}
+            onClick={() => onDigit(key.digit)}
+            aria-label={`Digit ${key.digit}`}
           >
-            {key}
+            {key.digit}
           </button>
         );
       })}

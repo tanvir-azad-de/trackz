@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { House, List, Plus, Settings, Wallet } from "@/components/icons";
 
 export type TabName = "home" | "activity" | "accounts" | "settings";
 
@@ -15,10 +16,10 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { name: "home", label: "Home", icon: "⌂" },
-  { name: "activity", label: "Activity", icon: "☰" },
-  { name: "accounts", label: "Accounts", icon: "▦" },
-  { name: "settings", label: "Settings", icon: "⚙" },
+  { name: "home", label: "Home", icon: <House size="1em" /> },
+  { name: "activity", label: "Activity", icon: <List size="1em" /> },
+  { name: "accounts", label: "Accounts", icon: <Wallet size="1em" /> },
+  { name: "settings", label: "Settings", icon: <Settings size="1em" /> },
 ];
 
 /**
@@ -36,7 +37,7 @@ export function TabBar({ active, onNavigate, onFabPress }: TabBarProps) {
         <TabButton key={tab.name} tab={tab} active={active === tab.name} onNavigate={onNavigate} />
       ))}
       <button type="button" class="tab-bar__fab" onClick={onFabPress} aria-label="Add transaction">
-        +
+        <Plus size="1em" />
       </button>
       {right.map((tab) => (
         <TabButton key={tab.name} tab={tab} active={active === tab.name} onNavigate={onNavigate} />

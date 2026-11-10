@@ -1,5 +1,6 @@
 import type { CategoryDelta } from "@/insights/engine";
 import { Money } from "@/components/Money";
+import { ArrowDown, ArrowUp } from "@/components/icons";
 
 interface InsightFeedProps {
   deltas: CategoryDelta[];
@@ -7,12 +8,12 @@ interface InsightFeedProps {
   onSelectCategory?: (category: string) => void;
 }
 
-function describeDelta(d: CategoryDelta): { icon: string; tone: "up" | "down"; title: string } {
+function describeDelta(d: CategoryDelta): { tone: "up" | "down"; title: string } {
   const pct = Math.round(Math.abs(d.deltaPercent ?? 0));
   if (d.deltaCents >= 0) {
-    return { icon: "↑", tone: "up", title: `${d.category} is up ${pct}%` };
+    return { tone: "up", title: `${d.category} is up ${pct}%` };
   }
-  return { icon: "↓", tone: "down", title: `${d.category} is down ${pct}%` };
+  return { tone: "down", title: `${d.category} is down ${pct}%` };
 }
 
 export function InsightFeed({ deltas, onSelectCategory }: InsightFeedProps) {
@@ -22,7 +23,7 @@ export function InsightFeed({ deltas, onSelectCategory }: InsightFeedProps) {
   return (
     <div class="insight-feed">
       {deltas.map((d) => {
-        const { icon, tone, title } = describeDelta(d);
+        const { tone, title } = describeDelta(d);
         const Tag = onSelectCategory ? "button" : "div";
         return (
           <Tag
@@ -31,7 +32,9 @@ export function InsightFeed({ deltas, onSelectCategory }: InsightFeedProps) {
             type={onSelectCategory ? "button" : undefined}
             onClick={onSelectCategory ? () => onSelectCategory(d.category) : undefined}
           >
-            <div class={`insight__icon insight__icon--${tone}`}>{icon}</div>
+            <div class={`insight__icon insight__icon--${tone}`}>
+              {tone === "up" ? <ArrowUp size="1em" /> : <ArrowDown size="1em" />}
+            </div>
             <div class="insight__body">
               <div class="insight__title">{title}</div>
               <div class="insight__detail">

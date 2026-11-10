@@ -5,6 +5,7 @@ import { entryToDisplay, type AmountEntry } from "@/features/entry/amount";
 import type { Cents } from "@/domain/money";
 import { centsToFixed, toCents } from "@/domain/money";
 import { NamePicker } from "./NamePicker";
+import { SelectInput } from "./SelectInput";
 
 interface EntryFormProps {
   amount: AmountEntry;
@@ -86,8 +87,7 @@ export function EntryForm({
 
       <label class="entry-form__field">
         <span class="entry-form__label">Type</span>
-        <select
-          class="entry-form__input"
+        <SelectInput
           value={draft.categoryType}
           onChange={(e) => set("categoryType", e.currentTarget.value as EntryDraft["categoryType"])}
         >
@@ -96,7 +96,7 @@ export function EntryForm({
               {categoryTypeLabel(t)}
             </option>
           ))}
-        </select>
+        </SelectInput>
       </label>
 
       {isBidirectional && (

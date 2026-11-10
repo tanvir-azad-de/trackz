@@ -30,3 +30,6 @@ section 5, "ENTRY FORM REWORK".
       without moving the list. Tap an old month: the list glides there and
       that pill lights up. Fling-scroll the list: the lit pill follows and
       the row re-centres it without jitter.
+- [ ] **Select chevron is tappable (icon migration).** In the entry form, tap
+      exactly on the ▾ chevron of Type / Category / Merchant / Account. The iOS
+      picker opens each time; the arrow never swallows the tap.

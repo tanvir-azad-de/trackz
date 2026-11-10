@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { pickerNames } from "@/features/entry/rank";
+import { SelectInput } from "./SelectInput";
 
 /**
  * Sentinel <option> value for "+ New…". A NUL character can't appear in a
@@ -62,8 +63,7 @@ export function NamePicker({ label, value, ranked, onChange, placeholder, allowB
   return (
     <label class="entry-form__field">
       <span class="entry-form__label">{label}</span>
-      <select
-        class="entry-form__input"
+      <SelectInput
         value={value.trim()}
         onChange={(e) => {
           const next = e.currentTarget.value;
@@ -85,7 +85,7 @@ export function NamePicker({ label, value, ranked, onChange, placeholder, allowB
           </option>
         ))}
         <option value={NEW_VALUE}>+ New…</option>
-      </select>
+      </SelectInput>
     </label>
   );
 }
