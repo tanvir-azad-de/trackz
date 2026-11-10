@@ -6,7 +6,6 @@ import {
   getCategoryDeltasForMonth,
   getCumulativeExpenseSeries,
   getDailyExpenseAvgCents,
-  getLatestDate,
   getLiquidCashCents,
   getLiquidVsSameDayAverage,
   getMostSurprisingDeltas,
@@ -35,8 +34,7 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
   const accountTypes = useAccountTypes();
 
   const data = useMemo(() => {
-    const latestDate = getLatestDate(transactions);
-    if (!latestDate) return null;
+    if (transactions.length === 0) return null;
     const liquidCashCents = getLiquidCashCents(transactions, accountTypes);
     const accounts = getAccountBalances(transactions).map((a) => ({
       ...a,

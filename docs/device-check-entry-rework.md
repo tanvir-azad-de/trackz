@@ -1,8 +1,8 @@
 # Device check — entry form rework (2026-11-10)
 
 **RUN 2026-11-10 on a real iPhone against production (7fe522c): all 8
-checked items passed.** "Remembered date across days" needs a later day
-and stays open.
+checked items passed.** "Remembered date across days" was confirmed by the
+user on a later day, 2026-11-10. All 9 passed.
 
 Things Playwright on desktop Chromium cannot settle. Run on a real iPhone
 against the production URL after deploying. See docs/renovation_version_1.txt
@@ -24,7 +24,7 @@ section 5, "ENTRY FORM REWORK".
 - [x] **Memory survives an app restart.** Save one transaction, close the
       installed PWA fully, reopen, and press +. The date and every field except
       the amount are pre-filled.
-- [ ] **Remembered date across days.** On a later day, the date picker still
+- [x] **Remembered date across days.** CONFIRMED by the user 2026-11-10. On a later day, the date picker still
       shows the last-used date, as the user decided. Confirm that is still
       what you want once it's in daily use.
 - [x] **Filter sheet buttons pinned.** Activity → filter button. Reset/Apply

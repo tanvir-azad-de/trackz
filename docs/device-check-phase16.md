@@ -164,7 +164,9 @@ as one that under-warns.
       predicted. See the correction above. Both halves of the bug are now
       observed on real iOS: the worker's bytes change, and the prompt
       fires.
-- [ ] **Still unverified, needs the NEXT deploy.** The toast appearing is
+- [x] **CONFIRMED by the user 2026-11-10: "the reload button works
+      perfectly".** The four sub-checks below were not reported one by one.
+      Original text: the toast appearing is
       not the same as the toast WORKING. Four things remain, and none of
       them can be checked from the prompt alone:
   - [ ] Tapping "Reload" actually picks up the new code (check something

@@ -429,15 +429,5 @@ export function getMonthlyExpenseSeries(
   return keys.map((k) => ({ monthKey: k, expenseCents: totals.get(k) ?? 0 }));
 }
 
-export function getLatestMonthKey(transactions: Transaction[]): string | null {
-  const latest = getLatestDate(transactions);
-  return latest ? latest.slice(0, 7) : null;
-}
-
-export function getLatestDate(transactions: Transaction[]): string | null {
-  if (transactions.length === 0) return null;
-  return transactions.reduce((latest, tx) => (tx.date > latest ? tx.date : latest), transactions[0]!.date);
-}
-
 // re-exported for convenience at call sites that build their own ranges
 export { getMonthStartDate, isWithinRange };

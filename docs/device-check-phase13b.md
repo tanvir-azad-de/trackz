@@ -146,17 +146,6 @@ open across a deploy keeps running stale JS with no prompt. The fix is to make
 also fixes the `activate` handler's cache-cleanup never running.
 `docs/device-check-phase16.md` section 6 is superseded by this.
 
-### No keyboard avoidance anywhere
-
-Phase 7's scope listed "keyboard-avoidance for the entry sheet". It was never
-built and never recorded as skipped: there is no `visualViewport` handling in
-the codebase. Both new sheets put a text input and its confirm button near the
-bottom, so sections 3 and 4 are the first time this is tested at all.
-
-**Pass result: both sheets' inputs were reachable with the keyboard up.** So
-this is latent, not live — but latent by luck rather than by design, and the
-`50vh` → `50dvh` change below was made on the same reasoning. Still open.
-
 ### Two `vh` units survived the Phase 17 pass — both now FIXED
 
 The Phase 17 audit claimed "zero 100vh in any CSS file". That was stale —
@@ -166,7 +155,8 @@ true when written, regressed afterwards. Both are now `dvh`:
   introduced in `6698efb` (Phase 15b, which landed *after* Phase 16/17
   despite the lower number). Now `min-height: 100dvh`.
 - `trackz-app/src/features/settings/CategoriesSheet.css` — the list cap was
-  `max-height: 50vh`. Now `50dvh`. **Unverified:** desktop Chromium has no
+  `max-height: 50vh`. Now `50dvh`. **CONFIRMED on a real iPhone by the user
+  2026-11-10.** Original note: desktop Chromium has no
   dynamic toolbar, so `vh` and `dvh` resolve identically there — confirmed by
   mutating it back and watching the probe still pass. Only a real device can
   settle this one.

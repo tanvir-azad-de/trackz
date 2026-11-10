@@ -4,13 +4,12 @@ import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
   getAccountActivity,
   getAccountBalanceSeries,
-  getLatestMonthKey,
   getPayableBalances,
   getReceivableBalances,
   getTotalAssetsCents,
   type AccountActivity,
 } from "@/insights/engine";
-import { formatDayLabel, getLocalToday, getMonthStartDate, getMonthEndDate } from "@/domain/dates";
+import { formatDayLabel, getLocalToday, getMonthStartDate, getMonthEndDate, toMonthKey } from "@/domain/dates";
 import type { ActivityFilter } from "@/features/activity/filter";
 import { emptyFilter } from "@/features/activity/filter";
 import { Card } from "@/components/Card";
@@ -46,8 +45,13 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
   const accountTypes = useAccountTypes();
 
   const data = useMemo(() => {
-    const monthKey = getLatestMonthKey(transactions);
-    if (!monthKey) return null;
+    if (transactions.length === 0) return null;
+    // The real date's month, not the latest transaction's (user decision
+    // 2026-11-10), so Accounts and Home agree on "this month". It sets
+    // where each sparkline ends and what counts as dormant: early in a
+    // month with nothing logged yet, every account greys out until its
+    // first row of the month, which is the accepted cost.
+    const monthKey = toMonthKey(getLocalToday());
 
     const allAccounts = getAccountActivity(transactions, accountTypes).map((acc) => ({
       ...acc,

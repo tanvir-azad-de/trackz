@@ -16,7 +16,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 54,439 bytes gzipped JS (+243 from the Phase 14 chart; +292 from
+  build 54,404 bytes gzipped JS (-35 from the Accounts date fix; +243
+  from the Phase 14 chart; +292 from
   the hero rework, measured
   against a 53,904 rebuild of 7c0ff7d; +229 from round 2; -748 from the rework; +2,399 from
   lucide-preact; +627 from the month pills before that; the
@@ -84,20 +85,10 @@ have been wrong about something in every phase so far (see AGENTS.md's
   it), so the % will jump once May leaves the window in December.
 
   DEPLOYED + DEVICE-CHECKED 2026-11-10 (c03ca41): the form + settings
-  rework and round 2 below. 10 of 11 checks in
+  rework and round 2 below. The checks in
   docs/device-check-form-rework.md passed on a real iPhone, including
   the cleaned-CSV import (1542 rows) and the new insight feed on real
-  data. The one failure: with Amount focused, the iOS keyboard covered
-  the pinned Save.
-  FIRST FIX (2245ef5, deployed) MADE IT WORSE, and is REVERTED. Sheet
-  padded its backdrop by innerHeight - visualViewport.height - offsetTop
-  and shrank its max-height to match. On the real iPhone the user saw
-  "multiple scrolling views". The likely cause, not proven: iOS's own pan
-  to the focused field, the sheet's now-scrollable content, and the
-  lift all moving at once. The stubbed-visualViewport Playwright run
-  passed, which is exactly the AGENTS.md trap: a fake viewport can't
-  reproduce native keyboard scrolling. Do not trust a simulation for the
-  next attempt either; only the phone can say.
+  data.
   ROUND 2 (issues 6-8) — DONE 2026-11-10. Decisions
   locked through the question tool, do not relitigate.
     6. Transfer, Lent out and I owe carry NO category.
@@ -210,7 +201,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   DEVICE-VERIFIED 2026-11-10 on a real iPhone: 8 of 9 checks in
   docs/device-check-entry-rework.md passed (pickers, "+ New…", dates,
   Next, memory, chevron, filter footer, month pills). Open: the
-  remembered date on a LATER day, which can't be checked the same day.
+  remembered date on a LATER day, since CONFIRMED by the user.
   The user's own report of the most crucial usage issues. It SUPERSEDES the
   section 0 decision "keypad-first bottom sheet with smart recall chips
   ..., 3-tap happy path" and the Phase 8 writeup's 3-tap path.
@@ -400,7 +391,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
     [Oct 2025]. Bundle 51,393 -> 52,020 bytes gzipped (+627).
 
   NOT DONE — the numbered phases left:
-    - Phase 14 (charts). DONE 2026-11-10, NOT YET DEPLOYED. User
+    - Phase 14 (charts). DONE AND DEPLOYED 2026-11-10 (014ae5d). User
       decisions, which supersede the original plan and the context
       below: ONE chart, on Home, a running-total line of this month's
       expense, placed between the account strip and "What changed this
@@ -541,8 +532,10 @@ have been wrong about something in every phase so far (see AGENTS.md's
        no prior controller — the case that file's line 39 already guards.
        Predicting a mechanism's behaviour from a half-understood spec is
        the same failure as trusting this document: measure it.
-       STILL UNVERIFIED, carried in docs/device-check-phase16.md section
-       6: the toast APPEARING is not the toast WORKING. Whether "Reload"
+       CONFIRMED BY THE USER 2026-11-10: "the reload button works
+       perfectly" (docs/device-check-phase16.md section 6; the
+       sub-checks were not reported one by one). Original note: the
+       toast APPEARING is not the toast WORKING. Whether "Reload"
        actually lands on the new build, whether it skips the 5s
        auto-dismiss, and whether the activate handler finally deletes the
        stale trackz-v1 cache all need the next deploy. The cache cleanup
@@ -550,10 +543,6 @@ have been wrong about something in every phase so far (see AGENTS.md's
        taps Reload, so a lingering trackz-v1 key before that point is
        expected rather than a bug.
 
-    2. No keyboard avoidance exists anywhere. Phase 7 scoped it; it was
-       never built and never recorded as skipped. No visualViewport
-       handling in the codebase. The device pass found both new sheets'
-       inputs reachable, so this is latent by luck, not by design.
     3. No CI at all (no .github/workflows; Vercel runs build, never
        test). A fixture-less run is GREEN while silently skipping the
        dummyData-dependent assertions, because dummyData/ is real
@@ -570,6 +559,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
        reports as a PASS rather than a skip and is invisible even in the
        skip tally. The old "~51 assertions" figure was never verified and
        should be re-measured rather than repeated.
+       RECONFIRMED 2026-11-10 by the user: keep it this way for now.
        UPDATED 2026-11-10, BY DECISION: no CI and no synthetic fixture,
        and no local check script either. The user has the fixture locally,
        so the gap only opens on a fresh clone. MEASURED: 52 of 437 tests
@@ -583,10 +573,14 @@ have been wrong about something in every phase so far (see AGENTS.md's
        all passed, and 7 deliberately wrong expected values each failed a
        test. Still public: the same figures in this doc and in
        docs/mockups/*.html, and everything in git history.
-    4. UPDATED 2026-11-10: Home now anchors to getLocalToday() for
-       everything shown (hero rework above); getLatestDate survives
-       there only as the "no transactions" check. What is left is
-       AccountsScreen.tsx:49 (getLatestMonthKey). Original entry:
+    4. FIXED 2026-11-10 (user decision: both use today's date).
+       AccountsScreen now takes its month from getLocalToday(), which
+       sets where each sparkline ends and what counts as dormant.
+       getLatestDate/getLatestMonthKey had no other use and were deleted.
+       Accepted cost: early in a month with nothing logged yet, every
+       account greys out until its first row. Playwright with the clock
+       fixed: on 2026-11-10 dormant = CASH, REVJ, SCLB (unchanged); on
+       2026-12-05 all 7 dormant. Original entry:
        Activity anchors "Today" to getLocalToday() while Home anchors
        "this month" to the LATEST TRANSACTION DATE. Each is right alone;
        the inconsistency between them was flagged for resolution before
@@ -594,15 +588,19 @@ have been wrong about something in every phase so far (see AGENTS.md's
        also anchors to the latest transaction date via getLatestMonthKey,
        and activity/filter.ts:120,161 use getLocalToday for preset ranges.
     5. purgeOldTombstones() has no caller, so tombstones accumulate
-       forever. That is the SAFE direction (no resurrection risk) and
+       forever. WHERE THEY LIVE (checked 2026-11-10, user asked): a
+       deleted row stays in localStorage "trackz.v2.transactions" with
+       deletedAt set, on every device, and in the Drive sync file, which
+       carries live rows and tombstones alike (sync/document.ts). Screens
+       read getTransactions(), which filters them out, and CSV export
+       goes through useTransactions, so a backup holds none (the
+       2026-11-10 backup: 0 of 1542 rows with deletedAt). That is the SAFE direction (no resurrection risk) and
        irrelevant at 1,456 rows, but merge.ts's 90-day retention comment
        describes a mechanism that never runs.
 
-  UNVERIFIED CLAIM, carried deliberately: CategoriesSheet.css's
-  max-height: 50dvh (was 50vh). Desktop Chromium has no dynamic toolbar,
-  so vh and dvh resolve identically there — confirmed by mutating it back
-  and watching the probe still pass. Only a real device settles it. Check
-  it on the next device pass along with the new header-less layout.
+  DEVICE-CONFIRMED BY THE USER 2026-11-10: CategoriesSheet's 50dvh
+  height, the Phase 14 Home chart and the now-visible Accounts
+  sparklines all work as expected on the iPhone.
 
   WHERE TO READ NEXT: entries in sections 0-4 are chronological, and
   later ones supersede earlier ones where they say so. The last four
