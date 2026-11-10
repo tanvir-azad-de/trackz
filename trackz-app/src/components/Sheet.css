@@ -6,20 +6,13 @@
   align-items: flex-end;
   justify-content: center;
   z-index: 100;
-  /* Lifts the sheet above the iOS keyboard (Sheet.tsx useKeyboardInset).
-     Padding on the backdrop, not bottom on the sheet: the backdrop is the
-     flex-end container, so this moves the sheet and keeps the dimmed area
-     behind the keyboard. */
-  padding-bottom: var(--keyboard-inset, 0px);
   animation: sheet-backdrop-in var(--duration-base) var(--ease-standard);
 }
 
 .sheet {
   width: 100%;
   max-width: 480px;
-  /* Shrinks by the keyboard inset too, or a lifted sheet would push its
-     own top (title, Amount) off the screen. The content scrolls instead. */
-  max-height: calc(85dvh - var(--keyboard-inset, 0px));
+  max-height: 85dvh;
   background: var(--surface-1);
   border: 1px solid var(--border-subtle);
   border-bottom: none;

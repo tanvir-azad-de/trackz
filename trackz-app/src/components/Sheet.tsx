@@ -1,5 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
-import { keyboardInsetPx } from "./keyboardInset";
+import { useEffect } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 
 interface SheetProps {
@@ -29,8 +28,6 @@ interface SheetProps {
  * - max-height 85dvh with internal scroll, safe-area bottom padding.
  */
 export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
-  const keyboardInset = useKeyboardInset(open);
-
   useEffect(() => {
     if (!open) return;
 
@@ -51,11 +48,7 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
   if (!open) return null;
 
   return (
-    <div
-      class="sheet-backdrop"
-      onClick={onClose}
-      style={keyboardInset > 0 ? { "--keyboard-inset": `${keyboardInset}px` } : undefined}
-    >
+    <div class="sheet-backdrop" onClick={onClose}>
       <div
         class="sheet"
         role="dialog"
@@ -70,29 +63,4 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
       </div>
     </div>
   );
-}
-
-/**
- * Tracks keyboardInsetPx while a sheet is open (see keyboardInset.ts).
- * visualViewport fires resize when the keyboard opens or closes, and
- * scroll when iOS pans to the focused field. Both change the inset.
- * window.visualViewport is absent on old browsers, which keeps the inset
- * at 0, the behaviour from before this existed.
- */
-function useKeyboardInset(open: boolean): number {
-  const [inset, setInset] = useState(0);
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!open || !vv) return;
-    const update = () => setInset(keyboardInsetPx(window.innerHeight, vv.height, vv.offsetTop));
-    update();
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
-      setInset(0);
-    };
-  }, [open]);
-  return inset;
 }

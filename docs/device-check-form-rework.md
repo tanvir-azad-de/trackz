@@ -1,8 +1,8 @@
 # Device check — form + settings rework (2026-11-10)
 
 **RUN 2026-11-10 on a real iPhone against production (c03ca41): 10 of 11
-items passed.** "Keyboard vs pinned Save" failed. It is fixed, and that
-item needs re-running.
+items passed.** "Keyboard vs pinned Save" failed. A first fix made it worse and was
+reverted, so the item is still open.
 
 Desktop Playwright can't settle these. Run them on a real
 iPhone against the production URL after deploying. See
@@ -12,14 +12,10 @@ docs/renovation_version_1.txt section 5, "FORM + SETTINGS REWORK".
       iOS raises the decimal pad, not the full keyboard. Type `12,40` with the
       pad's own separator, which is a comma on a German locale. Save it, and
       check that Activity shows 12,40 €, not 1.240,00 € and not 12,00 €.
-- [ ] **Keyboard vs pinned Save.** FIRST RUN FAILED: with Amount focused
-      the keyboard covered Save (Notes looked fine only because iOS scrolled
-      the page to it). FIXED, not yet re-checked: Sheet now lifts itself by
-      the keyboard height (`components/keyboardInset.ts`). Re-check on the
-      phone. Focus Amount, then Notes, then a field in Edit transaction.
-      Save should sit just above the keyboard each time, the sheet title
-      should stay on screen, and the sheet should drop back down when the
-      keyboard closes.
+- [ ] **Keyboard vs pinned Save.** FAILED: with Amount focused, the keyboard
+      covers Save. The first fix (2245ef5, lifting the sheet by the keyboard
+      height) made it worse, with several things scrolling at once, and was
+      reverted. Still open.
 
 - [x] **No scroll.** For an Expense, check that the whole form and Save fit
       without scrolling the sheet. Lent out / I owe adds a Direction row and
