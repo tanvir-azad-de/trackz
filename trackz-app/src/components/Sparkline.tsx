@@ -4,11 +4,26 @@ import type { Cents } from "@/domain/money";
 import { centsToDecimal } from "@/domain/money";
 
 interface SparklineProps {
-  /** End-of-period points, oldest first (e.g. getAccountBalanceSeries's output). */
-  points: Array<{ balanceCents: Cents }>;
-  /** Stroke color; caller decides positive/negative/dormant (see AccountsScreen). */
+  /** Values oldest first, drawn at evenly spaced x positions. */
+  values: Cents[];
+  /** Stroke color, a CSS color or `var(--token)`; caller decides positive/negative/dormant. */
   color: string;
   height?: number;
+  /** Set when the chart carries meaning (Home's spend line); omitted = decorative, aria-hidden. */
+  label?: string;
+}
+
+/**
+ * The custom-property name in a `var(--token)` color, or null for a plain
+ * color. Canvas strokeStyle does NOT understand var(): it silently ignores
+ * the assignment and keeps its default black. That is what every Accounts
+ * sparkline drew from Phase 12 until 2026-11-10, measured by reading the
+ * canvas pixels: all seven were rgb(0,0,0) on a near-black card, i.e.
+ * invisible. So the token must be resolved to a real color first.
+ */
+export function cssVarName(color: string): string | null {
+  const match = /^var\(\s*(--[\w-]+)\s*\)$/.exec(color.trim());
+  return match ? match[1]! : null;
 }
 
 /**
@@ -29,23 +44,25 @@ interface SparklineProps {
  * (Phase 14's net-worth line and ranked bars should use this same
  * pattern, not hand-roll their own sizing).
  */
-export function Sparkline({ points, color, height = 24 }: SparklineProps) {
+export function Sparkline({ values: cents, color, height = 24, label }: SparklineProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
 
-  const values = points.map((p) => centsToDecimal(p.balanceCents));
-  const xs = points.map((_, i) => i);
+  const values = cents.map(centsToDecimal);
+  const xs = cents.map((_, i) => i);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
 
     const width = Math.max(1, host.clientWidth);
+    const varName = cssVarName(color);
+    const stroke = varName ? getComputedStyle(host).getPropertyValue(varName).trim() : color;
     const plot = new uPlot(
       {
         width,
         height,
-        series: [{}, { stroke: color, width: 1.5, points: { show: false } }],
+        series: [{}, { stroke, width: 1.5, points: { show: false } }],
         axes: [{ show: false }, { show: false }],
         legend: { show: false },
         cursor: { show: false },
@@ -75,5 +92,9 @@ export function Sparkline({ points, color, height = 24 }: SparklineProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(values), color, height]);
 
-  return <div ref={hostRef} class="sparkline" aria-hidden="true" />;
+  return label ? (
+    <div ref={hostRef} class="sparkline" role="img" aria-label={label} style={{ height: `${height}px` }} />
+  ) : (
+    <div ref={hostRef} class="sparkline" aria-hidden="true" style={{ height: `${height}px` }} />
+  );
 }

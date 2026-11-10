@@ -17,7 +17,7 @@ export interface ExpectedValues {
   engine: {
     september: { monthKey: string; incomeCents: number; expenseCents: number };
     october: { monthKey: string; incomeCents: number; expenseCents: number };
-    dailyExpenseAvg: { today: string; cents: number };
+    dailyExpenseAvg: { today: string; cents: number; expenseCents: number };
     liquidVsSameDay: { today: string; currentCents: number; averageCents: number }[];
     topCategory: { category: string; amountCents: number };
     alsoInTop4: string[];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDailyExpenseAvgCents, getLiquidVsSameDayAverage, summarizeMonth } from "@/insights/engine";
+import { getCumulativeExpenseSeries, getDailyExpenseAvgCents, getLiquidVsSameDayAverage, summarizeMonth } from "@/insights/engine";
 import type { Cashflow, CategoryType, Transaction } from "@/domain/transaction";
 
 /**
@@ -102,5 +102,24 @@ describe("getLiquidVsSameDayAverage", () => {
     });
     const overdrawn = [row("2026-09-01", "expense", "out", 5000)];
     expect(getLiquidVsSameDayAverage(overdrawn, {}, 100, "2026-11-10").deltaPercent).toBeNull();
+  });
+});
+
+describe("getCumulativeExpenseSeries", () => {
+  it("runs from 0 through each day up to today, expense rows only", () => {
+    const txs = [
+      row("2026-11-01", "expense", "out", 1000),
+      row("2026-11-03", "expense", "out", 250),
+      row("2026-11-03", "expense", "out", 50),
+      row("2026-11-02", "non_expense", "out", 9999),
+      row("2026-11-02", "income", "in", 9999),
+      row("2026-10-31", "expense", "out", 9999),
+      row("2026-11-05", "expense", "out", 9999),
+    ];
+    expect(getCumulativeExpenseSeries(txs, "2026-11-04")).toEqual([0, 1000, 1000, 1300, 1300]);
+  });
+
+  it("is [0, 0] on the 1st with nothing logged, so the line still draws", () => {
+    expect(getCumulativeExpenseSeries([], "2026-11-01")).toEqual([0, 0]);
   });
 });

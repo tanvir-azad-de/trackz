@@ -13,6 +13,7 @@ import {
   getPayableBalances,
   getReceivableBalances,
   getTopCategoriesForMonth,
+  getCumulativeExpenseSeries,
   getDailyExpenseAvgCents,
   getLiquidVsSameDayAverage,
   getTotalAssetsCents,
@@ -71,6 +72,12 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
 
   it("averages October's spend per day up to the 15th", () => {
     expect(getDailyExpenseAvgCents(transactions, want.dailyExpenseAvg.today)).toBe(want.dailyExpenseAvg.cents);
+  });
+
+  it("ends October's running expense total at the same figure as the daily average's numerator", () => {
+    const series = getCumulativeExpenseSeries(transactions, want.dailyExpenseAvg.today);
+    expect(series).toHaveLength(16);
+    expect(series[15]).toBe(want.dailyExpenseAvg.expenseCents);
   });
 
   it("averages liquid cash on the same day of the previous 6 months", () => {

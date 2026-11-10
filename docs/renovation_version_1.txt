@@ -12,10 +12,12 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 461 tests passing (+12 from the hero rework below; +18 from
+  Baseline: 466 tests passing (+5 from the Phase 14 chart; +12 from the
+  hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 54,196 bytes gzipped JS (+292 from the hero rework, measured
+  build 54,439 bytes gzipped JS (+243 from the Phase 14 chart; +292 from
+  the hero rework, measured
   against a 53,904 rebuild of 7c0ff7d; +229 from round 2; -748 from the rework; +2,399 from
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
@@ -31,7 +33,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   the Reload-toast checks in docs/device-check-phase16.md section 6
   (which waited on "the next deploy") are now due on production.
 
-  DONE: Phases 0-13 inclusive, 15, 16, 17, 18. That is the whole app —
+  DONE: Phases 0-18, all of them. That is the whole app —
   domain/storage/insights, Home, Activity, Accounts, Settings, quick
   entry, CSV import/export, merchant merge, categories, Drive sync
   (verified live against real Google on two devices), PWA install,
@@ -51,7 +53,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  HOME HERO REWORK — DONE 2026-11-10, NOT YET DEPLOYED. The user found
+  HOME HERO REWORK — DONE AND DEPLOYED 2026-11-10 (ff26f40; the live
+  bundle contains "month avg for the", checked by curl). The user found
   "321,40 € deficit this month" meaningless: it was income minus spend
   with no income logged yet, which reads as a deficit for most of every
   month. Decisions are the user's, do not relitigate:
@@ -397,7 +400,38 @@ have been wrong about something in every phase so far (see AGENTS.md's
     [Oct 2025]. Bundle 51,393 -> 52,020 bytes gzipped (+627).
 
   NOT DONE — the numbered phases left:
-    - Phase 14 (charts). getTopCategoriesForMonth and
+    - Phase 14 (charts). DONE 2026-11-10, NOT YET DEPLOYED. User
+      decisions, which supersede the original plan and the context
+      below: ONE chart, on Home, a running-total line of this month's
+      expense, placed between the account strip and "What changed this
+      month", under a "Spending this month" title. Nothing else.
+      As built: getCumulativeExpenseSeries (index 0 = 0, so the line
+      starts from nothing and still draws on the 1st; expense only; ends
+      at getLocalToday, so its last value equals the Spent tile).
+      SpendChart.tsx reuses Sparkline at 96px with "1 Nov" / "10 Nov"
+      under it; no axes or tooltip. Sparkline now takes plain `values`
+      and an optional `label` (role="img" + aria-label; decorative
+      without it).
+      TWO PHASE 12 BUGS FOUND AND FIXED on the way, both invisible to the
+      earlier checks:
+        a. Every Accounts sparkline was stroked BLACK. Canvas
+           strokeStyle ignores "var(--negative)" and keeps its default.
+           Measured by reading canvas pixels: all 7 were rgb(0,0,0).
+           Sparkline now resolves var(--token) via getComputedStyle
+           (cssVarName, tested).
+        b. uPlot's .u-under overlay sat in normal flow (we skip uPlot's
+           CSS) and pushed the canvas below the host's overflow: hidden:
+           92px down on the 96px chart (nothing visible), 20px down on
+           the 24px sparklines (4px dashes). Sparkline.css now
+           positions .u-under/.u-over absolutely.
+      Playwright (live dev, 390x844 @2x, 2026-11-10 clean backup): order
+      hero, strip, title, chart, title, feed; stroke rgb(255,107,107);
+      canvas 308x96 CSS / 616x192 buffer; aria-label "Spending so far
+      this month: 321,40 €" (= Spent); no horizontal scroll; Accounts
+      lines red / grey / green and fully visible. Mutation-tested: 5,
+      all caught (the short-date timezone one under Los Angeles).
+      The earlier context, kept for the cost note:
+      getTopCategoriesForMonth and
       getMonthlyExpenseSeries are tested but have NO UI consumer.
       Sparkline.tsx cannot render them as-is: its points prop is
       hardcoded to balanceCents, it draws only a line, and it is
@@ -549,7 +583,11 @@ have been wrong about something in every phase so far (see AGENTS.md's
        all passed, and 7 deliberately wrong expected values each failed a
        test. Still public: the same figures in this doc and in
        docs/mockups/*.html, and everything in git history.
-    4. Activity anchors "Today" to getLocalToday() while Home anchors
+    4. UPDATED 2026-11-10: Home now anchors to getLocalToday() for
+       everything shown (hero rework above); getLatestDate survives
+       there only as the "no transactions" check. What is left is
+       AccountsScreen.tsx:49 (getLatestMonthKey). Original entry:
+       Activity anchors "Today" to getLocalToday() while Home anchors
        "this month" to the LATEST TRANSACTION DATE. Each is right alone;
        the inconsistency between them was flagged for resolution before
        Phase 18. Scope is THREE screens, not two: AccountsScreen.tsx:49

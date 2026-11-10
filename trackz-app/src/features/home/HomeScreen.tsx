@@ -4,6 +4,7 @@ import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
   getAccountBalances,
   getCategoryDeltasForMonth,
+  getCumulativeExpenseSeries,
   getDailyExpenseAvgCents,
   getLatestDate,
   getLiquidCashCents,
@@ -16,9 +17,11 @@ import type { ActivityFilter } from "@/features/activity/filter";
 import { emptyFilter } from "@/features/activity/filter";
 import { HeroCard } from "./HeroCard";
 import { AccountStrip } from "./AccountStrip";
+import { SpendChart } from "./SpendChart";
 import { InsightFeed } from "./InsightFeed";
 import "./HeroCard.css";
 import "./AccountStrip.css";
+import "./SpendChart.css";
 import "./InsightFeed.css";
 import "./HomeScreen.css";
 
@@ -53,8 +56,9 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     const dailyExpenseAvgCents = getDailyExpenseAvgCents(transactions, today);
     const liquidComparison = getLiquidVsSameDayAverage(transactions, accountTypes, liquidCashCents, today);
     const dayOfMonth = Number(today.slice(8, 10));
+    const spendSeries = getCumulativeExpenseSeries(transactions, today);
 
-    return { summary, liquidCashCents, liquidComparison, dayOfMonth, dailyExpenseAvgCents, accounts, deltas, insightMonthKey };
+    return { today, spendSeries, summary, liquidCashCents, liquidComparison, dayOfMonth, dailyExpenseAvgCents, accounts, deltas, insightMonthKey };
   }, [transactions, accountTypes]);
 
   if (!data) {
@@ -102,6 +106,8 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
         expenseCents={data.summary.expenseCents}
       />
       <AccountStrip accounts={data.accounts} />
+      <h2 class="home-screen__section-title">Spending this month</h2>
+      <SpendChart series={data.spendSeries} today={data.today} />
       <h2 class="home-screen__section-title">What changed this month</h2>
       <InsightFeed deltas={data.deltas} onSelectCategory={onDrillDown ? handleDrillDown : undefined} />
     </main>

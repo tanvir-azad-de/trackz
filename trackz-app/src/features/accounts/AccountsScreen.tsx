@@ -116,7 +116,7 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
               {acc.lastActivityDate ? formatDayLabel(acc.lastActivityDate, getLocalToday()) : "No activity"}
             </div>
           </div>
-          <Sparkline points={acc.series} color={color} />
+          <Sparkline values={acc.series.map((p) => p.balanceCents)} color={color} />
           <Money
             cents={acc.balanceCents}
             class={`account-card__balance ${acc.balanceCents < 0 ? "account-card__balance--negative" : ""}`}

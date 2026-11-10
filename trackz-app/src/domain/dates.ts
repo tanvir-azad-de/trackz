@@ -172,6 +172,13 @@ export function formatDayHeading(date: ISODate, today: ISODate): string {
   return sameYear ? `${day}. ${month}` : `${day}. ${month} ${date.slice(0, 4)}`;
 }
 
+const SHORT_DAY_FORMAT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+/** "1 Nov", "10 Nov". UTC formatter on a UTC-parsed date, so no timezone shifts the day. */
+export function formatShortDay(date: ISODate): string {
+  return SHORT_DAY_FORMAT.format(parseISODateUTC(date));
+}
+
 /** "1st", "2nd", "3rd", "4th" … "11th", "12th", "13th" … "21st", "31st". */
 export function formatOrdinalDay(day: number): string {
   // 11-13 take "th" even though they end in 1-3.

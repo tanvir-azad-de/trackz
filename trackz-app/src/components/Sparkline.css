@@ -23,6 +23,27 @@
   width: 100%;
 }
 
+/*
+ * Also NOT cosmetic: uPlot puts two overlay divs (.u-under, .u-over)
+ * around the canvas, with inline width/height but no position, and
+ * relies on its own stylesheet to take them out of flow. Without this,
+ * .u-under sat in normal flow and pushed the canvas down by its full
+ * height, below .sparkline's overflow: hidden. Measured 2026-11-10: on
+ * Home's 96px chart the canvas started 92px down and nothing was
+ * visible; on the 24px Accounts sparklines only the top 4px showed, as
+ * short dashes. This had been the case since Phase 12, and the retina
+ * check above missed it because it measured the canvas's size, not what
+ * was on screen.
+ */
+.sparkline .u-wrap {
+  position: relative;
+}
+
+.sparkline .u-under,
+.sparkline .u-over {
+  position: absolute;
+}
+
 .sparkline canvas {
   display: block;
   width: 100% !important;

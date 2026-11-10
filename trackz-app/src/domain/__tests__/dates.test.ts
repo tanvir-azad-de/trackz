@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   daysBetween,
   formatOrdinalDay,
+  formatShortDay,
   formatDayLabel,
   formatDayHeading,
   getLastNMonthsRange,
@@ -141,5 +142,11 @@ describe("formatOrdinalDay", () => {
   it("uses st/nd/rd for 1/2/3 endings except 11-13", () => {
     const got = [1, 2, 3, 4, 10, 11, 12, 13, 21, 22, 23, 30, 31].map(formatOrdinalDay);
     expect(got).toEqual(["1st", "2nd", "3rd", "4th", "10th", "11th", "12th", "13th", "21st", "22nd", "23rd", "30th", "31st"]);
+  });
+});
+
+describe("formatShortDay", () => {
+  it("formats day and short month without shifting the day", () => {
+    expect([formatShortDay("2026-11-01"), formatShortDay("2026-11-30")]).toEqual(["1 Nov", "30 Nov"]);
   });
 });
