@@ -12,7 +12,8 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 438 tests passing (436 before the icon migration), tsc -b
+  Baseline: 437 tests passing (438 before two engine balance-series tests
+  were merged when real figures moved out of the tests), tsc -b
   clean, typecheck:api clean, production build 54,419 bytes gzipped JS
   (+2,399 from lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
@@ -377,6 +378,19 @@ have been wrong about something in every phase so far (see AGENTS.md's
        reports as a PASS rather than a skip and is invisible even in the
        skip tally. The old "~51 assertions" figure was never verified and
        should be re-measured rather than repeated.
+       UPDATED 2026-11-10, BY DECISION: no CI and no synthetic fixture,
+       and no local check script either. The user has the fixture locally,
+       so the gap only opens on a fresh clone. MEASURED: 52 of 437 tests
+       skip without dummyData/ (it was 52 reported + 1 hidden). The
+       csv.test.ts bare `return` is now it.skipIf, so it shows in the skip
+       tally. In the same change, real figures and counterparty names
+       were moved OUT of committed tests and comments (this repo is
+       public) into gitignored dummyData/snapshot-2026-10-31/
+       expected-values.json, read via src/__tests__/expectedValues.ts.
+       Engine assertions went from toBeCloseTo on decimals to exact cents;
+       all passed, and 7 deliberately wrong expected values each failed a
+       test. Still public: the same figures in this doc and in
+       docs/mockups/*.html, and everything in git history.
     4. Activity anchors "Today" to getLocalToday() while Home anchors
        "this month" to the LATEST TRANSACTION DATE. Each is right alone;
        the inconsistency between them was flagged for resolution before
@@ -822,9 +836,8 @@ phase text above, called out honestly rather than silently:
   - Home's hero card relabeled "Net worth" -> "Liquid". The two screens
     would otherwise visibly fail to add up: Accounts surfaces "Lent out"
     = 2.415,69 € outstanding (receivable-type transactions, grouped by
-    merchant — that's where the counterparty name lives: Kaution 2.160 /
-    Towkir 195,99 / three 19,90 loans; Chayan Mitra lent 130 and repaid
-    130, so is excluded as settled-to-zero rather than shown as a 0,00 €
+    merchant — that's where the counterparty name lives: a rental deposit,
+    a few personal loans; one person was lent and repaid the same amount, so is excluded as settled-to-zero rather than shown as a 0,00 €
     row), but getNetWorthCents() only ever summed account balances —
     lending already debited the source account, and the receivable asset
     was never added back. Rather than changing that verified Phase-10
@@ -905,7 +918,7 @@ phase text above, called out honestly rather than silently:
     independent of this codebase (not this phase's own math echoing
     itself back): last-activity dates including dormant accounts,
     6-month balance series for both a normal and a negative-going
-    account, receivables total 2.415,69 € with Chayan Mitra correctly
+    account, receivables total matching, the settled counterparty correctly
     absent, empty payables, total assets 5.562,76 €. tsc -b clean.
   - Verified end-to-end against a live `npm run dev` instance via
     Playwright (real clicks at 390x844 with deviceScaleFactor:2, not a
@@ -2044,8 +2057,8 @@ is tree-shaken out of the bundle entirely.
     payables BY MERCHANT (that is where the counterparty name lives for
     those rows), so a merge touching one would silently move money
     between counterparties on the Accounts screen. Verified all 7 groups
-    are 100% expense rows; the receivable merchants (Kaution, Chayan
-    Mitra, Towkir, Al Imran Ahmed, Imranul Hoq Limon, Nur Islam) are
+    are 100% expense rows; the receivable merchants (a deposit and
+    several people) are
     untouched. There is a test asserting no proposed group contains a
     receivable/payable merchant, so this cannot silently change.
   - IDS DO NOT MOVE. domain/id.ts's contentDerivedTransactionId includes
@@ -2092,14 +2105,14 @@ these as opaque enum values and they are not).
      categoryType === "expense" alone — which is correct, and is also
      the reason Home's Shopping card counts 151 rows where Activity's
      name-keyed drill-down shows 154 (the open Phase 13b item).
-  2. On these rows `merchant` names a COUNTERPARTY — a PERSON ("Alif
-     Elahi", "Chayan Mitra"), not a shop. Same for receivable/payable,
+  2. On these rows `merchant` names a COUNTERPARTY — a PERSON (a friend or
+     flatmate), not a shop. Same for receivable/payable,
      which is where insights/engine.ts gets the names it groups Lent out
      / I owe by. So anything rewriting merchant in bulk is touching
      people and partly-not-mine amounts, not just tidying shop
      spellings.
   In the real 1,456-row backup: 25 non_expense rows totalling 1.349,19 €
-  (Alif Elahi repayments, Vodafone Frankfurt WiFi shared with a flatmate,
+  (repayments to a friend, Vodafone Frankfurt WiFi shared with a flatmate,
   ARD broadcasting fee, Lemfi transfers) and 78 non_income rows totalling
   1.940,25 € (45 Reimbursements, 26 Refunds, 6 Sold Items).
   Now also recorded in code at domain/transaction.ts's CategoryType
@@ -2128,7 +2141,7 @@ PHASE 6, PART 2 (merchant merge APPLY path + guided UI) — done. 355 tests
     reach a counterparty name there that the conservative auto-detector
     deliberately never proposes.
   Verified live, and on REAL data rather than a synthetic fixture: the
-  "Alif Elahi" group in the actual backup reads "7 × Money back / 5 ×
+  largest counterparty group in the actual backup reads "7 × Money back / 5 ×
   Paying someone back / 1 × Expense" and raises the warning.
 
   Built:
@@ -2200,7 +2213,7 @@ PHASE 6, PART 2 (merchant merge APPLY path + guided UI) — done. 355 tests
     arithmetically, not "it changed"), distinct merchants 161 -> 160.
   - Undo restores all of it EXACTLY: 53/11 again, same 84701 cents, 161
     merchants, 1456 rows.
-  - Counterparty path on real data: the Alif Elahi group shows
+  - Counterparty path on real data: the largest counterparty group shows
     "7 × Money back / 5 × Paying someone back / 1 × Expense" AND the
     warning.
   - Validation: renaming that group to "Kaufland" shows "is a different

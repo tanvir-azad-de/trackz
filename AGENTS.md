@@ -82,10 +82,11 @@ it works.
   triplication incident. Device B is the production URL.
 - **`dummyData/` is real financial data and gitignored** in a public repo. Eight
   test files read it and skip gracefully without it. There is no CI, so a
-  fixture-less run is green while silently skipping those assertions — and
-  `storage/csv.test.ts:97` guards with a bare `return` rather than
-  `describe.skipIf`, so it reports as a pass and is invisible even in the
-  skip tally.
+  fixture-less run is green while skipping 52 of 437 tests. Real figures and
+  counterparty names go in `dummyData/snapshot-2026-10-31/expected-values.json`
+  (loaded via `src/__tests__/expectedValues.ts`), never in a committed test
+  or comment — the CSV being gitignored does not protect a number copied out
+  of it.
 - **Hand-edited CSVs go through `.claude/skills/trackz-csv-clean/SKILL.md`**
   before import. The user edits data in plain CSV; hand-added rows drift
   (e.g. `DD.MM.YYYY` dates the parser rejects, bank-statement merchant

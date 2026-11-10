@@ -53,9 +53,8 @@ const MAX_ERROR_PREVIEW = 5;
  * Capital, classified "investment") as spendable cash, while Home
  * would immediately show a different, correct number the moment the
  * import actually commits — caught live in this phase's own Playwright
- * verification pass: a bare re-import of the real backup showed
- * "Liquid 3.147,07 €" in the preview but "847,07 €" on Home one tap
- * later, a user-visible contradiction for the exact same data.
+ * verification pass: a bare re-import of the real backup showed a
+ * higher "Liquid" figure in the preview than Home showed one tap later, a user-visible contradiction for the exact same data.
  */
 export function previewImport(fileName: string, csvText: string, accountTypes: Record<string, AccountType> = {}): ImportPreview {
   const { transactions, errors } = parseTransactionsCsv(csvText);

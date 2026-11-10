@@ -85,7 +85,7 @@ export interface MerchantVariant {
  * non_expense means "this money left my account but the whole amount is
  * not my expense" (e.g. a loan to a friend, or a bill partly reimbursed
  * by someone else), and non_income is its mirror. In the real data those
- * rows carry names like "Alif Elahi" and "Chayan Mitra", and
+ * rows carry people's names, and
  * insights/engine.ts groups Lent out / I owe BY MERCHANT.
  *
  * So a merge of two counterparty spellings is usually RIGHT (same

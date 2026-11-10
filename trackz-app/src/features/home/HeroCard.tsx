@@ -20,7 +20,7 @@ interface HeroCardProps {
  * figure is CASH account balances only (getLiquidCashCents, which
  * excludes accounts classified "investment" — e.g. SCLB/Scalable
  * Capital, caught live during Phase 12 QA overstating this number by its
- * full 2.300,00 € balance before the account-type classification was
+ * full balance before the account-type classification was
  * added). Outstanding "Lent out" receivables and investment balances are
  * real assets but aren't spendable cash, so folding them in here would
  * make the headline number silently drift from what the Accounts

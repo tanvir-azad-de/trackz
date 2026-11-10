@@ -7,7 +7,7 @@ import type { Cents } from "@/domain/money";
  * place, so "1", "2", "4", "0" produces 12,40 €, not "1240,00 €" then a
  * decimal-point re-parse. This was chosen over a decimal-point keypad
  * because real usage data (dummyData/snapshot-2026-10-31) shows 921 of
- * 1,174 expenses carry non-zero cents (median Groceries/Edeka = 12,40 €) —
+ * 1,174 expenses carry non-zero cents —
  * the accumulator makes the common case the short one, and it is
  * structurally impossible to produce a malformed amount (no "12..4" or
  * "12.405" to validate against).

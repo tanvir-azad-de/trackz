@@ -93,13 +93,10 @@ describe("serializeTransactionsCsv", () => {
     expect(transactions[0]).toEqual(original);
   });
 
-  it("round-trips the entire real 1,456-row backup byte-for-byte equal, id and createdAt included", () => {
-    if (!existsSync(realCsvPath)) {
-      // dummyData/ is gitignored real financial data — absent on CI/fresh
-      // clone. Skip rather than fail; the single-transaction cases above
-      // already cover the same logic.
-      return;
-    }
+  // dummyData/ is gitignored real financial data — absent on a fresh clone.
+  // skipIf, NOT an early `return` inside the test: a bare return reported
+  // this as a PASS with zero assertions, hiding it even from the skip tally.
+  it.skipIf(!existsSync(realCsvPath))("round-trips the entire real 1,456-row backup byte-for-byte equal, id and createdAt included", () => {
     const realCsv = readFileSync(realCsvPath, "utf-8");
     const first = parseTransactionsCsv(realCsv);
     expect(first.errors).toEqual([]);

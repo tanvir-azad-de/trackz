@@ -9,8 +9,8 @@ import type { AccountType } from "@/domain/transaction";
  * Caught live during Phase 12 QA: SCLB (Scalable Capital, a real
  * brokerage account in the user's data) was being summed into Home's
  * "Liquid" hero and the Accounts screen's "Liquid" total alongside true
- * cash accounts, overstating spendable cash by its full 2.300,00 €
- * balance (3.147,07 € shown vs 847,07 € true liquid cash). This map is
+ * cash accounts, overstating spendable cash by its full
+ * balance. This map is
  * the fix: SCLB is seeded as "investment" below; everything else
  * defaults to "cash" so no other account's behavior changes.
  *

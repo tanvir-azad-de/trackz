@@ -9,6 +9,7 @@ import {
   validateCategoryRename,
 } from "@/features/settings/categoryRename";
 import type { CategoryType, Transaction } from "@/domain/transaction";
+import { hasExpectedValues, readExpectedValues } from "@/__tests__/expectedValues";
 
 /**
  * Phase 13b: the category rename/merge path, pure half.
@@ -21,7 +22,7 @@ import type { CategoryType, Transaction } from "@/domain/transaction";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../../.."); // src/features/settings/__tests__ -> trackz-app -> trackz
 const csvPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/transactions.csv");
-const hasFixture = existsSync(csvPath);
+const hasFixture = existsSync(csvPath) && hasExpectedValues;
 
 let transactions: Transaction[];
 
@@ -47,7 +48,7 @@ function makeTransaction(
     category,
     categoryType: "expense",
     merchant: "Papa Johns",
-    amountCents: 1119,
+    amountCents: 1250,
     notes: "",
     createdAt: "2026-10-17T14:32:00.000Z",
     updatedAt: "2026-10-17T14:32:00.000Z",
@@ -61,7 +62,7 @@ describe("summarizeCategories", () => {
     const summaries = summarizeCategories([
       makeTransaction("Restaurant", { amountCents: 1000 }),
       makeTransaction("Restaurant", { amountCents: 500 }),
-      makeTransaction("Dining", { amountCents: 1119 }),
+      makeTransaction("Dining", { amountCents: 1250 }),
     ]);
 
     expect(summaries).toHaveLength(2);
@@ -70,7 +71,7 @@ describe("summarizeCategories", () => {
     expect(restaurant.totalCents).toBe(1500);
     const dining = summaries.find((s) => s.name === "Dining")!;
     expect(dining.rowCount).toBe(1);
-    expect(dining.totalCents).toBe(1119);
+    expect(dining.totalCents).toBe(1250);
   });
 
   it("groups names that differ only by surrounding whitespace", () => {
@@ -146,7 +147,7 @@ describe("planCategoryRename", () => {
   });
 
   it("changes nothing but the category field", () => {
-    const original = makeTransaction("Dining", { amountCents: 1119, categoryType: "expense" });
+    const original = makeTransaction("Dining", { amountCents: 1250, categoryType: "expense" });
     const plan = planCategoryRename([original], "Dining", "Restaurant");
 
     expect(plan.changed[0]).toEqual({ ...original, category: "Restaurant" });
@@ -271,7 +272,7 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
     expect(plan.isMerge).toBe(true);
     expect(plan.changed).toHaveLength(1);
     expect(plan.mergedIntoCount).toBe(144);
-    expect(plan.changed[0]!.amountCents).toBe(1119); // the Papa Johns row
+    expect(plan.changed[0]!.amountCents).toBe(readExpectedValues().categoryRename.diningRowAmountCents);
     expect(plan.changed[0]!.merchant).toBe("Papa Johns");
   });
 
@@ -281,7 +282,7 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
     expect(plan.isMerge).toBe(true);
     expect(plan.changed).toHaveLength(1);
     expect(plan.mergedIntoCount).toBe(7);
-    expect(plan.changed[0]!.amountCents).toBe(490);
+    expect(plan.changed[0]!.amountCents).toBe(readExpectedValues().categoryRename.feesRowAmountCents);
   });
 
   it("conserves row count and total cents across a real merge", () => {

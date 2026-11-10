@@ -27,7 +27,7 @@ import type { ISODate } from "./dates";
  *    movement) while the insight engine's category deltas filter on
  *    categoryType === "expense" only.
  * 2. On these rows the `merchant` field names a COUNTERPARTY — a
- *    PERSON ("Alif Elahi", "Chayan Mitra"), not a shop. Same for
+ *    PERSON (a friend or flatmate), not a shop. Same for
  *    receivable/payable, which is where insights/engine.ts gets the
  *    names for Lent out / I owe. Anything that rewrites merchant in
  *    bulk (Phase 6's merchant merge) is therefore touching people and

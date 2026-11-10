@@ -249,8 +249,8 @@ describe("category-type breakdown (counterparty warning)", () => {
    */
   it("flags a group touching non_expense rows", () => {
     const groups = findMergeGroups([
-      makeTransaction("Alif Elahi", { categoryType: "non_expense" }),
-      makeTransaction("ALIF ELAHI", { categoryType: "non_expense" }),
+      makeTransaction("Jamie Doe", { categoryType: "non_expense" }),
+      makeTransaction("JAMIE DOE", { categoryType: "non_expense" }),
     ]);
 
     expect(groups[0]!.touchesCounterpartyRows).toBe(true);
@@ -259,8 +259,8 @@ describe("category-type breakdown (counterparty warning)", () => {
 
   it("flags a group touching non_income rows", () => {
     const groups = findMergeGroups([
-      makeTransaction("Chayan Mitra", { categoryType: "non_income", cashflow: "in" }),
-      makeTransaction("chayan mitra", { categoryType: "non_income", cashflow: "in" }),
+      makeTransaction("Sam Roe", { categoryType: "non_income", cashflow: "in" }),
+      makeTransaction("sam roe", { categoryType: "non_income", cashflow: "in" }),
     ]);
     expect(groups[0]!.touchesCounterpartyRows).toBe(true);
   });
@@ -268,8 +268,8 @@ describe("category-type breakdown (counterparty warning)", () => {
   it("flags receivable and payable groups too", () => {
     for (const categoryType of ["receivable", "payable"] as const) {
       const groups = findMergeGroups([
-        makeTransaction("Towkir", { categoryType }),
-        makeTransaction("TOWKIR", { categoryType }),
+        makeTransaction("Alex", { categoryType }),
+        makeTransaction("ALEX", { categoryType }),
       ]);
       expect(groups[0]!.touchesCounterpartyRows).toBe(true);
     }
@@ -415,7 +415,7 @@ describe.skipIf(!hasFixture)("findMergeGroups (real 1,456-row backup)", () => {
   /**
    * Today none of the 7 auto-detected groups touches a counterparty row
    * (all 150 are plain expense). That is a fact about THIS data, not a
-   * guarantee of the algorithm — "Alif Elahi" gaining a second spelling
+   * guarantee of the algorithm — a counterparty gaining a second spelling
    * would legitimately produce a flagged group. Asserted so that if it
    * ever changes, it changes visibly here rather than silently in the UI.
    */

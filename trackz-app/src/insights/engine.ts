@@ -41,8 +41,8 @@ export function summarizeMonth(transactions: Transaction[], monthKey: string): M
  * storage/accountTypes.ts, e.g. SCLB/Scalable Capital) are deliberately
  * excluded: they're a real asset but not spendable cash, and including
  * them here silently overstated "Liquid" by their full balance (caught
- * live during Phase 12 QA — SCLB's 2.300,00 € was 73% of the number this
- * function returned before this fix).
+ * live during Phase 12 QA, where the investment balance was most of the
+ * number this function returned before this fix).
  *
  * `accountTypes` defaults to "every account is cash" so existing callers
  * that don't care about the cash/investment distinction (e.g. a future
@@ -247,10 +247,9 @@ export interface CounterpartyBalance {
  * Outstanding "Lent out" balances per counterparty (UI label for
  * categoryType "receivable" — see docs/renovation_version_1.txt
  * decisions). Counterparty name lives in tx.merchant for these rows
- * (confirmed against the real CSV: "Lent" / "Kaution" rows carry the
- * person's name there). Settled-to-zero counterparties (e.g. Chayan
- * Mitra in the real data: lent 130, repaid 130) are excluded rather than
- * shown as a 0,00 € row.
+ * (confirmed against the real CSV: receivable rows carry the person's
+ * name there). Settled-to-zero counterparties (lent X, repaid exactly X)
+ * are excluded rather than shown as a 0,00 € row.
  */
 export function getReceivableBalances(transactions: Transaction[]): CounterpartyBalance[] {
   return getCounterpartyBalances(transactions, "receivable");

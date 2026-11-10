@@ -27,7 +27,7 @@ import type { Cents } from "@/domain/money";
  * real data has ZERO case- or punctuation-duplicate category names (all
  * 36 are distinct even normalized, unlike merchants' 7 duplicate groups),
  * so every genuine category tidy-up is a semantic one — "Dining" (1 row,
- * Papa Johns) into "Restaurant" (144), "Fees" (1 row, a CMRZ 4,90 € bank
+ * Papa Johns) into "Restaurant" (144), "Fees" (1 row, a bank
  * fee) into "Bank Charges" (7, which holds that same monthly charge).
  * A normalized-equality guard would reject both. Instead of guessing
  * which reassignments are legitimate, the UI states the exact
