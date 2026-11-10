@@ -25,6 +25,20 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
+  CSV CLEANING SKILL (2026-11-10): .claude/skills/trackz-csv-clean/SKILL.md
+  is the blueprint for cleaning hand-edited CSVs before import. Written
+  after measuring dummyData/trackz-10-nov-2026.csv: 52 hand-added rows
+  with DD.MM.YYYY dates (the parser rejects every one), merchants in
+  bank-statement form versus the short-brand form of the older rows, 4
+  truncated merchants, and categories that contradict merchant history.
+  Doc-only by decision; verification reuses parseTransactionsCsv via a
+  throwaway test.
+  Second pass the same day, re-run from the original, data-level only:
+  restaurant and person names moved from notes into merchant, tiny
+  categories folded (34 -> 31), drugstores -> Personal Care, echo notes
+  cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
+  per-account cent sums are unchanged. The skill gained checks 12-17.
+
   NOT DONE — the only two numbered phases left:
     - Phase 14 (charts). getTopCategoriesForMonth and
       getMonthlyExpenseSeries are tested but have NO UI consumer.

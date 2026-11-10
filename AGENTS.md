@@ -86,6 +86,10 @@ it works.
   `storage/csv.test.ts:97` guards with a bare `return` rather than
   `describe.skipIf`, so it reports as a pass and is invisible even in the
   skip tally.
+- **Hand-edited CSVs go through `.claude/skills/trackz-csv-clean/SKILL.md`**
+  before import. The user edits data in plain CSV; hand-added rows drift
+  (e.g. `DD.MM.YYYY` dates the parser rejects, bank-statement merchant
+  spellings). Its per-dataset alias memory lives in gitignored `dummyData/`.
 - **`VITE_GOOGLE_CLIENT_ID` is inlined at build time.** Setting it after a
   deploy does nothing until the next build. This failure mode has recurred
   twice.
