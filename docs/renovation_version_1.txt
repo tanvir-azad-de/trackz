@@ -12,9 +12,9 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 421 tests passing (415 before the entry form rework), tsc -b
-  clean, typecheck:api clean, production build 51,393 bytes gzipped JS
-  (+10 from the entry form rework — measured with
+  Baseline: 436 tests passing (429 before the month pills), tsc -b clean,
+  typecheck:api clean, production build 52,020 bytes gzipped JS (+627
+  from the month pills; the Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
   the same number rounded). Production = origin/main = eca7922 (was
   recorded as d2c1d64, stale — checked with git 2026-11-10), deployed
@@ -169,6 +169,66 @@ have been wrong about something in every phase so far (see AGENTS.md's
   tapping it closes the sheet. With the fix stashed, Apply was at y=967,
   off screen. iOS momentum scroll under a sticky footer is unverified;
   it is added to docs/device-check-entry-rework.md.
+
+  ACTIVITY LIST REDESIGN — DONE 2026-11-10. The user
+  supplied a sample. The approved mockup is docs/mockups/activity-list-v2.html,
+  with two user decisions on top of it: keep Today/Yesterday, and REMOVE the
+  sticky month header entirely, because it "floated with empty space on
+  top". Each day is one rounded card with hairline dividers. The title is
+  "7. November" (year added for other years), via the new formatDayHeading
+  in domain/dates.ts. The day net is grey. Spending amounts are
+  text-primary instead of red, while money in stays green and transfers grey.
+  Row text went 14/12 -> 16/14.
+    - formatMonthLabel had no other consumer and was deleted with its
+      tests. formatDayLabel stays (Accounts, detail sheet "Logged").
+      --activity-header-height only served the month header and is gone.
+    - Incremental rendering now counts ROWS via the pure takeVisibleDays
+      (group.ts, 5 tests). A day cut at the page edge keeps its full-day
+      net. 9 mutations across it and formatDayHeading, all caught.
+    - THE MOCKUP'S "Yesterday -58,90" WAS WRONG; the app shows -18,90.
+      Day nets use the net-worth perspective, where a receivable
+      (Lent out 40,00) and a transfer are both 0. The app is right and
+      the mockup's hand-typed figure was not; the mockup is left as
+      the approved visual and is not a source of numbers.
+    - MonthGroup still carries inCents/outCents, now unread by the UI.
+      Kept because group.test.ts pins them and dropping them is a
+      separate cleanup.
+    Playwright 390x844 @2x: 0 month headers; titles [Today, Yesterday,
+    7. November]; out/in/none colors rgb(245,246,248) / (48,217,138) /
+    (154,160,173); last row has no divider; card radius 24px; a row is
+    the top element at its own center and tapping it opens its edit sheet.
+    With 157 rows: 80 render on open, all 157 after scrolling, no
+    sentinel left behind, no duplicate day cards. Bundle unchanged at
+    51,393 bytes gzipped (measured).
+
+  ACTIVITY MONTH PILLS — DONE 2026-11-10 (user-requested, approved as
+  docs/mockups/activity-month-pills.html). The summary line ("N
+  transactions +in -out") is REMOVED: it didn't fit the day-card list.
+  summarizeFiltered lost its only consumer and was deleted with its tests,
+  including the real-CSV Groceries reconciliation. In its place, a sticky
+  horizontal row of month pills sits under search, newest first, listing
+  only months present in the current search/filter. "Nov" is shown in the
+  current year and "Dec 2025" otherwise, from a fixed table because en-GB
+  writes "Sept". The pill for the month in view is highlighted and kept
+  centred in the strip. Tapping a pill jumps to that month.
+    - A jump to a month not rendered yet first grows useIncrementalList
+      (new ensureAtLeast) to rowsBeforeMonth + PAGE_SIZE, then scrolls
+      once the month's first card is in the DOM. The target y uses the
+      header's STUCK bottom (computed `top` + offsetHeight), not its live
+      rect, which at scrollY 0 still sits below the screen title.
+    - Pure half in features/activity/monthNav.ts: 10 tests, 8 mutations,
+      7 caught. The survivor was an `else break` that list-order tops can
+      never exercise, so it was deleted as a rule that never fires.
+    - Pills are 36px tall, under the 44px minimum, as approved in the
+      mockup. Each is wider than 44 and they are spaced 8px apart.
+    Playwright 390x844 @2x, 162 seeded rows over 14 months: 0 summary
+    elements; pills Nov..Jan, Dec 2025, Nov 2025, Oct 2025; Nov active on
+    load with 80 rows rendered; tapping Oct 2025 (not rendered) grew the
+    list to all 162 rows and landed "20. October 2025" at y=114 under a
+    104px header, Oct 2025 active and inside the strip; scrolling with the
+    wheel moved active Sep -> Aug as the titles crossed; a pill is the top
+    element at its own center; searching "Shop 13-" leaves only
+    [Oct 2025]. Bundle 51,393 -> 52,020 bytes gzipped (+627).
 
   NOT DONE — the numbered phases left:
     - Phase 14 (charts). getTopCategoriesForMonth and

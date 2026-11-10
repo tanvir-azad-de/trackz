@@ -8,11 +8,6 @@
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  /* Sticky month headers in ActivityList.css stick just below the
-     search/filter row + summary line, which this screen owns — kept as
-     a var here rather than hardcoded in ActivityList.css so the two
-     files don't have to agree on a magic number independently. */
-  --activity-header-height: 112px;
 }
 
 .activity-screen__title {
@@ -35,7 +30,7 @@
   top: var(--safe-top);
   z-index: 20;
   background: var(--surface-0);
-  padding-top: var(--space-1);
+  padding: var(--space-1) 0 var(--space-2);
 }
 
 .activity-screen__controls {
@@ -78,29 +73,6 @@
   height: 8px;
   border-radius: var(--radius-full);
   background: var(--accent-strong);
-}
-
-.activity-screen__summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-3);
-}
-
-.activity-screen__summary-totals {
-  display: flex;
-  gap: var(--space-2);
-  font-weight: 600;
-}
-
-.activity-screen__summary-in {
-  color: var(--positive);
-}
-
-.activity-screen__summary-out {
-  color: var(--negative);
 }
 
 .activity-screen__empty {

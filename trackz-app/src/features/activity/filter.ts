@@ -1,7 +1,4 @@
 import type { CategoryType, Transaction } from "@/domain/transaction";
-import type { Cents } from "@/domain/money";
-import { addCents } from "@/domain/money";
-import { getSignedAmountCents } from "@/domain/transaction";
 import type { ISODate } from "@/domain/dates";
 import {
   getLastNMonthsRange,
@@ -86,25 +83,6 @@ export function filterTransactions(transactions: Transaction[], filter: Activity
   return transactions
     .filter((tx) => matchesFacets(tx, filter) && matchesQuery(tx, normalizedQuery))
     .sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
-}
-
-export interface FilteredSummary {
-  count: number;
-  inCents: Cents;
-  outCents: Cents;
-  netCents: Cents;
-}
-
-/** Totals for the result-summary line above the list. Uses the net-worth perspective so transfers contribute 0, matching every other KPI in the app. */
-export function summarizeFiltered(transactions: Transaction[]): FilteredSummary {
-  let inCents = 0;
-  let outCents = 0;
-  for (const tx of transactions) {
-    const signed = getSignedAmountCents(tx, { kind: "net-worth" });
-    if (signed > 0) inCents = addCents(inCents, signed);
-    else if (signed < 0) outCents = addCents(outCents, -signed);
-  }
-  return { count: transactions.length, inCents, outCents, netCents: inCents - outCents };
 }
 
 /**

@@ -132,10 +132,9 @@ const WEEKDAY_MONTH_DAY_YEAR_FORMAT = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
 });
 
-const MONTH_YEAR_FORMAT = new Intl.DateTimeFormat("en-GB", {
+const LONG_MONTH_FORMAT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
   month: "long",
-  year: "numeric",
 });
 
 /**
@@ -154,7 +153,21 @@ export function formatDayLabel(date: ISODate, today: ISODate): string {
   return sameYear ? WEEKDAY_MONTH_DAY_FORMAT.format(dt) : WEEKDAY_MONTH_DAY_YEAR_FORMAT.format(dt);
 }
 
-/** "October 2026" for a "YYYY-MM" month key. Used by the Activity screen's sticky month header. */
-export function formatMonthLabel(monthKey: string): string {
-  return MONTH_YEAR_FORMAT.format(parseISODateUTC(getMonthStartDate(monthKey)));
+/**
+ * "Today" / "Yesterday" / "7. November" (same year as `today`) /
+ * "7. November 2025" (a different year). The Activity list's day-card
+ * titles (2026-11-10 redesign, docs/mockups/activity-list-v2.html). The
+ * "D. Month" shape is the user's own, from their sample.
+ *
+ * Assembled from parts rather than one Intl pattern: no en-GB format
+ * produces "7. November", and switching to de-DE for the dot would also
+ * translate the month name to German.
+ */
+export function formatDayHeading(date: ISODate, today: ISODate): string {
+  if (date === today) return "Today";
+  if (daysBetween(date, today) === 1) return "Yesterday";
+  const day = Number(date.slice(8, 10));
+  const month = LONG_MONTH_FORMAT.format(parseISODateUTC(date));
+  const sameYear = date.slice(0, 4) === today.slice(0, 4);
+  return sameYear ? `${day}. ${month}` : `${day}. ${month} ${date.slice(0, 4)}`;
 }

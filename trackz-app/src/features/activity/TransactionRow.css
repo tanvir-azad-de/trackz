@@ -12,8 +12,14 @@
   text-align: left;
 }
 
+/* Rows sit inside a day card (ActivityList.css), so the divider stops at the last one. */
+.transaction-row:last-child {
+  border-bottom: none;
+}
+
+/* surface-2, one step above the surface-1 card, so the press is visible. */
 .transaction-row:active {
-  background: var(--surface-1);
+  background: var(--surface-2);
 }
 
 .transaction-row__body {
@@ -22,8 +28,8 @@
 }
 
 .transaction-row__primary {
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: 500;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -31,8 +37,8 @@
 }
 
 .transaction-row__secondary {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -52,16 +58,18 @@
 
 .transaction-row__amount {
   flex: 0 0 auto;
-  font-size: var(--text-sm);
-  font-weight: 700;
+  font-size: var(--text-base);
+  font-weight: 500;
 }
 
 .transaction-row__amount--in {
   color: var(--positive);
 }
 
+/* Spending reads as plain text, not red (2026-11-10 redesign). Green is
+   kept for money in, so color marks the exception rather than every row. */
 .transaction-row__amount--out {
-  color: var(--negative);
+  color: var(--text-primary);
 }
 
 .transaction-row__amount--none {

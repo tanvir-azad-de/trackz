@@ -64,3 +64,32 @@ export function groupByMonthAndDay(transactions: Transaction[]): MonthGroup[] {
 
   return months;
 }
+
+/**
+ * The day cards to render for the first `rowBudget` transactions
+ * (useIncrementalList's visibleCount), flattened across months now that
+ * the list has no month header (2026-11-10 redesign). The budget counts
+ * ROWS only. Headers are not rows, and counting them would make the page
+ * size depend on how many days the rows happen to span.
+ *
+ * A day cut by the budget is returned with only its visible rows but its
+ * FULL-day netCents. The card title states the day's net, and a partial
+ * sum would show a figure that changes as more rows load in.
+ */
+export function takeVisibleDays(months: readonly MonthGroup[], rowBudget: number): { days: DayGroup[]; hasMore: boolean } {
+  const days: DayGroup[] = [];
+  let remaining = rowBudget;
+  for (const month of months) {
+    for (const day of month.days) {
+      if (remaining <= 0) return { days, hasMore: true };
+      const shown = day.transactions.length <= remaining ? day.transactions : day.transactions.slice(0, remaining);
+      days.push(shown === day.transactions ? day : { ...day, transactions: shown });
+      remaining -= shown.length;
+    }
+  }
+  // The loop only exits early when rows are left over. A budget that ends
+  // exactly on the last row falls through here, and so does a cut inside
+  // the last day.
+  const total = months.reduce((n, m) => n + m.days.reduce((k, d) => k + d.transactions.length, 0), 0);
+  return { days, hasMore: rowBudget < total };
+}

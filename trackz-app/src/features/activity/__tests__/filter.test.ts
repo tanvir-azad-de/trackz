@@ -10,7 +10,6 @@ import {
   isFilterActive,
   matchesQuery,
   normalizeForSearch,
-  summarizeFiltered,
   matchingPreset,
   presetRange,
   type ActivityFilter,
@@ -24,7 +23,7 @@ const referenceTotalsPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/ref
 // dummyData/ is gitignored real financial data — absent on a fresh clone
 // or CI (Phase 15a fixture-gap fix). This file mixes synthetic-only
 // tests (normalizeForSearch, matchesQuery, activeFacetCount/
-// isFilterActive, and summarizeFiltered's empty-result case) with
+// isFilterActive) with
 // real-CSV-dependent ones — unlike engine.test.ts, a
 // single whole-file skip would wrongly drop the synthetic coverage too.
 // hasFixture gates only the describe/it blocks that actually touch
@@ -192,31 +191,6 @@ describe("activeFacetCount / isFilterActive", () => {
 
   it("a search-only filter is active even with zero facets", () => {
     expect(isFilterActive({ ...emptyFilter(), query: "edeka" })).toBe(true);
-  });
-});
-
-describe.skipIf(!hasFixture)("summarizeFiltered against the real CSV", () => {
-  it("reconciles income/expense totals against the independently-computed reference totals for a single category", () => {
-    const groceries = filterTransactions(transactions, { ...emptyFilter(), categories: ["Groceries"] });
-    const summary = summarizeFiltered(groceries);
-    const expectedCents = Math.round(referenceTotals.categoryTotals["expense|Groceries"]! * 100);
-    expect(summary.outCents).toBe(expectedCents);
-    expect(summary.inCents).toBe(0);
-  });
-
-  it("a transfer-only result nets to zero in/out (transfers don't affect net worth)", () => {
-    const transfers = filterTransactions(transactions, { ...emptyFilter(), categoryTypes: ["transfer"] });
-    const summary = summarizeFiltered(transfers);
-    expect(summary.inCents).toBe(0);
-    expect(summary.outCents).toBe(0);
-    expect(summary.netCents).toBe(0);
-    expect(summary.count).toBe(transfers.length);
-  });
-});
-
-describe("summarizeFiltered", () => {
-  it("an empty result summarizes to all zeros", () => {
-    expect(summarizeFiltered([])).toEqual({ count: 0, inCents: 0, outCents: 0, netCents: 0 });
   });
 });
 

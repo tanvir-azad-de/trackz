@@ -26,3 +26,7 @@ section 5, "ENTRY FORM REWORK".
 - [ ] **Filter sheet buttons pinned.** Activity → filter button. Reset/Apply
       are visible at the sheet bottom on open, and stay pinned with no
       jitter while momentum-scrolling the facets underneath.
+- [ ] **Activity month pills.** Swipe the pill row sideways: it scrolls
+      without moving the list. Tap an old month: the list glides there and
+      that pill lights up. Fling-scroll the list: the lit pill follows and
+      the row re-centres it without jitter.

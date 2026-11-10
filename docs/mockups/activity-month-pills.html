@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Activity Month Pills</title>
+<style>
+  /* Temporary mockup: the Activity screen with the summary line removed and
+     a sticky, horizontally scrolling month pill row under search/filter.
+     Tokens copied from trackz-app/src/styles/tokens.css (dark-only app). */
+  :root {
+    color-scheme: dark;
+    --surface-0: #0a0b0f;
+    --surface-1: #14151b;
+    --surface-2: #1d1f28;
+    --text-primary: #f5f6f8;
+    --text-secondary: #9aa0ad;
+    --text-tertiary: #636a78;
+    --border-subtle: #262830;
+    --accent: #6e56f8;
+    --accent-strong: #8b76ff;
+    --accent-bg: rgba(110, 86, 248, 0.16);
+    --positive: #30d98a;
+    --neutral: #ffb454;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .screen { max-width: 480px; margin: 0 auto; padding: calc(4px + env(safe-area-inset-top, 0px)) 20px 120px; }
+  .title { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin: 8px 0 16px; }
+
+  .sticky { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface-0); padding: 4px 0 8px; }
+  .toolbar { display: flex; gap: 8px; }
+  .search { flex: 1; min-width: 0; height: 44px; border-radius: 12px; background: var(--surface-1); border: 1px solid var(--border-subtle); color: var(--text-tertiary); display: flex; align-items: center; padding: 0 12px; font-size: 16px; white-space: nowrap; overflow: hidden; }
+  .filter { flex: 0 0 44px; height: 44px; border-radius: 12px; background: var(--surface-1); border: 1px solid var(--border-subtle); color: var(--text-secondary); display: grid; place-items: center; }
+
+  /* Pills bleed to the screen edge (negative margin = the screen's 20px
+     gutter) so the row visibly continues off-screen, which is the cue that
+     it scrolls. */
+  .months { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 12px -20px 0; padding: 0 20px; scroll-padding-inline: 20px; }
+  .months::-webkit-scrollbar { display: none; }
+  .pill { flex: 0 0 auto; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border-subtle); background: var(--surface-1); color: var(--text-secondary); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .pill[aria-current="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-strong); }
+  .pill:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+
+  .list { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; }
+  .day { display: flex; flex-direction: column; gap: 8px; }
+  .day-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 8px; }
+  .day-head h3 { margin: 0; font-size: 18px; font-weight: 600; }
+  .day-head .net { font-size: 16px; font-weight: 500; color: var(--text-secondary); }
+  .card { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: 24px; padding: 4px 16px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+  .row:last-child { border-bottom: 0; }
+  .row .body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .row .name { font-size: 16px; font-weight: 500; }
+  .row .meta { font-size: 14px; color: var(--text-secondary); }
+  .row .amt { font-size: 16px; font-weight: 500; flex: 0 0 auto; }
+  .row .amt.in { color: var(--positive); }
+
+  .note { margin-top: 32px; font-size: 13px; line-height: 1.5; color: var(--text-tertiary); }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="title">Activity</div>
+  <div class="sticky" id="sticky">
+    <div class="toolbar">
+      <div class="search">Search merchant, category, notes…</div>
+      <div class="filter" aria-hidden="true">▤</div>
+    </div>
+    <nav class="months" id="months" aria-label="Jump to month"></nav>
+  </div>
+  <div class="list" id="list"></div>
+  <p class="note">Temporary mockup with made-up rows. Tap a month to jump to it; scroll and the highlighted month follows.</p>
+</div>
+
+<script>
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const SHOP = [["Edeka","Groceries · ADVZ"],["Lieferando","Restaurants · REVO"],["DB Fernverkehr","Travel · ADVZ"],["Netflix","Subscriptions · REVO"],["Rewe","Groceries · ADVZ"],["Amazon","Shopping · REVO"]];
+  const fmt = (c) => (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+
+  // Nov 2026 back to Dec 2025: enough months to overflow the pill row.
+  const months = [];
+  for (let k = 0; k < 12; k++) {
+    const y = k < 11 ? 2026 : 2025, m = k < 11 ? 10 - k : 11;
+    const days = [];
+    for (const d of [24, 17, 9, 3]) {
+      const rows = [];
+      const n = 1 + ((d + k) % 3);
+      for (let r = 0; r < n; r++) {
+        const [name, meta] = SHOP[(d + r + k) % SHOP.length];
+        rows.push({ name, meta, cents: -(500 + ((d * 37 + r * 211 + k * 53) % 6000)) });
+      }
+      if (d === 24 && k % 2 === 0) rows.push({ name: "Arbeitgeber GmbH", meta: "Salary · CMRZ", cents: 285000 });
+      days.push({ d, rows });
+    }
+    months.push({ y, m, days });
+  }
+
+  const label = (mo) => mo.y === 2026 ? MONTHS[mo.m].slice(0, 3) : `${MONTHS[mo.m].slice(0, 3)} ${mo.y}`;
+  const key = (mo) => `${mo.y}-${String(mo.m + 1).padStart(2, "0")}`;
+
+  document.getElementById("months").innerHTML = months.map((mo) =>
+    `<button type="button" class="pill" data-month="${key(mo)}">${label(mo)}</button>`).join("");
+
+  document.getElementById("list").innerHTML = months.map((mo) => mo.days.map((day, i) => {
+    const net = day.rows.reduce((s, r) => s + r.cents, 0);
+    const title = mo.y === 2026 ? `${day.d}. ${MONTHS[mo.m]}` : `${day.d}. ${MONTHS[mo.m]} ${mo.y}`;
+    return `<section class="day"${i === 0 ? ` data-month-start="${key(mo)}"` : ""} data-month="${key(mo)}">
+      <div class="day-head"><h3>${title}</h3><span class="net tnum">${net > 0 ? "+" : ""}${fmt(net)}</span></div>
+      <div class="card">${day.rows.map((r) => `<div class="row"><div class="body"><span class="name">${r.name}</span><span class="meta">${r.meta}</span></div><span class="amt tnum ${r.cents > 0 ? "in" : ""}">${r.cents > 0 ? "+" : ""}${fmt(r.cents)}</span></div>`).join("")}</div>
+    </section>`;
+  }).join("")).join("");
+
+  const sticky = document.getElementById("sticky");
+  const strip = document.getElementById("months");
+  const pills = [...strip.querySelectorAll(".pill")];
+  const days = [...document.querySelectorAll(".day")];
+
+  function setActive(monthKey) {
+    for (const p of pills) {
+      const on = p.dataset.month === monthKey;
+      if (on !== (p.getAttribute("aria-current") === "true")) p.setAttribute("aria-current", String(on));
+      if (on) {
+        // Scroll only the strip, never the page, to keep the active pill in view.
+        const left = p.offsetLeft - strip.clientWidth / 2 + p.offsetWidth / 2;
+        strip.scrollTo({ left, behavior: "smooth" });
+      }
+    }
+  }
+
+  // Active month = the month of the first day card whose bottom is still
+  // below the sticky header's bottom edge.
+  let current = null;
+  function onScroll() {
+    const line = sticky.getBoundingClientRect().bottom + 1;
+    const first = days.find((d) => d.getBoundingClientRect().bottom > line) ?? days[days.length - 1];
+    if (first.dataset.month !== current) { current = first.dataset.month; setActive(current); }
+  }
+  addEventListener("scroll", onScroll, { passive: true });
+
+  strip.addEventListener("click", (e) => {
+    const pill = e.target.closest(".pill");
+    if (!pill) return;
+    const target = document.querySelector(`[data-month-start="${pill.dataset.month}"]`);
+    const y = target.getBoundingClientRect().top + scrollY - sticky.getBoundingClientRect().height - 8;
+    scrollTo({ top: y, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+
+  onScroll();
+</script>
+</body>
+</html>

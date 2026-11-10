@@ -1,4 +1,4 @@
-import { useMemo, useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
 import { getLocalToday } from "@/domain/dates";
@@ -8,20 +8,20 @@ import {
   emptyFilter,
   filterTransactions,
   isFilterActive,
-  summarizeFiltered,
   type ActivityFilter,
 } from "@/features/activity/filter";
 import { groupByMonthAndDay } from "@/features/activity/group";
-import { ActivityList } from "./ActivityList";
+import { ActivityList, type MonthJump } from "./ActivityList";
+import { MonthPills } from "./MonthPills";
 import { FilterSheet } from "./FilterSheet";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import type { Transaction } from "@/domain/transaction";
-import { Money } from "@/components/Money";
 import type { ToastState } from "@/components/Toast";
 import "@/components/Sheet.css";
 import "@/features/entry/EntryForm.css";
 import "./TransactionRow.css";
 import "./ActivityList.css";
+import "./MonthPills.css";
 import "./FilterSheet.css";
 import "./TransactionDetailSheet.css";
 import "./ActivityScreen.css";
@@ -33,8 +33,8 @@ interface ActivityScreenProps {
 
 /**
  * Phase 11's Activity screen: instant search, a filter sheet (account /
- * category / category type / date range), a day-grouped, sticky-month-
- * headered list with incremental rendering (see useIncrementalList.ts for
+ * category / category type / date range), sticky month pills, a list of
+ * day cards with incremental rendering (see useIncrementalList.ts for
  * why this isn't true windowing), and a tap-through detail sheet for
  * edit/delete. No swipe gestures — see TransactionRow.tsx's comment and
  * the Phase 11 status note in docs/renovation_version_1.txt.
@@ -56,7 +56,18 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
 
   const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter]);
   const months = useMemo(() => groupByMonthAndDay(filtered), [filtered]);
-  const summary = useMemo(() => summarizeFiltered(filtered), [filtered]);
+  const monthKeys = useMemo(() => months.map((m) => m.monthKey), [months]);
+
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [activeMonth, setActiveMonth] = useState<string | null>(null);
+  const [jump, setJump] = useState<MonthJump | null>(null);
+
+  function handlePickMonth(monthKey: string) {
+    // Highlight now rather than waiting for the scroll to arrive. The
+    // scroll tracker takes over from here and agrees once it lands.
+    setActiveMonth(monthKey);
+    setJump({ monthKey, nonce: Date.now() });
+  }
 
   // Changes whenever any facet (not the free-text query) changes, so
   // useIncrementalList resets its page size — a new filter result set
@@ -100,7 +111,7 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
     <main class="activity-screen">
       <h1 class="activity-screen__title">Activity</h1>
 
-      <div class="activity-screen__sticky-header">
+      <div class="activity-screen__sticky-header" ref={headerRef}>
         <div class="activity-screen__controls">
           <input
             type="search"
@@ -120,16 +131,8 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
           </button>
         </div>
 
-        {!noTransactionsAtAll && (
-          <div class="activity-screen__summary">
-            <span>
-              {summary.count} transaction{summary.count === 1 ? "" : "s"}
-            </span>
-            <span class="activity-screen__summary-totals">
-              <span class="activity-screen__summary-in">+<Money cents={summary.inCents} /></span>
-              <span class="activity-screen__summary-out">−<Money cents={summary.outCents} /></span>
-            </span>
-          </div>
+        {monthKeys.length > 0 && (
+          <MonthPills monthKeys={monthKeys} active={activeMonth} today={today} onPick={handlePickMonth} />
         )}
       </div>
 
@@ -143,7 +146,14 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
           </button>
         </div>
       ) : (
-        <ActivityList months={months} resetKey={resetKey} onOpenTransaction={setOpenTransaction} />
+        <ActivityList
+          months={months}
+          resetKey={resetKey}
+          onOpenTransaction={setOpenTransaction}
+          headerRef={headerRef}
+          jump={jump}
+          onActiveMonthChange={setActiveMonth}
+        />
       )}
 
       <FilterSheet

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 
-const PAGE_SIZE = 80;
+export const PAGE_SIZE = 80;
 
 /**
  * Incremental-render pagination for the Activity list (Phase 11). Not
@@ -25,6 +25,8 @@ const PAGE_SIZE = 80;
 export function useIncrementalList(resetKey: string): {
   visibleCount: number;
   sentinelRef: (el: HTMLDivElement | null) => void;
+  /** Grow (never shrink) to at least `count` — the month pills' jump to a month not rendered yet. */
+  ensureAtLeast: (count: number) => void;
 } {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
@@ -55,5 +57,7 @@ export function useIncrementalList(resetKey: string): {
     return () => observer.disconnect();
   }, [sentinelEl]);
 
-  return { visibleCount, sentinelRef: setSentinelEl };
+  const ensureAtLeast = useCallback((count: number) => setVisibleCount((c) => Math.max(c, count)), []);
+
+  return { visibleCount, sentinelRef: setSentinelEl, ensureAtLeast };
 }

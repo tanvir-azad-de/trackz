@@ -1,0 +1,179 @@
+<title>Activity List Redesign</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: one phone-width column, the Activity screen as it would ship,
+     with a Proposed / Current switch and the open decisions beneath.
+     Tokens copied from trackz-app/src/styles/tokens.css (the app is dark-only). */
+  :root {
+    color-scheme: dark;
+    --surface-0: #0a0b0f;
+    --surface-1: #14151b;
+    --surface-2: #1d1f28;
+    --text-primary: #f5f6f8;
+    --text-secondary: #9aa0ad;
+    --text-tertiary: #636a78;
+    --border-subtle: #262830;
+    --accent: #6e56f8;
+    --accent-strong: #8b76ff;
+    --accent-bg: rgba(110, 86, 248, 0.16);
+    --positive: #30d98a;
+    --negative: #ff6b6b;
+    --neutral: #ffb454;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+    --radius-md: 12px;
+    --radius-xl: 24px;
+  }
+  body {
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 48px;
+  }
+  .page { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+
+  .switch { display: flex; gap: 8px; }
+  .switch button {
+    flex: 1; min-height: 44px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 600;
+    background: var(--surface-2); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;
+  }
+  .switch button[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent-strong); border-color: var(--accent); }
+  .switch button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+
+  .phone { border: 1px solid var(--border-subtle); border-radius: 28px; padding: 16px 16px 24px; background: var(--surface-0); }
+  .screen-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin: 4px 4px 12px; }
+  .toolbar { display: flex; gap: 8px; }
+  .search { flex: 1; min-width: 0; min-height: 44px; border-radius: var(--radius-md); background: var(--surface-1); border: 1px solid var(--border-subtle); color: var(--text-tertiary); display: flex; align-items: center; padding: 0 12px; font-size: 16px; }
+  .filter { width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--surface-1); border: 1px solid var(--border-subtle); color: var(--text-secondary); display: grid; place-items: center; }
+  .summary { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-tertiary); margin: 12px 2px 4px; }
+  .in { color: var(--positive); }
+  .out { color: var(--negative); }
+
+  /* ---------- Proposed ---------- */
+  .p-month { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 4px 4px; font-size: 14px; font-weight: 700; }
+  .p-month .totals { display: flex; gap: 8px; font-size: 12px; font-weight: 600; }
+  .p-day { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .p-day-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 8px; }
+  .p-day-head h3 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.01em; }
+  .p-day-head .net { font-size: 16px; font-weight: 500; color: var(--text-secondary); }
+  .p-card { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 4px 16px; display: flex; flex-direction: column; }
+  .p-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; min-height: 44px; border-bottom: 1px solid var(--border-subtle); }
+  .p-row:last-child { border-bottom: 0; }
+  .p-row .body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .p-row .name { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p-row .meta { font-size: 14px; color: var(--text-secondary); display: flex; gap: 8px; align-items: center; white-space: nowrap; overflow: hidden; }
+  .badge { font-size: 10px; font-weight: 700; color: var(--neutral); text-transform: uppercase; letter-spacing: 0.04em; }
+  .p-row .amt { flex: 0 0 auto; font-size: 16px; font-weight: 500; }
+  .p-row .amt.is-in { color: var(--positive); }
+  .p-row .amt.is-out { color: var(--text-primary); }
+  .p-row .amt.is-none { color: var(--text-secondary); }
+
+  /* ---------- Current (as shipped today) ---------- */
+  .c-month { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 8px; font-size: 14px; font-weight: 700; }
+  .c-month .totals { display: flex; gap: 8px; font-size: 12px; font-weight: 600; }
+  .c-day { display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.03em; }
+  .c-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+  .c-row .body { min-width: 0; }
+  .c-row .name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-row .meta { font-size: 12px; color: var(--text-tertiary); display: flex; gap: 8px; align-items: center; }
+  .c-row .amt { font-size: 14px; font-weight: 700; flex: 0 0 auto; }
+  .c-row .amt.is-in { color: var(--positive); }
+  .c-row .amt.is-out { color: var(--negative); }
+  .c-row .amt.is-none { color: var(--text-secondary); }
+
+  .notes { display: flex; flex-direction: column; gap: 16px; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+  .notes h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin: 0; }
+  .notes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .notes strong { color: var(--text-primary); font-weight: 600; }
+  .sample { font-size: 12px; color: var(--text-tertiary); text-align: center; }
+</style>
+
+<div class="page">
+  <div class="switch" role="group" aria-label="Which design to show">
+    <button type="button" id="show-proposed" aria-pressed="true">Proposed</button>
+    <button type="button" id="show-current" aria-pressed="false">Current</button>
+  </div>
+
+  <div class="phone">
+    <div class="screen-title">Activity</div>
+    <div class="toolbar">
+      <div class="search">Search merchant, category, notes…</div>
+      <div class="filter" aria-hidden="true">▤</div>
+    </div>
+    <div class="summary tnum"><span>11 transactions</span><span><span class="in">+2.870,38 €</span>&nbsp;&nbsp;<span class="out">−190,47 €</span></span></div>
+    <div id="list"></div>
+  </div>
+
+  <p class="sample">Sample rows. These are made-up names, not your data.</p>
+
+  <div class="notes">
+    <h2>What changes</h2>
+    <ul>
+      <li>Each day becomes <strong>one rounded card</strong>, with hairline dividers between rows.</li>
+      <li>The day header gets bigger: <strong>"7. November"</strong> on the left and the day's net on the right in grey.</li>
+      <li><strong>Spending turns white.</strong> Only money coming in stays green. Transfers stay grey with no sign.</li>
+      <li>Merchant text goes 14→16px and the category · account line 12→14px. These use the app's existing type sizes, so 16 rather than the sample's 17.</li>
+      <li>Kept from today: the month header pinned while scrolling, with its in and out totals. Also kept: the "Lent out" / "Money back" badges and tap-to-edit.</li>
+    </ul>
+    <h2>Your calls</h2>
+    <ul>
+      <li><strong>Today / Yesterday:</strong> keep them as day titles, or always show the date ("10. November")?</li>
+      <li><strong>Month header:</strong> keep it pinned with in/out totals, or drop it like your sample does?</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const days = [
+    { title: "Today", short: "Mon 10 Nov", net: "+2.822,32 €", rows: [
+      ["Edeka", "Groceries · ADVZ", "−23,48 €", "out"],
+      ["Bäckerei Schmidt", "Groceries · CASH", "−4,20 €", "out"],
+      ["Arbeitgeber GmbH", "Salary · CMRZ", "+2.850,00 €", "in"],
+    ]},
+    { title: "Yesterday", short: "Sun 9 Nov", net: "−58,90 €", rows: [
+      ["ADVZ → REVO", "Transfer", "500,00 €", "none"],
+      ["Rafi", "Loans · ADVZ", "−40,00 €", "out", "Lent out"],
+      ["Lieferando", "Restaurants · REVO", "−18,90 €", "out"],
+    ]},
+    { title: "7. November", short: "Fri 7 Nov", net: "+20,38 €", rows: [
+      ["Amazon", "Shopping · REVO", "+20,38 €", "in", "Money back"],
+    ]},
+    { title: "5. November", short: "Wed 5 Nov", net: "−103,89 €", rows: [
+      ["DB Fernverkehr", "Travel · ADVZ", "−89,90 €", "out"],
+      ["Netflix", "Subscriptions · REVO", "−13,99 €", "out"],
+    ]},
+  ];
+  const october = { title: "31. October", short: "Fri 31 Oct", net: "−61,20 €", rows: [
+    ["Rewe", "Groceries · ADVZ", "−61,20 €", "out"],
+  ]};
+
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const badge = (b) => (b ? `<span class="badge">${esc(b)}</span>` : "");
+
+  function proposedDay(d) {
+    return `<section class="p-day"><div class="p-day-head"><h3>${esc(d.title)}</h3><span class="net tnum">${d.net}</span></div>
+      <div class="p-card">${d.rows.map(([n, m, a, k, b]) => `<div class="p-row"><div class="body"><span class="name">${esc(n)}</span><span class="meta">${esc(m)}${badge(b)}</span></div><span class="amt tnum is-${k}">${a}</span></div>`).join("")}</div></section>`;
+  }
+  function currentDay(d) {
+    return `<div class="c-day"><span>${esc(d.short)}</span><span class="tnum">${d.net}</span></div>` +
+      d.rows.map(([n, m, a, k, b]) => `<div class="c-row"><div class="body"><div class="name">${esc(n)}</div><div class="meta">${esc(m)}${badge(b)}</div></div><span class="amt tnum is-${k}">${a}</span></div>`).join("");
+  }
+  const monthHead = (cls, name, inT, outT) => `<div class="${cls}"><span>${name}</span><span class="totals tnum"><span class="in">+${inT}</span><span class="out">−${outT}</span></span></div>`;
+
+  function render(which) {
+    const p = which === "proposed";
+    const day = p ? proposedDay : currentDay;
+    const mc = p ? "p-month" : "c-month";
+    document.getElementById("list").innerHTML =
+      monthHead(mc, "November 2026", "2.870,38 €", "190,47 €") + days.map(day).join("") +
+      monthHead(mc, "October 2026", "0,00 €", "61,20 €") + day(october);
+    document.getElementById("show-proposed").setAttribute("aria-pressed", String(p));
+    document.getElementById("show-current").setAttribute("aria-pressed", String(!p));
+  }
+  document.getElementById("show-proposed").addEventListener("click", () => render("proposed"));
+  document.getElementById("show-current").addEventListener("click", () => render("current"));
+  render("proposed");
+</script>

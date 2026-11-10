@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   daysBetween,
   formatDayLabel,
-  formatMonthLabel,
+  formatDayHeading,
   getLastNMonthsRange,
   getMonthEndDate,
   getMonthStartDate,
@@ -71,7 +71,34 @@ describe("dates (UTC-safe, timezone bug regression)", () => {
   });
 });
 
-describe("formatDayLabel / formatMonthLabel (Phase 11 Activity day/month headers)", () => {
+describe("formatDayHeading (Activity day-card titles)", () => {
+  it("keeps Today and Yesterday", () => {
+    expect(formatDayHeading("2026-11-10", "2026-11-10")).toBe("Today");
+    expect(formatDayHeading("2026-11-09", "2026-11-10")).toBe("Yesterday");
+  });
+
+  it("is 'D. Month' with no leading zero in the same year", () => {
+    expect(formatDayHeading("2026-11-07", "2026-11-10")).toBe("7. November");
+  });
+
+  it("appends the year for a different year, even across New Year", () => {
+    expect(formatDayHeading("2025-12-30", "2026-01-02")).toBe("30. December 2025");
+  });
+
+  it("does not shift the day across a timezone midnight", () => {
+    const originalTz = process.env.TZ;
+    try {
+      process.env.TZ = "America/Los_Angeles";
+      expect(formatDayHeading("2026-10-01", "2026-10-17")).toBe("1. October");
+      process.env.TZ = "Asia/Dhaka";
+      expect(formatDayHeading("2026-10-01", "2026-10-17")).toBe("1. October");
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+});
+
+describe("formatDayLabel (Accounts last-activity, detail sheet 'Logged')", () => {
   it("labels the exact today date as 'Today'", () => {
     expect(formatDayLabel("2026-10-17", "2026-10-17")).toBe("Today");
   });
@@ -88,11 +115,6 @@ describe("formatDayLabel / formatMonthLabel (Phase 11 Activity day/month headers
     expect(formatDayLabel("2025-10-01", "2026-10-17")).toBe("Wed, 1 Oct 2025");
   });
 
-  it("formats a month key as 'Month YYYY'", () => {
-    expect(formatMonthLabel("2026-10")).toBe("October 2026");
-    expect(formatMonthLabel("2025-01")).toBe("January 2025");
-  });
-
   it("produces identical labels regardless of the host machine's timezone", () => {
     // Regression guard for the exact class of bug this module exists to
     // avoid (see header comment): formatting must not re-derive "now" or
@@ -103,14 +125,11 @@ describe("formatDayLabel / formatMonthLabel (Phase 11 Activity day/month headers
     try {
       process.env.TZ = "Asia/Dhaka";
       const dhakaDay = formatDayLabel("2026-10-01", "2026-10-17");
-      const dhakaMonth = formatMonthLabel("2026-10");
 
       process.env.TZ = "America/Los_Angeles";
       const laDay = formatDayLabel("2026-10-01", "2026-10-17");
-      const laMonth = formatMonthLabel("2026-10");
 
       expect(dhakaDay).toBe(laDay);
-      expect(dhakaMonth).toBe(laMonth);
     } finally {
       process.env.TZ = originalTz;
     }
