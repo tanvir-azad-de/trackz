@@ -159,6 +159,17 @@ have been wrong about something in every phase so far (see AGENTS.md's
         merchant list is comfortable there is a real-device check. Write
         it into a device-check doc when the work lands.
 
+  FILTER SHEET CTA FIX — DONE 2026-11-10 (user-reported). Reset/Apply
+  (.filter-sheet__actions) sat below the fold on open, so every use
+  needed a scroll. Now position:sticky; bottom:0 inside .sheet__content,
+  with an opaque surface-1 background and a 1px top border. CSS-only; no
+  Sheet API change. Playwright 390x844 @2x, with seeded data that overflows
+  the scroller (scrollHeight 822 > clientHeight 622): on open, Apply's
+  bottom edge is at y=824, it is the top element at its own center, and
+  tapping it closes the sheet. With the fix stashed, Apply was at y=967,
+  off screen. iOS momentum scroll under a sticky footer is unverified;
+  it is added to docs/device-check-entry-rework.md.
+
   NOT DONE — the numbered phases left:
     - Phase 14 (charts). getTopCategoriesForMonth and
       getMonthlyExpenseSeries are tested but have NO UI consumer.

@@ -23,3 +23,6 @@ section 5, "ENTRY FORM REWORK".
 - [ ] **Remembered date across days.** On a later day, the date picker still
       shows the last-used date, as the user decided. Confirm that is still
       what you want once it's in daily use.
+- [ ] **Filter sheet buttons pinned.** Activity → filter button. Reset/Apply
+      are visible at the sheet bottom on open, and stay pinned with no
+      jitter while momentum-scrolling the facets underneath.
