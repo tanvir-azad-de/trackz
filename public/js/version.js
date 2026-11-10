@@ -1,1 +1,1 @@
-window.TRACKZ_VERSION = "1.0.78";
+window.TRACKZ_VERSION = "1.0.79";

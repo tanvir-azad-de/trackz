@@ -48,8 +48,11 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  ENTRY FORM REWORK — DONE AND DEPLOYED 2026-11-10 (7fe522c),
-  except the iOS checks in docs/device-check-entry-rework.md.
+  ENTRY FORM REWORK — DONE AND DEPLOYED 2026-11-10 (7fe522c).
+  DEVICE-VERIFIED 2026-11-10 on a real iPhone: 8 of 9 checks in
+  docs/device-check-entry-rework.md passed (pickers, "+ New…", dates,
+  Next, memory, chevron, filter footer, month pills). Open: the
+  remembered date on a LATER day, which can't be checked the same day.
   The user's own report of the most crucial usage issues. It SUPERSEDES the
   section 0 decision "keypad-first bottom sheet with smart recall chips
   ..., 3-tap happy path" and the Phase 8 writeup's 3-tap path.
@@ -175,8 +178,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   the scroller (scrollHeight 822 > clientHeight 622): on open, Apply's
   bottom edge is at y=824, it is the top element at its own center, and
   tapping it closes the sheet. With the fix stashed, Apply was at y=967,
-  off screen. iOS momentum scroll under a sticky footer is unverified;
-  it is added to docs/device-check-entry-rework.md.
+  off screen. iOS momentum scroll under the sticky footer: DEVICE-VERIFIED
+  2026-11-10 (docs/device-check-entry-rework.md).
 
   ACTIVITY LIST REDESIGN — DONE 2026-11-10. The user
   supplied a sample. The approved mockup is docs/mockups/activity-list-v2.html,
@@ -300,8 +303,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
       insight "up" --negative, insight "down" --positive. Keypad cents
       are exact through taps on the svg itself: 12,34 -> 1,23 -> 0,12 ->
       +5 = 1,25 -> clear = 0,00. elementFromPoint at the chevron's centre
-      is the SELECT. Not checked: a real iPhone opening the picker from a
-      tap on the chevron (see docs/device-check-entry-rework.md).
+      is the SELECT. A real iPhone opening the picker from a tap on the
+      chevron: DEVICE-VERIFIED 2026-11-10.
 
   KNOWN BUGS, none blocking, roughly by severity:
     1. FIXED 2026-11-09. The service-worker update toast had never fired
