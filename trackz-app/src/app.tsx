@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useState } from "preact/hooks";
 import { TabBar, type TabName } from "@/app/TabBar";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ActivityScreen } from "@/features/activity/ActivityScreen";
@@ -42,6 +42,16 @@ export function App() {
   // (which doesn't touch the nonce) leaves the screen's own state alone.
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>(emptyFilter());
   const [activityFilterNonce, setActivityFilterNonce] = useState(0);
+
+  // Every screen scrolls the one shared window, so without this a tab
+  // opened at the previous tab's scrollY. Reset, not per-tab restore:
+  // screens unmount on switch, and Activity's incremental list comes back
+  // at its first page, so a saved offset deep in the list has no rows to
+  // land on. Layout effect so the new screen never paints at the old
+  // offset; deep links go through setActiveTab and are covered too.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
 
   function navigateToActivity(filter: ActivityFilter) {
     setActivityFilter(filter);

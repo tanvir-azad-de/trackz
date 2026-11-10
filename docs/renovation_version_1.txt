@@ -16,7 +16,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 54,404 bytes gzipped JS (-35 from the Accounts date fix; +243
+  build 54,438 bytes gzipped JS (+34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
   the hero rework, measured
   against a 53,904 rebuild of 7c0ff7d; +229 from round 2; -748 from the rework; +2,399 from
@@ -597,6 +597,19 @@ have been wrong about something in every phase so far (see AGENTS.md's
        2026-11-10 backup: 0 of 1542 rows with deletedAt). That is the SAFE direction (no resurrection risk) and
        irrelevant at 1,456 rows, but merge.ts's 90-day retention comment
        describes a mechanism that never runs.
+    6. FIXED 2026-11-10. Switching tabs kept the previous tab's scroll
+       position. Tabs are `activeTab` state in app.tsx, not hash routes
+       (the user's "hash navigation" guess), and every screen scrolls
+       the one shared window, so scrollY carried over. app.tsx now does
+       scrollTo(0, 0) in a layout effect on activeTab. It resets rather
+       than remembering a position per tab: screens unmount on switch, and
+       Activity's incremental list comes back at its first page, so a
+       saved offset deep in the list would have no rows to land on.
+       Verified with Playwright (390x844 @2x, real tab clicks) on
+       Activity@400 -> Accounts and back: 400 without the fix, 0 with it.
+       Only Activity and Accounts are taller than the viewport on dev
+       data, so a check involving Home or Settings passes vacuously. That
+       is the first version of this check; mutation testing exposed it.
 
   DEVICE-CONFIRMED BY THE USER 2026-11-10: CategoriesSheet's 50dvh
   height, the Phase 14 Home chart and the now-visible Accounts
