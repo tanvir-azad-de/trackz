@@ -12,10 +12,10 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 449 tests passing (+18 from round 2 below; 437 before the
+  Baseline: 453 tests passing (+4 keyboard inset; +18 from round 2 below; 437 before the
   form + settings rework deleted the keypad's 15 tests and added 9),
   tsc -b clean, typecheck:api clean, production build 53,900 bytes
-  gzipped JS (+229 from round 2; -748 from the rework; +2,399 from
+  gzipped JS (now 54,042: +142 keyboard inset; +229 from round 2; -748 from the rework; +2,399 from
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
@@ -50,7 +50,22 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  ROUND 2 (issues 6-8) — DONE 2026-11-10, NOT YET DEPLOYED. Decisions
+  DEPLOYED + DEVICE-CHECKED 2026-11-10 (c03ca41): the form + settings
+  rework and round 2 below. 10 of 11 checks in
+  docs/device-check-form-rework.md passed on a real iPhone, including
+  the cleaned-CSV import (1542 rows) and the new insight feed on real
+  data. The one failure: with Amount focused, the iOS keyboard covered
+  the pinned Save. FIXED after that check, NOT YET DEPLOYED OR
+  RE-CHECKED. Sheet now tracks window.visualViewport and lifts itself
+  by keyboardInsetPx(innerHeight, vv.height, vv.offsetTop), with its
+  max-height shrunk by the same amount. The pure part is in
+  components/keyboardInset.ts (4 tests, 3 mutations caught).
+  Playwright can't raise a real keyboard, so it was run against a
+  stubbed visualViewport: with a 336px keyboard, Save moved from
+  780-824 to 444-488, above the 508 edge, and was the element hit at
+  its own centre; with iOS's 336px scroll offset nothing moved twice,
+  and after the keyboard closed the sheet returned to 780-824.
+  ROUND 2 (issues 6-8) — DONE 2026-11-10. Decisions
   locked through the question tool, do not relitigate.
     6. Transfer, Lent out and I owe carry NO category.
        domain/transaction.ts usesCategory() is the one rule. The form
@@ -112,7 +127,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
     [[Accounts, Categories, Merchants], [Sync, Data]]; version
     "Version 2ccafb3 · 10 Nov 2026", disabled.
 
-  FORM + SETTINGS REWORK — DONE 2026-11-10, NOT YET DEPLOYED. The user
+  FORM + SETTINGS REWORK — DONE 2026-11-10 (deployed, see above). The user
   reported 5 issues. Decisions were locked through the question tool,
   do not relitigate. SUPERSEDES ENTRY FORM REWORK decisions b and c
   below (the keypad step and Next). d, e and f still hold.
