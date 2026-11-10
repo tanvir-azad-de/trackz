@@ -1,29 +1,20 @@
 # trackz
 
-A simple local finance tracker built with `Express` and static frontend files. Data is stored in JSON under `data/`, so you can run everything offline on your machine.
+Personal finance PWA: EUR-only, offline-first, with Google Drive sync.
 
-## Improvements included
-
-- dashboard cards for balances, monthly income, monthly expenses, and EUR net worth
-- fixed account balance math so expenses reduce balances and transfers move money correctly
-- transfer support with source and destination accounts
-- server-side validation for accounts and transactions
-- transaction filters, delete action, empty states, and cleaner feedback messages
-- improved responsive UI styling
+- `trackz-app/` is the app (Vite + Preact + TypeScript).
+- `api/` and `lib/` are the Vercel functions for the Drive OAuth exchange
+  (see `api/README.md`).
+- `docs/renovation_version_1.txt` is the project history and current status.
 
 ## Run locally
 
 ```sh
+cd trackz-app
 npm install
-npm start
+npm run dev     # do not connect Drive from here; see AGENTS.md
+npm test
 ```
 
-`npm install` also configures Git to use the tracked hooks in `.githooks/`, so the pre-commit hook runs during commits.
-
-Then open `http://localhost:3000`.
-
-## Notes
-
-- the app still uses local JSON files in `data/`
-- EUR conversion uses `data/currency-rate.json`
-- if a currency has no EUR rate, its EUR equivalent is shown as unavailable
+The repo root has its own `npm install` for the API typecheck
+(`npm run typecheck:api`).

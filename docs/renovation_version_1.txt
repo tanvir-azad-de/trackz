@@ -31,7 +31,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   the Reload-toast checks in docs/device-check-phase16.md section 6
   (which waited on "the next deploy") are now due on production.
 
-  DONE: Phases 0-13 inclusive, 15, 16, 17. That is the whole app —
+  DONE: Phases 0-13 inclusive, 15, 16, 17, 18. That is the whole app —
   domain/storage/insights, Home, Activity, Accounts, Settings, quick
   entry, CSV import/export, merchant merge, categories, Drive sync
   (verified live against real Google on two devices), PWA install,
@@ -413,14 +413,18 @@ have been wrong about something in every phase so far (see AGENTS.md's
       more for the bars path config. The open question for Phase 14 is
       whether the charts EARN THEIR SCREEN SPACE against the insight
       feed, not whether they are affordable.
-    - Phase 18 (cutover). Delete public/, tag a rollback commit first.
-      TRAP: .githooks/pre-commit greps public/js/version.js and exits 1
-      without it, which BLOCKS EVERY COMMIT until that hook is updated in
-      the same change.
-      CORRECTED 2026-11-09: this entry (and AGENTS.md) also named
-      scripts/setup-git-hooks.sh as needing the same update. It does not —
-      it only runs `git config core.hooksPath .githooks` and contains no
-      reference to version.js. Only .githooks/pre-commit needs changing.
+    - Phase 18 (cutover). DONE 2026-11-10. Rollback point: git tag
+      legacy-app-final (ff26f40), the last commit with public/. Deleted:
+      public/ (16 tracked files), .githooks/pre-commit and
+      scripts/setup-git-hooks.sh (the hook's only job was bumping
+      public/js/version.js; Settings' version label comes from
+      buildVersion.ts), the root "prepare"/"start" scripts and the root
+      chart.js dependency (only the legacy app's vendored copy was ever
+      loaded). README.md rewritten: it described an Express app with
+      data/ JSON files that no longer existed. The gitignored, untracked
+      public/js/config.js was deleted too (its GOOGLE_CLIENT_ID matched
+      trackz-app/.env.local, checked) with its .gitignore line. Production was already served from
+      trackz-app/dist by vercel.json, so the deploy does not change.
     - Icon migration (lucide-preact). DONE AND DEPLOYED 2026-11-10 (7fe522c).
       The full 2026-11-09 plan (mapping, sizing, locked decisions,
       package audit) is in git history; this is what was built.

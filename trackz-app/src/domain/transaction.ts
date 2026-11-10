@@ -159,7 +159,8 @@ export type AccountType = "cash" | "investment";
  *   Shopping 151 x expense, 2 x non_expense, 1 x non_income — a purchase
  *           partly not the user's money, and a refund of one.
  *
- * The LEGACY app proves the opposite model fails: public/js/db.js:460-467
+ * The LEGACY app (deleted; git tag legacy-app-final) proves the opposite
+ * model fails: public/js/db.js:460-467
  * pinned one categoryType per category and threw "Category type must
  * match the selected category" on any mismatch, so it could not re-enter
  * 10 of its own rows. Those rows only existed because CSV import bypassed

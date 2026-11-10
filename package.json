@@ -2,12 +2,7 @@
   "name": "trackz",
   "version": "1.0.0",
   "scripts": {
-    "prepare": "sh scripts/setup-git-hooks.sh",
-    "start": "npx serve public",
     "typecheck:api": "tsc -p tsconfig.api.json"
-  },
-  "dependencies": {
-    "chart.js": "^4.5.1"
   },
   "devDependencies": {
     "@vercel/node": "^29.0.1",

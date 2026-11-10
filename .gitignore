@@ -1,6 +1,3 @@
-# Browser config (contains secrets, never commit this)
-public/js/config.js
-
 # Environment variables (local development only)
 # Unanchored, so these also cover trackz-app/.env.local (the client-side
 # VITE_GOOGLE_CLIENT_ID lives there, since Vite reads its own directory).

@@ -1,8 +1,9 @@
 # trackz
 
 Personal finance PWA. EUR-only, dark-only, offline-first, Google Drive sync.
-Live app is `trackz-app/` (Vite + Preact + TS). `public/` is the dead legacy
-app, kept only as the Phase 18 rollback target.
+The app is `trackz-app/` (Vite + Preact + TS). The legacy app that lived in
+`public/` was deleted in Phase 18; git tag `legacy-app-final` is its rollback
+point.
 
 ## Replying to the user
 
@@ -94,11 +95,6 @@ it works.
 - **`VITE_GOOGLE_CLIENT_ID` is inlined at build time.** Setting it after a
   deploy does nothing until the next build. This failure mode has recurred
   twice.
-- **The pre-commit hook reads `public/js/version.js`** and exits 1 without it,
-  blocking every commit. Deleting `public/` means updating
-  `.githooks/pre-commit` in the same change. (`scripts/setup-git-hooks.sh`
-  only sets `core.hooksPath` and needs no change — the doc claimed otherwise
-  until it was checked.)
 
 ## Conventions
 
