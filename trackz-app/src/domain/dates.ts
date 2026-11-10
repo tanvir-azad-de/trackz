@@ -89,7 +89,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /**
  * Whole calendar days between two ISODates, UTC-anchored so DST can't shift
  * the result by an hour and flip the rounding. Used by the quick-entry
- * recall ranking (features/entry/recall.ts) to decay older combos.
+ * entry-picker ranking (features/entry/rank.ts) to decay older names.
  * Positive when `later` is after `earlier`.
  */
 export function daysBetween(earlier: ISODate, later: ISODate): number {

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
-import { deriveAccounts, deriveCategories, deriveMerchants } from "@/storage/derive";
+import { deriveAccounts, deriveCategories } from "@/storage/derive";
+import { getLocalToday } from "@/domain/dates";
+import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
 import { deleteTransaction, updateTransaction, undeleteTransaction } from "@/storage/repository";
 import {
   emptyFilter,
@@ -45,7 +47,12 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
 
   const accounts = useMemo(() => deriveAccounts(transactions), [transactions]);
   const categories = useMemo(() => deriveCategories(transactions), [transactions]);
-  const merchants = useMemo(() => deriveMerchants(transactions), [transactions]);
+  // The edit form's pickers want most-used-first; FilterSheet keeps the
+  // alphabetical lists above, where scanning for a known name is the task.
+  const today = getLocalToday();
+  const rankedAccounts = useMemo(() => rankAccounts(transactions, today), [transactions, today]);
+  const rankedCategories = useMemo(() => rankCategories(transactions, today), [transactions, today]);
+  const rankedMerchants = useMemo(() => rankMerchants(transactions, today), [transactions, today]);
 
   const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter]);
   const months = useMemo(() => groupByMonthAndDay(filtered), [filtered]);
@@ -150,9 +157,9 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
 
       <TransactionDetailSheet
         transaction={openTransaction}
-        accounts={accounts}
-        categories={categories}
-        merchants={merchants}
+        accounts={rankedAccounts}
+        categories={rankedCategories}
+        merchants={rankedMerchants}
         onClose={() => setOpenTransaction(null)}
         onSave={handleSaveEdit}
         onDelete={handleDelete}

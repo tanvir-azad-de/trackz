@@ -25,7 +25,7 @@ const referenceTotalsPath = resolve(repoRoot, "dummyData/snapshot-2026-10-31/ref
 // or CI (Phase 15a fixture-gap fix). This file mixes synthetic-only
 // tests (normalizeForSearch, matchesQuery, activeFacetCount/
 // isFilterActive, and summarizeFiltered's empty-result case) with
-// real-CSV-dependent ones — unlike engine.test.ts/recall.test.ts, a
+// real-CSV-dependent ones — unlike engine.test.ts, a
 // single whole-file skip would wrongly drop the synthetic coverage too.
 // hasFixture gates only the describe/it blocks that actually touch
 // `transactions`/`referenceTotals` below.

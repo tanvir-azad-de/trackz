@@ -2,7 +2,7 @@ import { useMemo, useState } from "preact/hooks";
 import { Sheet } from "@/components/Sheet";
 import { getLocalToday } from "@/domain/dates";
 import { addTransaction } from "@/storage/repository";
-import { deriveAccounts, deriveCategories, deriveMerchants } from "@/storage/derive";
+import { loadRememberedEntry, saveRememberedEntry } from "@/storage/entryMemory";
 import {
   appendDigit,
   clearAmount,
@@ -13,16 +13,15 @@ import {
   isEmptyAmount,
   type AmountEntry,
 } from "@/features/entry/amount";
-import { getRecallCombos, type RecallCombo } from "@/features/entry/recall";
-import { buildTransaction, draftFromCombo, emptyDraft, validateDraft, type EntryDraft } from "@/features/entry/draft";
+import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
+import { buildTransaction, validateDraft, type EntryDraft } from "@/features/entry/draft";
+import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
 import { Keypad } from "./Keypad";
-import { RecallChips } from "./RecallChips";
 import { EntryForm } from "./EntryForm";
 import type { Transaction } from "@/domain/transaction";
 import { formatEUR } from "@/domain/money";
 import "@/components/Sheet.css";
 import "./Keypad.css";
-import "./RecallChips.css";
 import "./EntryForm.css";
 import "./EntrySheet.css";
 
@@ -37,27 +36,30 @@ interface EntrySheetProps {
 type Mode = "keypad" | "form";
 
 /**
- * Phase 8's quick-entry sheet: amount-first keypad with ranked recall
- * chips, 3-tap happy path (FAB -> amount -> chip -> saved — see
- * App.onFabPress in app.tsx), falling back to a full manual form for any
- * combo that has no history yet.
+ * Add transaction, two steps (user decision 2026-11-10, renovation doc
+ * section 5 "ENTRY FORM REWORK", superseding Phase 8's recall-chip 3-tap
+ * path): amount + keypad + date, then "Next" to the full form, which is the
+ * ONLY save path. The draft is seeded from the last saved transaction
+ * (every field but the amount, date included), so a repeat entry is
+ * amount -> Next -> Save.
  */
 export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetProps) {
   const [mode, setMode] = useState<Mode>("keypad");
   const [amount, setAmount] = useState<AmountEntry>(emptyAmount());
-  const [formDraft, setFormDraft] = useState<EntryDraft | null>(null);
+  const [draft, setDraft] = useState<EntryDraft>(() => draftFromRemembered(loadRememberedEntry(), getLocalToday()));
 
   const today = getLocalToday();
 
-  const combos = useMemo(() => getRecallCombos(transactions, today, 6), [transactions, today]);
-  const accounts = useMemo(() => deriveAccounts(transactions), [transactions]);
-  const categories = useMemo(() => deriveCategories(transactions), [transactions]);
-  const merchants = useMemo(() => deriveMerchants(transactions), [transactions]);
+  const accounts = useMemo(() => rankAccounts(transactions, today), [transactions, today]);
+  const categories = useMemo(() => rankCategories(transactions, today), [transactions, today]);
+  const merchants = useMemo(() => rankMerchants(transactions, today), [transactions, today]);
 
   function reset() {
     setMode("keypad");
     setAmount(emptyAmount());
-    setFormDraft(null);
+    // Re-read rather than keep the closed draft: closing without saving
+    // discards edits, and after a save this picks up what was just stored.
+    setDraft(draftFromRemembered(loadRememberedEntry(), getLocalToday()));
   }
 
   function handleClose() {
@@ -65,44 +67,21 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
     onClose();
   }
 
-  function handleDigit(d: string) {
-    setAmount((a) => appendDigit(a, d));
-  }
-
-  function handleDelete() {
-    setAmount((a) => deleteDigit(a));
-  }
-
-  function handleChipPick(combo: RecallCombo) {
-    const amountCents = entryToCents(amount);
-    if (amountCents <= 0) return; // chips are disabled in this state, but guard anyway
-    const draft = draftFromCombo(combo, amountCents, today);
-    const tx = buildTransaction(draft);
-    addTransaction(tx);
-    handleClose();
-    onSaved(tx);
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      // iOS Safari doesn't implement the Vibration API — this is a no-op
-      // there. Left in for Android/desktop Chrome where it does fire;
-      // there is no web API for real iOS haptics (see Phase 8 writeup).
-      navigator.vibrate(10);
-    }
-  }
-
-  function openForm() {
-    setFormDraft(emptyDraft(today, entryToCents(amount)));
+  function goToForm() {
+    setDraft((d) => ({ ...d, amountCents: entryToCents(amount) }));
     setMode("form");
   }
 
   function handleFormSave() {
-    if (!formDraft) return;
-    const tx = buildTransaction(formDraft);
+    const tx = buildTransaction(draft);
     addTransaction(tx);
+    // Before handleClose, whose reset() reads this back as the next draft.
+    saveRememberedEntry(rememberFromTransaction(tx));
     handleClose();
     onSaved(tx);
   }
 
-  const formErrors = formDraft ? validateDraft(formDraft, accounts) : [];
+  const formErrors = mode === "form" ? validateDraft(draft, accounts) : [];
 
   return (
     <Sheet open={open} onClose={handleClose} title={mode === "keypad" ? "Add transaction" : "Transaction details"}>
@@ -118,33 +97,42 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
             )}
           </div>
 
-          <Keypad onDigit={handleDigit} onDelete={handleDelete} />
+          <Keypad onDigit={(d) => setAmount((a) => appendDigit(a, d))} onDelete={() => setAmount((a) => deleteDigit(a))} />
 
-          <RecallChips combos={combos} disabled={isEmptyAmount(amount)} onPick={handleChipPick} />
+          <label class="entry-form__field entry-sheet__date">
+            <span class="entry-form__label">Date</span>
+            <input
+              class="entry-form__input"
+              type="date"
+              value={draft.date}
+              onInput={(e) => setDraft((d) => ({ ...d, date: e.currentTarget.value }))}
+            />
+          </label>
 
-          <button type="button" class="entry-sheet__more" onClick={openForm}>
-            More options
+          {/* Disabled at 0: the form's amount is read-only and has no way
+              back to the keypad, so Next with no amount would strand the
+              user on a form that can never save. */}
+          <button type="button" class="entry-sheet__next" onClick={goToForm} disabled={isEmptyAmount(amount)}>
+            Next
           </button>
         </div>
       ) : (
-        formDraft && (
-          <EntryForm
-            amount={amount}
-            draft={formDraft}
-            onChange={setFormDraft}
-            accounts={accounts}
-            categories={categories}
-            merchants={merchants}
-            errors={formErrors}
-            onSave={handleFormSave}
-          />
-        )
+        <EntryForm
+          amount={amount}
+          draft={draft}
+          onChange={setDraft}
+          accounts={accounts}
+          categories={categories}
+          merchants={merchants}
+          errors={formErrors}
+          onSave={handleFormSave}
+        />
       )}
     </Sheet>
   );
 }
 
-/** Formats the undo toast message shown by App after a chip-tap save. */
+/** Formats the undo toast message shown by App after a save. */
 export function savedToastMessage(tx: Transaction): string {
   return `Saved ${formatEUR(tx.amountCents)} · ${tx.category}`;
 }

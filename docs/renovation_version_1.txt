@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-09, commit 2b1732a + this change)
+5. WHERE THIS STANDS  (last updated 2026-11-10, commit 1056149 + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -12,11 +12,12 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 415 tests passing (402 before this change), tsc -b clean,
-  typecheck:api clean, production build 51,383 bytes gzipped JS
-  (unchanged by this change — measured with
+  Baseline: 421 tests passing (415 before the entry form rework), tsc -b
+  clean, typecheck:api clean, production build 51,393 bytes gzipped JS
+  (+10 from the entry form rework — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = d2c1d64, deployed
+  the same number rounded). Production = origin/main = eca7922 (was
+  recorded as d2c1d64, stale — checked with git 2026-11-10), deployed
   at https://trackz-sable.vercel.app.
 
   DONE: Phases 0-13 inclusive, 15, 16, 17. That is the whole app —
@@ -39,7 +40,126 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  NOT DONE — the only two numbered phases left:
+  ENTRY FORM REWORK — DONE 2026-11-10, NOT YET DEPLOYED,
+  except the iOS checks in docs/device-check-entry-rework.md.
+  The user's own report of the most crucial usage issues. It SUPERSEDES the
+  section 0 decision "keypad-first bottom sheet with smart recall chips
+  ..., 3-tap happy path" and the Phase 8 writeup's 3-tap path.
+
+    AS BUILT: rank.ts (9 tests), lastUsed.ts (4 tests) and
+    storage/entryMemory.ts (untested plumbing), NamePicker.tsx, EntrySheet
+    rewritten, recall.ts + RecallChips + draftFromCombo deleted.
+    Every new test was mutation-tested: 18 mutations, all caught. The two
+    draftFromCombo tests were the ONLY coverage of buildTransaction's
+    derived sign fields. They were ported to plain drafts rather than
+    dropped, and re-mutated.
+    Deviations from the plan below, each deliberate:
+      - Next is DISABLED at a 0 amount. The form's amount is read-only
+        and has no way back to the keypad, so Next at 0 would strand
+        the user on a form that can never save.
+      - Activity's FilterSheet keeps the ALPHABETICAL derive* lists.
+        Only the edit form's pickers are ranked. deriveMerchants lost
+        its only Activity consumer and that import was removed.
+      - The haptic vibrate call is gone with the chips: it only ever
+        fired on a chip save.
+    Playwright (live dev, 390x844 @2x, real taps), exact values asserted:
+    chips 0; sheet children amount/keypad/date/Next in that order; Next
+    filled rgb(110,86,248), disabled at 0, top element at its own
+    center; Category options [Choose…, Shopping, Transfer, Groceries,
+    + New…] from seeded data where Groceries had 3 uses 60 days ago
+    vs 1 use today for the others; "+ New…" Pharmacy/DM saved as
+    amountCents 1240, date 2026-11-03; reopen after reload showed €0,00,
+    date 2026-11-03, Pharmacy/DM/ADVZ, notes kept, Pharmacy now ranked
+    in the list; Activity edit sheet has a date input and the ranked
+    pickers, zero <datalist>. The only console errors were 502s from
+    /api/auth/refresh (no API server under vite dev), and Drive was
+    never connected.
+
+    WHAT THE USER ASKED FOR (decisions locked through the question tool
+    on 2026-11-10, do not relitigate):
+      a. Recall chips are REMOVED PERMANENTLY. No replacement chip row.
+      b. "Add transaction" screen, top to bottom: amount display, keypad,
+         date picker (where the chips were), then a FILLED button
+         labelled "Next" (today it is "More options", a text-only button,
+         EntrySheet.css:34 background:none).
+      c. The only way to save is Next -> form -> Save. There is no
+         one-tap save from the keypad screen. That was offered and declined.
+      d. Date stays in BOTH forms: the form step of Add transaction and
+         Activity's TransactionDetailSheet edit form. The keypad-screen
+         date picker and the form's date field show the same draft value.
+      e. After a successful CREATE, every field except the amount is
+         remembered and pre-fills the next Add transaction: type,
+         direction, category, merchant, account, destination account,
+         notes, and the DATE (deliberately not reset to today). Edits in
+         Activity do not write this memory.
+      f. Category, Merchant and Account become real dropdowns, ordered
+         by recency-weighted frequency, with "+ New…" as the last
+         option, which reveals a text input. Applies to both forms,
+         since TransactionDetailSheet reuses EntryForm.
+
+    MEASURED BEFORE PLANNING (code read 2026-11-10, not assumed):
+      - Chips render at EntrySheet.tsx:123; chip tap is the only save
+        path on the keypad screen (handleChipPick, EntrySheet.tsx:76).
+      - recall.ts is consumed by EntrySheet.tsx, RecallChips.tsx,
+        draft.ts's draftFromCombo, recall.test.ts and draft.test.ts:91-140.
+        Nothing outside features/entry/ uses it.
+      - Pickers today are <input list> + <datalist> (EntryForm.tsx:130-
+        183): free text with suggestions. That is why typing creates new
+        near-duplicate names.
+      - deriveAccounts/deriveCategories/deriveMerchants
+        (storage/derive.ts:19,51,59) sort ALPHABETICALLY. No frequency
+        ordering exists anywhere for these lists.
+      - Nothing persists entry state today. localStorage keys in use:
+        trackz.v2.transactions, trackz.v2.accountTypes(.seeded).
+
+    PLAN:
+      1. Pure ranking, new features/entry/rank.ts: score each name by
+         sum of 0.5^(ageDays/21) (recall.ts's half-life, reused). Unlike
+         recall.ts there is NO 90-day window: a dropdown must list EVERY
+         existing name, so a name unused for 90+ days sorts last instead
+         of disappearing. Ties: count, then name. Tested on synthetic
+         data with exact orderings, then mutation-tested.
+      2. Pure last-used memory, features/entry/lastUsed.ts: a
+         draft -> stored shape that drops amountCents, plus a
+         stored-shape -> draft that tolerates a missing or corrupt value.
+         Plumbing is a localStorage key trackz.v2.entryLastUsed, with
+         try/catch like the existing keys. It stays on the device and is
+         NOT synced through Drive. That is consistent with "accounts and
+         categories are derived, never persisted", because this is a UI
+         preference, not data.
+      3. EntryForm: replace the three datalist inputs with a <select>
+         (ranked names + "+ New…") that swaps to a text input on "+ New…".
+         A remembered or edited value that is no longer in the list (renamed,
+         merged, or only on tombstoned rows) must still show as selected,
+         not silently fall back to the first option.
+      4. EntrySheet: delete RecallChips, add the date picker after the
+         keypad, rename the button to "Next", style it as a filled button,
+         seed the form draft from lastUsed instead of emptyDraft, and write
+         lastUsed after addTransaction.
+      5. Delete RecallChips.tsx/.css, recall.ts, recall.test.ts,
+         draftFromCombo and its tests, and the vibrate call that only fired
+         on chip save. recall.test.ts is one of the NINE dummyData-reading
+         test files listed in known bug 3, so that count becomes EIGHT.
+         Update AGENTS.md and bug 3 in the same change. [DONE; re-measured
+         as 8 by grepping for files that both read files and name
+         dummyData.]
+      6. Verify with Playwright on live `npm run dev`, 390x844 @2x, real
+         clicks: chips gone, order is amount/keypad/date/Next, Next is
+         filled, save then reopen shows every field except the amount
+         pre-filled (date included), dropdowns order most-used first, and
+         "+ New…" creates a value that then appears in the list. Report the
+         bundle delta.
+
+    RISKS TO KEEP IN VIEW, not blockers:
+      - The remembered DATE persists across days by design (decision e).
+        Logging on a later day without looking at the date picker will
+        back-date the row. The date picker sits directly above Next so it
+        is in view.
+      - <select> on iOS opens the native wheel picker. Whether a long
+        merchant list is comfortable there is a real-device check. Write
+        it into a device-check doc when the work lands.
+
+  NOT DONE — the numbered phases left:
     - Phase 14 (charts). getTopCategoriesForMonth and
       getMonthlyExpenseSeries are tested but have NO UI consumer.
       Sparkline.tsx cannot render them as-is: its points prop is
@@ -208,6 +328,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
        dummyData-dependent assertions, because dummyData/ is real
        financial data and gitignored in a public repo. Fixing it needs a
        committed SYNTHETIC fixture.
+       UPDATED 2026-11-10: now EIGHT — entry/recall was deleted with the
+       recall chips (ENTRY FORM REWORK). The list below is kept as written.
        CORRECTED 2026-11-09: NINE test files read dummyData/, not the
        five/six claimed here and in AGENTS.md — domain/merchant,
        activity/filter, activity/group, entry/recall,
@@ -248,6 +370,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
 - Architecture:     Vite + Preact + TypeScript. Build step is fine (Vercel).
 - Quick entry:      Center FAB -> keypad-first bottom sheet with smart recall
                     chips (recency + frequency ranked), 3-tap happy path.
+                    [SUPERSEDED 2026-11-10 by the user: chips removed,
+                    see section 5 "ENTRY FORM REWORK".]
 - Dashboard shape:  Hero number (this month vs usual + net worth) + ranked
                     insight feed below it + account strip. No more than
                     ~1.5 screens before you're into "tap for detail".

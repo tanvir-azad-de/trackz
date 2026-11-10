@@ -60,10 +60,9 @@
 
 /* globals.css sets appearance:none on every select (iOS otherwise paints
    its own light-chrome dropdown affordance over this dark input) — this
-   is the one <select> in the app (EntryForm.tsx's Type field), so the
-   replacement chevron is scoped here rather than added as a generic
-   global select-arrow rule that would apply to selects that don't exist
-   yet and might not want it. */
+   applies to every <select> in this form (the Type field and NamePicker's
+   Category / Merchant / Account dropdowns), so the replacement chevron is
+   scoped here rather than added as a generic global select-arrow rule. */
 select.entry-form__input {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%239aa0ad' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -74,6 +73,27 @@ select.entry-form__input {
 .entry-form__input:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+.entry-form__picker-new {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.entry-form__picker-new .entry-form__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-form__picker-back {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  min-height: var(--touch-target-min);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .entry-form__toggle {

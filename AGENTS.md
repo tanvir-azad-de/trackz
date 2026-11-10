@@ -80,7 +80,7 @@ it works.
   (app, Google account), not per origin, so dev shares the real sync file with
   production while having separate localStorage. This produced a 4368-row
   triplication incident. Device B is the production URL.
-- **`dummyData/` is real financial data and gitignored** in a public repo. Nine
+- **`dummyData/` is real financial data and gitignored** in a public repo. Eight
   test files read it and skip gracefully without it. There is no CI, so a
   fixture-less run is green while silently skipping those assertions — and
   `storage/csv.test.ts:97` guards with a bare `return` rather than

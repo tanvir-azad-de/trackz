@@ -3,13 +3,11 @@ import {
   applyDraftToTransaction,
   buildTransaction,
   defaultCashflowForCategoryType,
-  draftFromCombo,
   draftFromTransaction,
   emptyDraft,
   isDraftValid,
   validateDraft,
 } from "@/features/entry/draft";
-import type { RecallCombo } from "@/features/entry/recall";
 import type { Account, Transaction } from "@/domain/transaction";
 
 const accounts: Account[] = [{ name: "ADVZ" }, { name: "CMRZ" }];
@@ -88,54 +86,29 @@ describe("validateDraft", () => {
   });
 });
 
-describe("draftFromCombo + buildTransaction (the 3-tap happy path)", () => {
-  const combo: RecallCombo = {
-    key: "expense|Groceries|Edeka|ADVZ|",
-    categoryType: "expense",
-    category: "Groceries",
-    merchant: "Edeka",
-    account: "ADVZ",
-    destinationAccount: "",
-    cashflow: "out",
-    count: 31,
-    lastUsedDate: "2026-09-29",
-    medianAmountCents: 1240,
-    score: 5.5,
-  };
-
-  it("builds a valid, saveable draft straight from a chip tap", () => {
-    const draft = draftFromCombo(combo, 1240, "2026-10-17");
-    expect(isDraftValid(draft, accounts)).toBe(true);
-  });
-
-  it("turns that draft into a real Transaction with the derived sign fields set correctly", () => {
-    const draft = draftFromCombo(combo, 1240, "2026-10-17");
+describe("buildTransaction", () => {
+  // Ported from the removed draftFromCombo tests (recall chips, 2026-11-10),
+  // which were the only coverage of buildTransaction's derived sign fields.
+  it("turns an expense draft into a Transaction with the derived sign fields set", () => {
+    const draft = { ...emptyDraft("2026-10-17", 1240), category: "Groceries", merchant: "Edeka", account: "ADVZ", destinationAccount: "REVO" };
     const tx = buildTransaction(draft, "2026-10-17T12:00:00.000Z");
     expect(tx).toMatchObject({
       date: "2026-10-17",
       account: "ADVZ",
-      destinationAccount: "",
+      destinationAccount: "", // blanked: only transfers keep one
       cashflow: "out",
       category: "Groceries",
       categoryType: "expense",
       merchant: "Edeka",
       amountCents: 1240,
       notes: "",
+      createdAt: "2026-10-17T12:00:00.000Z",
     });
     expect(tx.id).toMatch(/^txn_/);
   });
 
-  it("builds a transfer transaction with destinationAccount populated and cashflow 'none'", () => {
-    const transferCombo: RecallCombo = {
-      ...combo,
-      categoryType: "transfer",
-      category: "Transfer",
-      merchant: "",
-      account: "CMRZ",
-      destinationAccount: "REVO",
-      cashflow: "none",
-    };
-    const draft = draftFromCombo(transferCombo, 50000, "2026-10-17");
+  it("builds a transfer with destinationAccount kept and cashflow 'none'", () => {
+    const draft = { ...emptyDraft("2026-10-17", 50000), categoryType: "transfer" as const, category: "Transfer", account: "CMRZ", destinationAccount: "REVO" };
     const tx = buildTransaction(draft);
     expect(tx.cashflow).toBe("none");
     expect(tx.destinationAccount).toBe("REVO");

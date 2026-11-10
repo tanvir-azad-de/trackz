@@ -2,12 +2,10 @@ import type { Account, Cashflow, CategoryType, Transaction } from "@/domain/tran
 import { newTransactionId } from "@/domain/id";
 import { isValidISODate } from "@/domain/dates";
 import type { Cents } from "@/domain/money";
-import type { RecallCombo } from "@/features/entry/recall";
 
 /**
  * In-progress quick-entry state, before it becomes a real Transaction.
- * Shared by both sheet modes (tapping a recall chip, or filling the
- * manual form) so there is exactly one place that turns a draft into a
+ * Shared by Add transaction and the Activity edit form, so there is exactly one place that turns a draft into a
  * saved Transaction — buildTransaction() below — and exactly one place
  * that decides whether a draft is save-able — validateDraft() below.
  */
@@ -69,21 +67,6 @@ export function defaultCashflowForCategoryType(categoryType: CategoryType, direc
     case "payable":
       return direction;
   }
-}
-
-/** Builds a chip-matched draft from a ranked recall combo (the 3-tap happy path). */
-export function draftFromCombo(combo: RecallCombo, amountCents: Cents, today: string): EntryDraft {
-  return {
-    amountCents,
-    date: today,
-    categoryType: combo.categoryType,
-    category: combo.category,
-    merchant: combo.merchant,
-    account: combo.account,
-    destinationAccount: combo.destinationAccount,
-    direction: combo.cashflow === "in" ? "in" : "out",
-    notes: "",
-  };
 }
 
 /**

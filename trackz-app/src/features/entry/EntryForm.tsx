@@ -1,15 +1,16 @@
-import { useId } from "preact/hooks";
 import { CATEGORY_TYPES, categoryTypeLabel } from "@/domain/transaction";
 import type { Account, Category, Merchant } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { entryToDisplay, type AmountEntry } from "@/features/entry/amount";
 import type { Cents } from "@/domain/money";
 import { centsToFixed, toCents } from "@/domain/money";
+import { NamePicker } from "./NamePicker";
 
 interface EntryFormProps {
   amount: AmountEntry;
   draft: EntryDraft;
   onChange: (next: EntryDraft) => void;
+  /** These three must arrive RANKED most-used first (features/entry/rank.ts) — the pickers show them in the order given. */
   accounts: readonly Account[];
   categories: readonly Category[];
   merchants: readonly Merchant[];
@@ -30,12 +31,10 @@ interface EntryFormProps {
 }
 
 /**
- * The manual-entry fallback for a combo that has no history yet — without
- * this, a brand-new category/merchant/account is literally unenterable,
- * since Activity/Settings (where you might otherwise add one) are still
- * placeholders (Phase 11/13). Free-text + <datalist> autocomplete now;
- * Phase 6's merchant similarity/merge screen replaces this with something
- * smarter later, this is not the final merchant UI.
+ * The full entry form: the second step of Add transaction (after "Next")
+ * and the Activity detail sheet's edit form. Category / Merchant / Account
+ * are NamePicker dropdowns with "+ New…" (user decision 2026-11-10), not
+ * free text.
  */
 export function EntryForm({
   amount,
@@ -53,14 +52,9 @@ export function EntryForm({
     onChange({ ...draft, [key]: value });
   }
 
-  // Unique per mounted instance (via useId) so two EntryForms mounted at
-  // once — the quick-entry sheet's manual mode and the Activity detail
-  // sheet's edit mode — never collide on the same <datalist> id, which
-  // would silently break autocomplete in whichever form mounted second.
-  const formId = useId();
-  const categoriesListId = `${formId}-categories`;
-  const merchantsListId = `${formId}-merchants`;
-  const accountsListId = `${formId}-accounts`;
+  const categoryNames = categories.map((c) => c.name);
+  const merchantNames = merchants.map((m) => m.name);
+  const accountNames = accounts.map((a) => a.name);
 
   const isTransfer = draft.categoryType === "transfer";
   const isBidirectional = draft.categoryType === "receivable" || draft.categoryType === "payable";
@@ -127,67 +121,41 @@ export function EntryForm({
         </div>
       )}
 
-      <label class="entry-form__field">
-        <span class="entry-form__label">Category</span>
-        <input
-          class="entry-form__input"
-          list={categoriesListId}
-          value={draft.category}
-          onInput={(e) => set("category", e.currentTarget.value)}
-          placeholder="e.g. Groceries"
-        />
-        <datalist id={categoriesListId}>
-          {categories.map((c) => (
-            <option key={c.name} value={c.name} />
-          ))}
-        </datalist>
-      </label>
+      <NamePicker
+        label="Category"
+        value={draft.category}
+        ranked={categoryNames}
+        onChange={(v) => set("category", v)}
+        placeholder="e.g. Groceries"
+      />
 
       {!isTransfer && (
-        <label class="entry-form__field">
-          <span class="entry-form__label">Merchant</span>
-          <input
-            class="entry-form__input"
-            list={merchantsListId}
-            value={draft.merchant}
-            onInput={(e) => set("merchant", e.currentTarget.value)}
-            placeholder="e.g. Edeka"
-          />
-          <datalist id={merchantsListId}>
-            {merchants.map((m) => (
-              <option key={m.name} value={m.name} />
-            ))}
-          </datalist>
-        </label>
+        <NamePicker
+          label="Merchant"
+          value={draft.merchant}
+          ranked={merchantNames}
+          onChange={(v) => set("merchant", v)}
+          placeholder="e.g. Edeka"
+          allowBlank
+        />
       )}
 
-      <label class="entry-form__field">
-        <span class="entry-form__label">{isTransfer ? "From account" : "Account"}</span>
-        <input
-          class="entry-form__input"
-          list={accountsListId}
-          value={draft.account}
-          onInput={(e) => set("account", e.currentTarget.value)}
-          placeholder="e.g. ADVZ"
-        />
-        <datalist id={accountsListId}>
-          {accounts.map((a) => (
-            <option key={a.name} value={a.name} />
-          ))}
-        </datalist>
-      </label>
+      <NamePicker
+        label={isTransfer ? "From account" : "Account"}
+        value={draft.account}
+        ranked={accountNames}
+        onChange={(v) => set("account", v)}
+        placeholder="e.g. ADVZ"
+      />
 
       {isTransfer && (
-        <label class="entry-form__field">
-          <span class="entry-form__label">To account</span>
-          <input
-            class="entry-form__input"
-            list={accountsListId}
-            value={draft.destinationAccount}
-            onInput={(e) => set("destinationAccount", e.currentTarget.value)}
-            placeholder="e.g. REVO"
-          />
-        </label>
+        <NamePicker
+          label="To account"
+          value={draft.destinationAccount}
+          ranked={accountNames}
+          onChange={(v) => set("destinationAccount", v)}
+          placeholder="e.g. REVO"
+        />
       )}
 
       <label class="entry-form__field">

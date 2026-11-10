@@ -31,12 +31,28 @@
   font-size: var(--text-sm);
 }
 
-.entry-sheet__more {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  min-height: var(--touch-target-min);
+.entry-sheet__date {
   margin-top: var(--space-3);
+}
+
+/* Filled, not text-only like the old "More options": Next is now the only
+   way forward to a save, so it reads as the primary action. Same treatment
+   as .entry-form__save. */
+.entry-sheet__next {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  font-weight: 700;
+  font-size: var(--text-base);
+  margin-top: var(--space-3);
+}
+
+.entry-sheet__next:disabled {
+  opacity: 0.5;
+}
+
+.entry-sheet__next:active:not(:disabled) {
+  background: var(--accent-strong);
 }
