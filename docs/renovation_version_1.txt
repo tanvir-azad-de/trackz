@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-10, commit 1056149 + this change)
+5. WHERE THIS STANDS  (last updated 2026-11-10, commit 7fe522c + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -17,9 +17,16 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (+2,399 from lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = eca7922 (was
-  recorded as d2c1d64, stale — checked with git 2026-11-10), deployed
-  at https://trackz-sable.vercel.app.
+  the same number rounded). Production = origin/main = 7fe522c, deployed
+  at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
+  said eca7922 while four commits since (entry rework, filter CTA,
+  Activity cards + month pills, icons) were already pushed and live.
+  Checked by git (origin/main == main) and by the live bundle
+  (index-B0YjLKjP.js contains "month-pill"); the Vercel dashboard was
+  not checked. Every "NOT YET DEPLOYED" below was stale for the same
+  reason, so the iOS checks in docs/device-check-entry-rework.md and
+  the Reload-toast checks in docs/device-check-phase16.md section 6
+  (which waited on "the next deploy") are now due on production.
 
   DONE: Phases 0-13 inclusive, 15, 16, 17. That is the whole app —
   domain/storage/insights, Home, Activity, Accounts, Settings, quick
@@ -41,7 +48,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  ENTRY FORM REWORK — DONE 2026-11-10, NOT YET DEPLOYED,
+  ENTRY FORM REWORK — DONE AND DEPLOYED 2026-11-10 (7fe522c),
   except the iOS checks in docs/device-check-entry-rework.md.
   The user's own report of the most crucial usage issues. It SUPERSEDES the
   section 0 decision "keypad-first bottom sheet with smart recall chips
@@ -256,7 +263,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
       scripts/setup-git-hooks.sh as needing the same update. It does not —
       it only runs `git config core.hooksPath .githooks` and contains no
       reference to version.js. Only .githooks/pre-commit needs changing.
-    - Icon migration (lucide-preact). DONE 2026-11-10, NOT YET DEPLOYED.
+    - Icon migration (lucide-preact). DONE AND DEPLOYED 2026-11-10 (7fe522c).
       The full 2026-11-09 plan (mapping, sizing, locked decisions,
       package audit) is in git history; this is what was built.
 
