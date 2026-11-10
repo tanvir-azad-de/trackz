@@ -6,6 +6,13 @@ interface SheetProps {
   onClose: () => void;
   title?: string;
   children: ComponentChildren;
+  /**
+   * Pinned below the scrolling content — the place for a sheet's CTAs.
+   * A sibling of .sheet__content rather than position:sticky inside it:
+   * sticky would still scroll away with any content rendered after it,
+   * and needs a background to hide the rows passing beneath.
+   */
+  footer?: ComponentChildren;
 }
 
 /**
@@ -20,7 +27,7 @@ interface SheetProps {
  *   page behind a fixed-position sheet from scrolling on iOS).
  * - max-height 85dvh with internal scroll, safe-area bottom padding.
  */
-export function Sheet({ open, onClose, title, children }: SheetProps) {
+export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -52,6 +59,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         <div class="sheet__grabber" />
         {title && <h2 class="sheet__title">{title}</h2>}
         <div class="sheet__content">{children}</div>
+        {footer && <div class="sheet__footer">{footer}</div>}
       </div>
     </div>
   );

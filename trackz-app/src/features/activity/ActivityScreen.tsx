@@ -110,7 +110,6 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
 
   return (
     <main class="activity-screen">
-      <h1 class="activity-screen__title">Activity</h1>
 
       <div class="activity-screen__sticky-header" ref={headerRef}>
         <div class="activity-screen__controls">

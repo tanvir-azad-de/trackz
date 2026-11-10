@@ -48,7 +48,6 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
   if (!data) {
     return (
       <main class="home-screen">
-        <h1 class="home-screen__title">Home</h1>
         <p class="home-screen__empty">No transactions yet. Tap the + button to log your first one.</p>
       </main>
     );
@@ -83,7 +82,6 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
 
   return (
     <main class="home-screen">
-      <h1 class="home-screen__title">Home</h1>
       <HeroCard
         liquidCashCents={data.liquidCashCents}
         incomeCents={data.summary.incomeCents}

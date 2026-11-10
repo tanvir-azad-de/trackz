@@ -15,6 +15,7 @@ export {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ChevronRight,
   Delete,
   House,
   List,

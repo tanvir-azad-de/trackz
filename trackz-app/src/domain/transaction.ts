@@ -38,8 +38,8 @@ export type CategoryType =
   | "income"
   | "expense"
   | "transfer"
-  | "non_income" // UI: "Money back"
-  | "non_expense" // UI: "Paying someone back"
+  | "non_income" // UI: "Non income"
+  | "non_expense" // UI: "Non expense"
   | "receivable" // UI: "Lent out"
   | "payable"; // UI: "I owe"
 
@@ -62,9 +62,9 @@ export function categoryTypeLabel(type: CategoryType): string {
     case "transfer":
       return "Transfer";
     case "non_income":
-      return "Money back";
+      return "Non income";
     case "non_expense":
-      return "Paying someone back";
+      return "Non expense";
     case "receivable":
       return "Lent out";
     case "payable":

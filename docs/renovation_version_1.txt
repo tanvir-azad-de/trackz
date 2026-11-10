@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-10, commit 7fe522c + this change)
+5. WHERE THIS STANDS  (last updated 2026-11-10, commit a1c7cea + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -12,10 +12,10 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 437 tests passing (438 before two engine balance-series tests
-  were merged when real figures moved out of the tests), tsc -b
-  clean, typecheck:api clean, production build 54,419 bytes gzipped JS
-  (+2,399 from lucide-preact; +627 from the month pills before that; the
+  Baseline: 431 tests passing (437 before the form + settings rework
+  deleted the keypad's 15 tests and added 9), tsc -b clean,
+  typecheck:api clean, production build 53,671 bytes gzipped JS
+  (-748 from that rework; +2,399 from lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
   the same number rounded). Production = origin/main = 7fe522c, deployed
@@ -48,6 +48,53 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  FORM + SETTINGS REWORK — DONE 2026-11-10, NOT YET DEPLOYED. The user
+  reported 5 issues. Decisions were locked through the question tool,
+  do not relitigate. SUPERSEDES ENTRY FORM REWORK decisions b and c
+  below (the keypad step and Next). d, e and f still hold.
+    1. Add and Edit share ONE form (EntryForm), and the keypad is
+       DELETED (Keypad.tsx/.css, keypadKeys.ts, amount.ts and their
+       tests). A 2-column grid: Amount|Date, Type|Account,
+       Category|Merchant, Notes. Transfer puts "To account" in
+       Merchant's slot. Lent out / I owe add a full-width Direction
+       row, the only case that grows the form (user choice). The CTAs
+       live in a new Sheet `footer` prop, pinned outside the scroll.
+       The edit sheet lost its "Logged …" strip. Its footer is
+       Delete | Save changes, and the delete confirm replaces it.
+       The amount is type="text" inputMode="decimal", parsed by
+       features/entry/amountInput.ts: "," or "." as the separator, at
+       most 2 decimals, no float. The iOS de-DE keyboard types a comma,
+       which type="number" rejects. Errors stay hidden while the
+       amount is blank. Save is disabled either way.
+    2. The Filter's Category chips no longer scroll on their own
+       (.filter-sheet__chips--scroll deleted).
+    3. Settings is 5 row buttons (Account types, Sync, Categories,
+       Merchants, Data), each opening a Sheet. The rows show a count or
+       the sync status. The CSV file input stays mounted OUTSIDE the
+       Data sheet, and picking a file closes Data before the Import
+       preview opens, so sheets never stack.
+    4. Screen h1s removed (Home, Activity, Accounts, Settings). Screen
+       top padding went from space-1 to space-4 to make up for the
+       lost margin.
+    5. non_income -> "Non income", non_expense -> "Non expense" (user
+       choice, replacing "Money back" / "Paying someone back", which
+       read as the same thing). Pinned by a label test.
+    Mutation-tested: 8 mutations of amountInput.ts and 1 of the label
+    map, all caught. Playwright (live dev, 390x844 @2x, real taps,
+    Drive never connected), exact values asserted: 0 h1 on all 4
+    screens; Add's sheet content 300/300 scroll/client height, with
+    fields in 4 rows at 168px each and Notes at 348px; "12,40" saved
+    as amountCents 1240; Transfer labels From account / To account;
+    Lent out adds Direction and still doesn't scroll (426/426); the
+    footer Save was the element hit at its own centre; edit "7.5" ->
+    750; Delete -> confirm -> 1 tombstone; Filter chips max-height none
+    with no overflow; each of the 5 Settings rows opened its sheet; the
+    REVO -> Investment toggle persisted; Data -> Import left exactly 1
+    sheet ("Import preview"). Caught by the screenshots and fixed: the
+    € overlapped the first digit because .entry-form__input's later
+    padding won a specificity tie. Open on a real iPhone:
+    docs/device-check-form-rework.md.
 
   ENTRY FORM REWORK — DONE AND DEPLOYED 2026-11-10 (7fe522c).
   DEVICE-VERIFIED 2026-11-10 on a real iPhone: 8 of 9 checks in
@@ -434,6 +481,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
                     non_expense, receivable, payable) but relabel in UI:
                       non_income -> "Money back"
                       non_expense -> "Paying someone back"
+                    (SUPERSEDED 2026-11-10: now "Non income" /
+                    "Non expense", see section 5 FORM + SETTINGS REWORK)
                       receivable -> "Lent out"
                       payable    -> "I owe"
 - Merchants:        Rename subcategory -> merchant. Free-text + autocomplete.

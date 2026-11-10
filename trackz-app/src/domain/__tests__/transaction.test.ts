@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSignedAmountCents, type Transaction } from "@/domain/transaction";
+import { CATEGORY_TYPES, categoryTypeLabel, getSignedAmountCents, type Transaction } from "@/domain/transaction";
 
 function tx(overrides: Partial<Transaction>): Transaction {
   return {
@@ -70,5 +70,22 @@ describe("getSignedAmountCents — single source of truth for sign (replaces 4 o
 
   it("receivable perspective ignores non-receivable transactions", () => {
     expect(getSignedAmountCents(tx({ categoryType: "expense" }), { kind: "receivable" })).toBe(0);
+  });
+});
+
+describe("categoryTypeLabel", () => {
+  // Pinned exactly: the UI labels are a user decision (2026-11-10,
+  // renovation doc section 5), not cosmetic — "Money back" / "Paying
+  // someone back" were replaced because they read as the same thing.
+  it("labels every category type", () => {
+    expect(CATEGORY_TYPES.map(categoryTypeLabel)).toEqual([
+      "Income",
+      "Expense",
+      "Transfer",
+      "Non income",
+      "Non expense",
+      "Lent out",
+      "I owe",
+    ]);
   });
 });

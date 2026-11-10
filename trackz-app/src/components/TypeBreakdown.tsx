@@ -3,7 +3,7 @@ import type { CategoryTypeBreakdown } from "@/domain/merchant";
 import "./TypeBreakdown.css";
 
 /**
- * Renders a per-category-type row count: "14 × Paying someone back,
+ * Renders a per-category-type row count: "14 × Non expense,
  * 4 × Expense", most-used first.
  *
  * Extracted from MerchantMergeSheet.tsx in Phase 13b, where the category

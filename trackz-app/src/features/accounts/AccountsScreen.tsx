@@ -79,7 +79,6 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
   if (!data) {
     return (
       <main class="accounts-screen">
-        <h1 class="accounts-screen__title">Accounts</h1>
         <p class="accounts-screen__empty">No transactions yet. Tap the + button to log your first one.</p>
       </main>
     );
@@ -129,7 +128,6 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
 
   return (
     <main class="accounts-screen">
-      <h1 class="accounts-screen__title">Accounts</h1>
 
       <Card class="total-assets-card">
         <div class="total-assets-card__row">

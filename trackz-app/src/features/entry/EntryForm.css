@@ -1,46 +1,44 @@
 .entry-form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  /* minmax(0, 1fr), not 1fr: 1fr's minimum is the content's min-content
+     width, so a long account or category name in a <select> would widen
+     its column and push the pair past the sheet edge. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-3);
 }
 
-.entry-form__amount-preview {
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: var(--space-2);
+.entry-form__full {
+  grid-column: 1 / -1;
 }
 
-.entry-form__amount-preview--editable {
+.entry-form__amount {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
+  flex-direction: column;
 }
 
-.entry-form__amount-input {
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  font-size: var(--text-2xl);
+.entry-form__amount-currency {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* Doubled class, not a plain .entry-form__amount-input: .entry-form__input
+   below has the same specificity and comes later, so its `padding` would
+   win and draw the € over the first digit. */
+.entry-form__input.entry-form__amount-input {
+  padding-left: var(--space-8);
   font-weight: 700;
-  text-align: center;
-  width: 160px;
-  font-family: inherit;
-  font-feature-settings: var(--font-feature-numeric);
-  font-variant-numeric: tabular-nums;
-}
-
-.entry-form__amount-input:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 
 .entry-form__field {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .entry-form__label {
@@ -50,6 +48,8 @@
 }
 
 .entry-form__input {
+  width: 100%;
+  min-width: 0;
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -141,6 +141,7 @@ select.entry-form__input {
   gap: 2px;
 }
 
+/* The primary CTA in both sheets' footers (EntrySheet, TransactionDetailSheet). */
 .entry-form__save {
   background: var(--accent);
   color: var(--text-on-accent);
@@ -149,7 +150,6 @@ select.entry-form__input {
   min-height: var(--touch-target-min);
   font-weight: 700;
   font-size: var(--text-base);
-  margin-top: var(--space-2);
 }
 
 .entry-form__save:disabled {

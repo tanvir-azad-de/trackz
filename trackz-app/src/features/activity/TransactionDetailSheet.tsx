@@ -1,9 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { Sheet } from "@/components/Sheet";
-import { Money } from "@/components/Money";
 import type { Transaction } from "@/domain/transaction";
-import { formatDayLabel, getLocalToday } from "@/domain/dates";
-import { amountFromCents } from "@/features/entry/amount";
 import { applyDraftToTransaction, draftFromTransaction, validateDraft, type EntryDraft } from "@/features/entry/draft";
 import { EntryForm } from "@/features/entry/EntryForm";
 import type { Account, Category, Merchant } from "@/domain/transaction";
@@ -20,8 +17,9 @@ interface TransactionDetailSheetProps {
 
 /**
  * Tap-through edit/delete for a single row (Phase 11). Reuses Sheet and
- * EntryForm rather than building a second form — the only new UI here is
- * the read-only summary strip and the Delete button; everything else is
+ * EntryForm rather than building a second form — the same form Add
+ * transaction uses (2026-11-10); the only UI of its own is the footer's
+ * Delete with its inline confirm. Everything else is
  * the exact same validity rules a quick-entry transaction is held to
  * (features/entry/draft.ts), so an edited transaction can't drift from
  * what CSV import/export (Phase 13) considers valid.
@@ -62,9 +60,7 @@ export function TransactionDetailSheet({
 
   const transactionBeingEdited: Transaction = activeTransaction;
   const draftInProgress: EntryDraft = draft;
-  const amount = amountFromCents(draftInProgress.amountCents);
   const errors = validateDraft(draftInProgress, accounts);
-  const today = getLocalToday();
 
   function handleSave() {
     if (errors.length > 0) return;
@@ -75,45 +71,44 @@ export function TransactionDetailSheet({
     onDelete(transactionBeingEdited);
   }
 
-  return (
-    <Sheet open={transaction !== null} onClose={onClose} title="Transaction details">
-      <div class="transaction-detail">
-        <div class="transaction-detail__summary">
-          <span>Logged {formatDayLabel(transactionBeingEdited.date, today)}</span>
-          <Money cents={transactionBeingEdited.amountCents} class="transaction-detail__summary-amount" />
-        </div>
-
-        <EntryForm
-          amount={amount}
-          draft={draftInProgress}
-          onChange={setDraft}
-          accounts={accounts}
-          categories={categories}
-          merchants={merchants}
-          errors={errors}
-          onSave={handleSave}
-          saveLabel="Save changes"
-          onAmountChange={(cents) => setDraft((d) => (d ? { ...d, amountCents: cents } : d))}
-        />
-
-        {confirmingDelete ? (
-          <div class="transaction-detail__confirm">
-            <span>Delete this transaction?</span>
-            <div class="transaction-detail__confirm-actions">
-              <button type="button" class="transaction-detail__confirm-cancel" onClick={() => setConfirmingDelete(false)}>
-                Cancel
-              </button>
-              <button type="button" class="transaction-detail__confirm-delete" onClick={handleDeleteConfirmed}>
-                Delete
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button type="button" class="transaction-detail__delete" onClick={() => setConfirmingDelete(true)}>
-            Delete transaction
-          </button>
-        )}
+  // The confirm REPLACES the footer's two buttons rather than stacking
+  // under them, so Save can't be tapped while a delete is pending.
+  const footer = confirmingDelete ? (
+    <div class="transaction-detail__confirm">
+      <span>Delete this transaction?</span>
+      <div class="transaction-detail__confirm-actions">
+        <button type="button" class="transaction-detail__confirm-cancel" onClick={() => setConfirmingDelete(false)}>
+          Cancel
+        </button>
+        <button type="button" class="transaction-detail__confirm-delete" onClick={handleDeleteConfirmed}>
+          Delete
+        </button>
       </div>
+    </div>
+  ) : (
+    <>
+      <button type="button" class="transaction-detail__delete" onClick={() => setConfirmingDelete(true)}>
+        Delete
+      </button>
+      <button type="button" class="entry-form__save" onClick={handleSave} disabled={errors.length > 0}>
+        Save changes
+      </button>
+    </>
+  );
+
+  return (
+    <Sheet open={transaction !== null} onClose={onClose} title="Edit transaction" footer={footer}>
+      {/* Keyed on id: EntryForm holds the amount's raw text in local state,
+          seeded once from the draft, so a different row must remount it. */}
+      <EntryForm
+        key={transactionBeingEdited.id}
+        draft={draftInProgress}
+        onChange={setDraft}
+        accounts={accounts}
+        categories={categories}
+        merchants={merchants}
+        errors={errors}
+      />
     </Sheet>
   );
 }

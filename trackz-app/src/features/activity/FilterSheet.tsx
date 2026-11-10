@@ -140,7 +140,7 @@ export function FilterSheet({ open, filter, accounts, categories, onApply, onClo
         </FilterSection>
 
         <FilterSection title="Category">
-          <div class="filter-sheet__chips filter-sheet__chips--scroll">
+          <div class="filter-sheet__chips">
             {categories.map((c) => (
               <ChipToggle
                 key={c.name}

@@ -16,7 +16,10 @@ import { planCategoryRename } from "@/features/settings/categoryRename";
 import { MerchantMergeSheet, countDuplicateMerchantGroups } from "@/features/settings/MerchantMergeSheet";
 import { CategoriesSheet, countCategories } from "@/features/settings/CategoriesSheet";
 import { updateTransactions } from "@/storage/repository";
-import { SyncSettings } from "@/features/settings/SyncSettings";
+import { SyncSettings, describeStatus } from "@/features/settings/SyncSettings";
+import { useSyncStatus } from "@/storage/useSyncStatus";
+import { isSyncConfigured } from "@/sync/auth";
+import { ChevronRight } from "@/components/icons";
 import "./SettingsScreen.css";
 import "@/components/Sheet.css";
 
@@ -78,6 +81,8 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   const [exportedSinceLastChange, setExportedSinceLastChange] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<"accountTypes" | "sync" | "data" | null>(null);
+  const syncState = useSyncStatus();
 
   const duplicateGroupCount = useMemo(() => countDuplicateMerchantGroups(transactions), [transactions]);
   const categoryCount = useMemo(() => countCategories(transactions), [transactions]);
@@ -154,6 +159,11 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
     const file = input.files?.[0];
     if (!file) return;
     const text = await file.text();
+    // Close Data before the preview opens so two sheets never stack (two
+    // backdrops, and Escape would only close the top one). The file input
+    // lives OUTSIDE the Data sheet for the same reason: the sheet unmounts
+    // its children while closed, and this handler runs after the picker.
+    setOpenSection(null);
     setImportPreview(previewImport(file.name, text, accountTypesMap));
     input.value = ""; // allow re-selecting the same file name later
   }
@@ -261,94 +271,91 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
 
   return (
     <main class="settings-screen">
-      <h1 class="settings-screen__title">Settings</h1>
-
-      <h2 class="settings-screen__section-title">Account types</h2>
-      <p class="settings-screen__hint">
-        Cash accounts count toward Home's "Liquid" total. Investment accounts (like a brokerage account) are
-        tracked separately, since their balance isn't spendable cash.
-      </p>
-
-      {accounts.length === 0 ? (
-        <p class="settings-screen__empty">No accounts yet. Tap the + button to log your first transaction.</p>
-      ) : (
-        <div class="settings-account-list">
-          {accounts.map((acc) => (
-            <Card class="settings-account-card" key={acc.name}>
-              <div class="settings-account-card__row">
-                <div class="settings-account-card__identity">
-                  <div class="settings-account-card__name">{acc.name}</div>
-                  <Money cents={acc.balanceCents} class="settings-account-card__balance" />
-                </div>
-                <div class="settings-account-card__toggle" role="radiogroup" aria-label={`${acc.name} account type`}>
-                  {ACCOUNT_TYPE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={acc.accountType === opt.value}
-                      class={`settings-account-card__option ${
-                        acc.accountType === opt.value ? "settings-account-card__option--active" : ""
-                      }`}
-                      onClick={() => handleChange(acc.name, opt.value)}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <SyncSettings onToast={onToast} />
-
-      <h2 class="settings-screen__section-title">Categories</h2>
-      <p class="settings-screen__hint">
-        Rename a category, or merge two by renaming one to the other's name. Amounts, types and
-        dates stay exactly as they are.
-      </p>
-      <div class="settings-data-actions">
-        <button type="button" class="settings-data-button" onClick={() => setCategoriesOpen(true)}>
-          Edit categories ({categoryCount})
-        </button>
-      </div>
-
-      <h2 class="settings-screen__section-title">Merchants</h2>
-      <p class="settings-screen__hint">
-        Merge names that mean the same shop, so your merchant list and autocomplete stop offering
-        duplicates. Renaming only changes the name — amounts, categories and dates stay as they are.
-      </p>
-      <div class="settings-data-actions">
-        <button type="button" class="settings-data-button" onClick={() => setMergeOpen(true)}>
-          {duplicateGroupCount === 0
-            ? "Tidy up merchants"
-            : `Tidy up merchants (${duplicateGroupCount} to review)`}
-        </button>
-      </div>
-
-      <h2 class="settings-screen__section-title">Data</h2>
-      <p class="settings-screen__hint">
-        Export a CSV backup of every transaction, or import one to replace what's currently stored. Importing is
-        all-or-nothing and overwrites your current data — review the preview carefully before confirming.
-      </p>
-
-      <div class="settings-data-actions">
-        <button type="button" class="settings-data-button" onClick={handleExport} disabled={exporting || transactions.length === 0}>
-          {exporting ? "Exporting…" : `Export ${transactions.length} transactions`}
-        </button>
-        <button type="button" class="settings-data-button" onClick={() => fileInputRef.current?.click()}>
-          Import from CSV
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,text/csv"
-          class="settings-data-file-input"
-          onChange={handleFileSelected}
+      {/* One row per section, each opening its own Sheet (user decision
+          2026-11-10). The rows carry a count or status so the page still
+          answers "anything to do here?" without opening each one. */}
+      <div class="settings-rows">
+        <SettingsRow label="Account types" detail={String(accounts.length)} onClick={() => setOpenSection("accountTypes")} />
+        <SettingsRow
+          label="Sync"
+          detail={isSyncConfigured() ? describeStatus(syncState.status) : "unavailable"}
+          onClick={() => setOpenSection("sync")}
         />
+        <SettingsRow label="Categories" detail={String(categoryCount)} onClick={() => setCategoriesOpen(true)} />
+        <SettingsRow
+          label="Merchants"
+          detail={duplicateGroupCount === 0 ? "" : `${duplicateGroupCount} to review`}
+          onClick={() => setMergeOpen(true)}
+        />
+        <SettingsRow label="Data" detail={`${transactions.length} transactions`} onClick={() => setOpenSection("data")} />
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        class="settings-data-file-input"
+        onChange={handleFileSelected}
+      />
+
+      <Sheet open={openSection === "accountTypes"} onClose={() => setOpenSection(null)} title="Account types">
+        <p class="settings-screen__hint">
+          Cash accounts count toward Home's "Liquid" total. Investment accounts (like a brokerage account) are
+          tracked separately, since their balance isn't spendable cash.
+        </p>
+
+        {accounts.length === 0 ? (
+          <p class="settings-screen__empty">No accounts yet. Tap the + button to log your first transaction.</p>
+        ) : (
+          <div class="settings-account-list">
+            {accounts.map((acc) => (
+              <Card class="settings-account-card" key={acc.name}>
+                <div class="settings-account-card__row">
+                  <div class="settings-account-card__identity">
+                    <div class="settings-account-card__name">{acc.name}</div>
+                    <Money cents={acc.balanceCents} class="settings-account-card__balance" />
+                  </div>
+                  <div class="settings-account-card__toggle" role="radiogroup" aria-label={`${acc.name} account type`}>
+                    {ACCOUNT_TYPE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={acc.accountType === opt.value}
+                        class={`settings-account-card__option ${
+                          acc.accountType === opt.value ? "settings-account-card__option--active" : ""
+                        }`}
+                        onClick={() => handleChange(acc.name, opt.value)}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet open={openSection === "sync"} onClose={() => setOpenSection(null)} title="Sync">
+        <SyncSettings onToast={onToast} />
+      </Sheet>
+
+      <Sheet open={openSection === "data"} onClose={() => setOpenSection(null)} title="Data">
+        <p class="settings-screen__hint">
+          Export a CSV backup of every transaction, or import one to replace what's currently stored. Importing is
+          all-or-nothing and overwrites your current data — review the preview carefully before confirming.
+        </p>
+        <div class="settings-data-actions">
+          <button type="button" class="settings-data-button" onClick={handleExport} disabled={exporting || transactions.length === 0}>
+            {exporting ? "Exporting…" : `Export ${transactions.length} transactions`}
+          </button>
+          <button type="button" class="settings-data-button" onClick={() => fileInputRef.current?.click()}>
+            Import from CSV
+          </button>
+        </div>
+      </Sheet>
 
       <Sheet open={importPreview !== null} onClose={() => setImportPreview(null)} title="Import preview">
         {importPreview && (
@@ -452,5 +459,22 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
         onMerge={handleMerge}
       />
     </main>
+  );
+}
+
+interface SettingsRowProps {
+  label: string;
+  /** Count or status shown before the chevron; "" shows nothing. */
+  detail: string;
+  onClick: () => void;
+}
+
+function SettingsRow({ label, detail, onClick }: SettingsRowProps) {
+  return (
+    <button type="button" class="settings-row" onClick={onClick}>
+      <span class="settings-row__label">{label}</span>
+      {detail && <span class="settings-row__detail">{detail}</span>}
+      <ChevronRight size="1em" class="settings-row__chevron" />
+    </button>
   );
 }

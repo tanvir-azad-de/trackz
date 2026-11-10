@@ -11,7 +11,7 @@
  *     iOS gesture than zoom-on-focus above: that one fires when an input
  *     gains focus, this one fires on two quick taps anywhere on the page,
  *     which is exactly what happens tapping two adjacent keypad digits in
- *     quick succession on the quick-entry sheet, see Keypad.tsx. Found via
+ *     quick succession (first hit on the since-removed entry keypad). Found via
  *     real-device testing, Phase 16/17's device-check pass — not caught by
  *     any of the Playwright checks in that phase, since it's a native
  *     gesture-recognizer behavior, not something a DOM/CSS assertion

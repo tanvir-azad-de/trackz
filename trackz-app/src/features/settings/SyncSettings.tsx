@@ -175,10 +175,9 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
   if (!configured) {
     return (
       <section class="sync-settings">
-        <h2 class="settings-screen__section-title">Sync</h2>
         <p class="settings-screen__hint">
           Google Drive sync isn't available in this build, because it was compiled without a
-          Google client ID. Your data is saved on this device only — use Export below to keep a
+          Google client ID. Your data is saved on this device only — use Data → Export to keep a
           backup.
         </p>
       </section>
@@ -189,8 +188,6 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
 
   return (
     <section class="sync-settings">
-      <h2 class="settings-screen__section-title">Sync</h2>
-
       {auth.isSignedIn ? (
         <>
           <p class="settings-screen__hint">
@@ -288,7 +285,7 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
  * synced, pending, offline, signed-out — resolve themselves or are a
  * normal way to run the app, so they live here and nowhere else.
  */
-function describeStatus(status: ReturnType<typeof useSyncStatus>["status"]): string {
+export function describeStatus(status: ReturnType<typeof useSyncStatus>["status"]): string {
   switch (status) {
     case "synced":
       return "up to date";

@@ -3,7 +3,7 @@
      bar when installed as a PWA (apple-mobile-web-app-status-bar-style:
      black-translucent extends the page under it — see index.html). Zero
      in a normal browser tab since env(safe-area-inset-top) is 0px there. */
-  padding: calc(var(--space-1) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
+  padding: calc(var(--space-4) + var(--safe-top)) var(--space-5) calc(100px + var(--safe-bottom));
   /* width: 100% is LOAD-BEARING, not redundant with max-width.
      .app-shell is a column flex container, and the flexbox spec stretches
      a flex item to the cross size only when NEITHER cross-axis margin is
@@ -23,13 +23,6 @@
   margin: 0 auto;
 }
 
-.home-screen__title {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: var(--space-2) 0 var(--space-4);
-  letter-spacing: 0.01em;
-}
 
 .home-screen__section-title {
   font-size: var(--text-xs);

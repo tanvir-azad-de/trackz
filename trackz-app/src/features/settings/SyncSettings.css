@@ -1,5 +1,5 @@
 /* Phase 15b: Google Drive connection controls in Settings.
-   Reuses .settings-screen__section-title / __hint and .settings-data-button
+   Reuses .settings-screen__hint and .settings-data-button
    from SettingsScreen.css so this section is visually identical to the
    Data section rather than a second button style. */
 
