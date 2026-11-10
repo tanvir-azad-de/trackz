@@ -15,7 +15,10 @@ const path = resolve(__dirname, "../../../dummyData/snapshot-2026-10-31/expected
 
 export interface ExpectedValues {
   engine: {
-    september: { monthKey: string; incomeCents: number; expenseCents: number; surplusCents: number };
+    september: { monthKey: string; incomeCents: number; expenseCents: number };
+    october: { monthKey: string; incomeCents: number; expenseCents: number };
+    dailyExpenseAvg: { today: string; cents: number };
+    liquidVsSameDay: { today: string; currentCents: number; averageCents: number }[];
     topCategory: { category: string; amountCents: number };
     alsoInTop4: string[];
     deltas: { asOfDate: string; category: string; thisMonthCents: number; baselineAvgCents: number; isNew: boolean }[];

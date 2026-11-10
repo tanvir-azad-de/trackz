@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   daysBetween,
+  formatOrdinalDay,
   formatDayLabel,
   formatDayHeading,
   getLastNMonthsRange,
@@ -133,5 +134,12 @@ describe("formatDayLabel (Accounts last-activity, detail sheet 'Logged')", () =>
     } finally {
       process.env.TZ = originalTz;
     }
+  });
+});
+
+describe("formatOrdinalDay", () => {
+  it("uses st/nd/rd for 1/2/3 endings except 11-13", () => {
+    const got = [1, 2, 3, 4, 10, 11, 12, 13, 21, 22, 23, 30, 31].map(formatOrdinalDay);
+    expect(got).toEqual(["1st", "2nd", "3rd", "4th", "10th", "11th", "12th", "13th", "21st", "22nd", "23rd", "30th", "31st"]);
   });
 });

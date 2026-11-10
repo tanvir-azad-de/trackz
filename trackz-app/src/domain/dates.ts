@@ -171,3 +171,11 @@ export function formatDayHeading(date: ISODate, today: ISODate): string {
   const sameYear = date.slice(0, 4) === today.slice(0, 4);
   return sameYear ? `${day}. ${month}` : `${day}. ${month} ${date.slice(0, 4)}`;
 }
+
+/** "1st", "2nd", "3rd", "4th" … "11th", "12th", "13th" … "21st", "31st". */
+export function formatOrdinalDay(day: number): string {
+  // 11-13 take "th" even though they end in 1-3.
+  if (day >= 11 && day <= 13) return `${day}th`;
+  const suffix = day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
+  return `${day}${suffix}`;
+}

@@ -12,10 +12,11 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 449 tests passing (+18 from round 2 below; 437 before the
-  form + settings rework deleted the keypad's 15 tests and added 9),
-  tsc -b clean, typecheck:api clean, production build 53,900 bytes
-  gzipped JS (+229 from round 2; -748 from the rework; +2,399 from
+  Baseline: 461 tests passing (+12 from the hero rework below; +18 from
+  round 2; 437 before the form + settings rework deleted the keypad's 15
+  tests and added 9), tsc -b clean, typecheck:api clean, production
+  build 54,196 bytes gzipped JS (+292 from the hero rework, measured
+  against a 53,904 rebuild of 7c0ff7d; +229 from round 2; -748 from the rework; +2,399 from
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
@@ -49,6 +50,35 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  HOME HERO REWORK — DONE 2026-11-10, NOT YET DEPLOYED. The user found
+  "321,40 € deficit this month" meaningless: it was income minus spend
+  with no income logged yet, which reads as a deficit for most of every
+  month. Decisions are the user's, do not relitigate:
+    - The line under Liquid now compares it with liquid cash on the same
+      day of each of the previous 6 months: "↑ 35% above 6-month avg for
+      the 10th" (getLiquidVsSameDayAverage). Short form because "your
+      6-month average" wrapped at 390px. Months before the first
+      transaction are skipped, not counted as 0 €. No line when the
+      average is <= 0. A month-end clamp was written and deleted: a
+      "2026-09-31" upper bound already selects exactly September.
+    - The Income tile is now "Daily avg": this month's expense up to
+      today / today's day of the month (getDailyExpenseAvgCents).
+    - Spent and Daily avg now use the real date's month, like the
+      insight feed, instead of the latest transaction's month (item 8
+      below said the hero still used the latter; no longer true).
+    - BUG FIXED: summarizeMonth summed non_income/non_expense into
+      Income/Spent. October 2026 in the snapshot: Spent was 312,20 € of
+      expense plus 141,75 € of non_expense. surplusCents was dropped
+      with its only reader.
+  Mutation-tested: 7 engine + 1 ordinal mutations, all caught; the
+  real-data fixture figures came from a standalone python script.
+  Playwright (live dev, 390x844 @2x) on the 2026-11-10 clean backup:
+  Liquid 1.475,73 €, "35% above 6-month avg for the 10th" on one line
+  (python: 35.49%), Daily avg 32,14 €, Spent 321,40 €. Caveat for the
+  user: the 10 May balance (~3.372 €) is well above the other five
+  (~470-700 €) and lifts the average ~70% (1.089 € vs 633 € without
+  it), so the % will jump once May leaves the window in December.
 
   DEPLOYED + DEVICE-CHECKED 2026-11-10 (c03ca41): the form + settings
   rework and round 2 below. 10 of 11 checks in
@@ -110,8 +140,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
          X". A non-new category whose usual by today is 0 shows without
          a %.
        - Uses the real date (getLocalToday), not the latest transaction's
-         date. The hero card still uses the latest-transaction month,
-         unchanged.
+         date. (The hero card followed in the hero rework above.)
        The real-data test now pins exact cents (fixture recomputed by a
        standalone python script, half-up rounding) instead of % ranges
        written for the old formula. deltas.test.ts holds the synthetic

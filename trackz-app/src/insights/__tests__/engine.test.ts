@@ -13,6 +13,8 @@ import {
   getPayableBalances,
   getReceivableBalances,
   getTopCategoriesForMonth,
+  getDailyExpenseAvgCents,
+  getLiquidVsSameDayAverage,
   getTotalAssetsCents,
   summarizeMonth,
 } from "@/insights/engine";
@@ -54,11 +56,31 @@ beforeAll(() => {
 });
 
 describe.skipIf(!hasFixture)("insight engine against real September 2026 data", () => {
-  it("summarizes income/expense/surplus for September", () => {
+  it("summarizes income/expense for September", () => {
     const summary = summarizeMonth(transactions, want.september.monthKey);
     expect(summary.incomeCents).toBe(want.september.incomeCents);
     expect(summary.expenseCents).toBe(want.september.expenseCents);
-    expect(summary.surplusCents).toBe(want.september.surplusCents);
+  });
+
+  it("leaves non_income/non_expense out of October's income and expense", () => {
+    // October has both, so this is the month that catches the old inflation.
+    const summary = summarizeMonth(transactions, want.october.monthKey);
+    expect(summary.incomeCents).toBe(want.october.incomeCents);
+    expect(summary.expenseCents).toBe(want.october.expenseCents);
+  });
+
+  it("averages October's spend per day up to the 15th", () => {
+    expect(getDailyExpenseAvgCents(transactions, want.dailyExpenseAvg.today)).toBe(want.dailyExpenseAvg.cents);
+  });
+
+  it("averages liquid cash on the same day of the previous 6 months", () => {
+    for (const w of want.liquidVsSameDay) {
+      const current = getLiquidCashCents(transactions, { [want.liquid.investmentAccount]: "investment" }, w.today);
+      expect(current).toBe(w.currentCents);
+      const r = getLiquidVsSameDayAverage(transactions, { [want.liquid.investmentAccount]: "investment" }, current, w.today);
+      expect(r.averageCents).toBe(w.averageCents);
+      expect(r.monthsUsed).toBe(6);
+    }
   });
 
   it("ranks top expense categories for September", () => {

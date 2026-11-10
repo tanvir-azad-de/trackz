@@ -4,8 +4,10 @@ import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
   getAccountBalances,
   getCategoryDeltasForMonth,
+  getDailyExpenseAvgCents,
   getLatestDate,
   getLiquidCashCents,
+  getLiquidVsSameDayAverage,
   getMostSurprisingDeltas,
   summarizeMonth,
 } from "@/insights/engine";
@@ -32,9 +34,6 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
   const data = useMemo(() => {
     const latestDate = getLatestDate(transactions);
     if (!latestDate) return null;
-    const monthKey = latestDate.slice(0, 7);
-
-    const summary = summarizeMonth(transactions, monthKey);
     const liquidCashCents = getLiquidCashCents(transactions, accountTypes);
     const accounts = getAccountBalances(transactions).map((a) => ({
       ...a,
@@ -45,11 +44,17 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     // same-days baseline must stop at the same day. Early in a month with
     // nothing logged yet, this gives an empty feed rather than last
     // month's figures under this month's heading.
+    // The hero's Spent and Daily avg follow the same rule, so all three
+    // agree on what "this month" is.
     const today = getLocalToday();
     const insightMonthKey = toMonthKey(today);
     const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, insightMonthKey, 6, today));
+    const summary = summarizeMonth(transactions, insightMonthKey, today);
+    const dailyExpenseAvgCents = getDailyExpenseAvgCents(transactions, today);
+    const liquidComparison = getLiquidVsSameDayAverage(transactions, accountTypes, liquidCashCents, today);
+    const dayOfMonth = Number(today.slice(8, 10));
 
-    return { summary, liquidCashCents, accounts, deltas, monthKey, insightMonthKey };
+    return { summary, liquidCashCents, liquidComparison, dayOfMonth, dailyExpenseAvgCents, accounts, deltas, insightMonthKey };
   }, [transactions, accountTypes]);
 
   if (!data) {
@@ -91,9 +96,10 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     <main class="home-screen">
       <HeroCard
         liquidCashCents={data.liquidCashCents}
-        incomeCents={data.summary.incomeCents}
+        liquidComparison={data.liquidComparison}
+        dayOfMonth={data.dayOfMonth}
+        dailyExpenseAvgCents={data.dailyExpenseAvgCents}
         expenseCents={data.summary.expenseCents}
-        surplusCents={data.summary.surplusCents}
       />
       <AccountStrip accounts={data.accounts} />
       <h2 class="home-screen__section-title">What changed this month</h2>

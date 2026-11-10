@@ -17,21 +17,88 @@ export interface MonthSummary {
   monthKey: string; // "YYYY-MM"
   incomeCents: Cents;
   expenseCents: Cents;
-  surplusCents: Cents; // income - expense
 }
 
-export function summarizeMonth(transactions: Transaction[], monthKey: string): MonthSummary {
+/**
+ * Income and expense for a month, optionally only up to `asOfDate`.
+ *
+ * Only categoryType "income" and "expense" count. non_income/non_expense
+ * are money that moved but is not wholly mine (a loan out, a shared bill,
+ * a refund), so adding them here inflated both tiles: a 600 € rent paid
+ * for two flatmates is not 600 € of my spending. They used to be summed
+ * in because the net-worth perspective (rightly) treats them as cash
+ * movements; "what did I earn/spend" is a different question.
+ */
+export function summarizeMonth(transactions: Transaction[], monthKey: string, asOfDate?: string): MonthSummary {
   let income = 0;
   let expense = 0;
   for (const tx of transactions) {
     if (toMonthKey(tx.date) !== monthKey) continue;
-    if (tx.categoryType === "income" || tx.categoryType === "non_income") {
+    if (asOfDate && tx.date > asOfDate) continue;
+    if (tx.categoryType === "income") {
       income = addCents(income, getSignedAmountCents(tx, { kind: "net-worth" }));
-    } else if (tx.categoryType === "expense" || tx.categoryType === "non_expense") {
+    } else if (tx.categoryType === "expense") {
       expense = addCents(expense, -getSignedAmountCents(tx, { kind: "net-worth" }));
     }
   }
-  return { monthKey, incomeCents: income, expenseCents: expense, surplusCents: income - expense };
+  return { monthKey, incomeCents: income, expenseCents: expense };
+}
+
+/**
+ * This month's expense up to `today`, divided by days elapsed (today's
+ * day of the month, so the 1st divides by 1, not 0). Rounded to whole
+ * cents.
+ */
+export function getDailyExpenseAvgCents(transactions: Transaction[], today: string): Cents {
+  const { expenseCents } = summarizeMonth(transactions, toMonthKey(today), today);
+  return Math.round(expenseCents / Number(today.slice(8, 10)));
+}
+
+export interface LiquidComparison {
+  /** Mean liquid cash on the same day of each comparison month. */
+  averageCents: Cents;
+  /** How many of the requested months had data on that day. */
+  monthsUsed: number;
+  /** (current - average) / average * 100; null when there is no usable average. */
+  deltaPercent: number | null;
+}
+
+/**
+ * Compares `currentCents` (the Liquid figure on Home) with liquid cash on
+ * the same day of the month in each of the previous `months` months (user
+ * decision 2026-11-10). Same day, not the month-end or monthly mean,
+ * because cash swings within a month: on the 10th, salary has landed and
+ * rent has left, so the 10th is only comparable with other 10ths.
+ *
+ * A month shorter than today's day compares on its last day, with no
+ * clamp: the date is only ever an upper bound for string comparison, and
+ * "2026-09-31" sorts after every September date and before "2026-10-01",
+ * so it selects exactly the same rows as "2026-09-30". A comparison date before the first
+ * transaction is skipped rather than counted as 0 €, which would drag the
+ * average down to "you have more cash than ever" for a new user.
+ * A non-positive average has no meaningful percentage, so deltaPercent
+ * is null and the caller shows nothing.
+ */
+export function getLiquidVsSameDayAverage(
+  transactions: Transaction[],
+  accountTypes: Record<string, AccountType>,
+  currentCents: Cents,
+  today: string,
+  months = 6,
+): LiquidComparison {
+  const earliest = transactions.reduce<string | null>((min, tx) => (min === null || tx.date < min ? tx.date : min), null);
+  const day = today.slice(8, 10);
+  let total = 0;
+  let monthsUsed = 0;
+  for (let i = 1; i <= months; i++) {
+    const date = `${shiftMonthKey(toMonthKey(today), -i)}-${day}`;
+    if (earliest === null || date < earliest) continue;
+    total = addCents(total, getLiquidCashCents(transactions, accountTypes, date));
+    monthsUsed++;
+  }
+  const averageCents = monthsUsed > 0 ? Math.round(total / monthsUsed) : 0;
+  const deltaPercent = averageCents > 0 ? ((currentCents - averageCents) / averageCents) * 100 : null;
+  return { averageCents, monthsUsed, deltaPercent };
 }
 
 /**
