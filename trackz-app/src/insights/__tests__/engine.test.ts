@@ -70,30 +70,22 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
     }
   });
 
-  it("computes 6-month baseline deltas within the independently measured ranges", () => {
-    const deltas = getCategoryDeltasForMonth(transactions, "2026-09", 6);
+  it("computes same-days deltas with the exact independently computed cents", () => {
+    // Full month (the 30th) and a partial one (the 15th), including a
+    // category with spend in only 2 of the 6 baseline months (divisor 2,
+    // not 6), a new one, and a 15th whose window average is an exact .5
+    // (Math.round half-up, which the fixture was computed to match).
     expect(want.deltas.length).toBeGreaterThan(0); // fixture sanity: an empty list would pass vacuously
-    for (const { category, minPercent, maxPercent } of want.deltas) {
-      const delta = deltas.find((d) => d.category === category)!;
-      expect(delta.deltaPercent).toBeGreaterThan(minPercent);
-      expect(delta.deltaPercent).toBeLessThan(maxPercent);
+    for (const w of want.deltas) {
+      const delta = getCategoryDeltasForMonth(transactions, "2026-09", 6, w.asOfDate).find((d) => d.category === w.category)!;
+      expect({ at: w.asOfDate, category: delta.category, thisMonthCents: delta.thisMonthCents, baselineAvgCents: delta.baselineAvgCents, isNew: delta.isNew }).toEqual({
+        at: w.asOfDate,
+        category: w.category,
+        thisMonthCents: w.thisMonthCents,
+        baselineAvgCents: w.baselineAvgCents,
+        isNew: w.isNew,
+      });
     }
-  });
-
-  it("prorates the baseline for a partial month instead of falsely showing a crash (regression: caught via live headless smoke test against Oct 2026, a 17-day partial month)", () => {
-    // Full-month September average, unprorated.
-    const fullMonth = getCategoryDeltasForMonth(transactions, "2026-09", 6, "2026-09-30");
-    const groceriesFull = fullMonth.find((d) => d.category === "Groceries")!;
-
-    // Same category type, but pretend "today" is only the 15th of the month.
-    const partialMonth = getCategoryDeltasForMonth(transactions, "2026-09", 6, "2026-09-15");
-    const groceriesPartial = partialMonth.find((d) => d.category === "Groceries")!;
-
-    // The partial-month baseline must be roughly half the full-month baseline
-    // (15/30 days), not the same — otherwise every category looks like it
-    // collapsed simply because the month isn't over yet.
-    expect(groceriesPartial.baselineAvgCents).toBeLessThan(groceriesFull.baselineAvgCents);
-    expect(groceriesPartial.baselineAvgCents / groceriesFull.baselineAvgCents).toBeCloseTo(15 / 30, 1);
   });
 
   it("computes per-account balances as of the full dataset", () => {

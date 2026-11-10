@@ -274,21 +274,32 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
       {/* One row per section, each opening its own Sheet (user decision
           2026-11-10). The rows carry a count or status so the page still
           answers "anything to do here?" without opening each one. */}
-      <div class="settings-rows">
-        <SettingsRow label="Account types" detail={String(accounts.length)} onClick={() => setOpenSection("accountTypes")} />
-        <SettingsRow
-          label="Sync"
-          detail={isSyncConfigured() ? describeStatus(syncState.status) : "unavailable"}
-          onClick={() => setOpenSection("sync")}
-        />
+      {/* Grouped by what the rows act on: your data's names, then where the
+          data lives (user decision 2026-11-10). */}
+      <div class="settings-group">
+        <SettingsRow label="Accounts" detail={String(accounts.length)} onClick={() => setOpenSection("accountTypes")} />
         <SettingsRow label="Categories" detail={String(categoryCount)} onClick={() => setCategoriesOpen(true)} />
         <SettingsRow
           label="Merchants"
           detail={duplicateGroupCount === 0 ? "" : `${duplicateGroupCount} to review`}
           onClick={() => setMergeOpen(true)}
         />
+      </div>
+
+      <div class="settings-group">
+        <SettingsRow
+          label="Sync"
+          detail={isSyncConfigured() ? describeStatus(syncState.status) : "unavailable"}
+          onClick={() => setOpenSection("sync")}
+        />
         <SettingsRow label="Data" detail={`${transactions.length} transactions`} onClick={() => setOpenSection("data")} />
       </div>
+
+      {/* A disabled button, as asked: it reads as part of the list but does
+          nothing. The value is inlined at build (src/app/buildVersion.ts). */}
+      <button type="button" class="settings-version" disabled>
+        Version {__APP_VERSION__}
+      </button>
 
       <input
         ref={fileInputRef}
@@ -298,9 +309,9 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
         onChange={handleFileSelected}
       />
 
-      <Sheet open={openSection === "accountTypes"} onClose={() => setOpenSection(null)} title="Account types">
+      <Sheet open={openSection === "accountTypes"} onClose={() => setOpenSection(null)} title="Accounts">
         <p class="settings-screen__hint">
-          Cash accounts count toward Home's "Liquid" total. Investment accounts (like a brokerage account) are
+          Set each account's type. Cash accounts count toward Home's "Liquid" total. Investment accounts (like a brokerage account) are
           tracked separately, since their balance isn't spendable cash.
         </p>
 

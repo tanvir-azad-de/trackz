@@ -150,7 +150,7 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
       ...baseTx,
       destinationAccount: "REVO",
       cashflow: "none",
-      category: "Transfer",
+      category: "",
       categoryType: "transfer",
       merchant: "",
     };
@@ -162,7 +162,7 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
     const lendingTx: Transaction = {
       ...baseTx,
       cashflow: "out",
-      category: "Lent",
+      category: "",
       categoryType: "receivable",
       merchant: "",
     };
@@ -175,7 +175,7 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
     const repaidTx: Transaction = {
       ...baseTx,
       cashflow: "in",
-      category: "Lent",
+      category: "",
       categoryType: "receivable",
       merchant: "",
     };
@@ -188,7 +188,7 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
     const borrowingTx: Transaction = {
       ...baseTx,
       cashflow: "out",
-      category: "Owed",
+      category: "",
       categoryType: "payable",
       merchant: "",
     };
@@ -204,5 +204,44 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
     expect(edited.id).toBe(baseTx.id);
     expect(edited.createdAt).toBe(baseTx.createdAt);
     expect(edited.amountCents).toBe(999);
+  });
+});
+
+describe("category is blank for transfer and Lent out / I owe (usesCategory)", () => {
+  const accounts = [{ name: "CMRZ" }, { name: "REVO" }];
+
+  it("does not require a category for those types, and still does for the rest", () => {
+    const base = { ...emptyDraft("2026-10-17", 1000), account: "CMRZ", destinationAccount: "REVO", merchant: "Friend", category: "" };
+    expect(validateDraft({ ...base, categoryType: "transfer" }, accounts)).toEqual([]);
+    expect(validateDraft({ ...base, categoryType: "receivable" }, accounts)).toEqual([]);
+    expect(validateDraft({ ...base, categoryType: "payable" }, accounts)).toEqual([]);
+    expect(validateDraft({ ...base, categoryType: "non_expense" }, accounts)).toEqual(["Pick or type a category."]);
+  });
+
+  it("saves a blank category even when the hidden field still holds one", () => {
+    // The remembered last entry seeds category, and the form hides the
+    // field rather than clearing it.
+    const draft = { ...emptyDraft("2026-10-17", 1000), categoryType: "transfer" as const, category: "Groceries", account: "CMRZ", destinationAccount: "REVO" };
+    expect(buildTransaction(draft, "2026-10-17T00:00:00.000Z").category).toBe("");
+    expect(buildTransaction({ ...draft, categoryType: "expense" }, "2026-10-17T00:00:00.000Z").category).toBe("Groceries");
+  });
+
+  it("clears an old row's category when it is edited (the 2026-11-10 bulk clear, applied on edit too)", () => {
+    const old: Transaction = {
+      id: "txn_old",
+      date: "2026-05-26",
+      account: "ADVZ",
+      destinationAccount: "",
+      cashflow: "out",
+      category: "Kaution",
+      categoryType: "receivable",
+      merchant: "Friend",
+      amountCents: 50000,
+      notes: "",
+      createdAt: "2026-05-26T00:00:00.000Z",
+      updatedAt: "2026-05-26T00:00:00.000Z",
+      deletedAt: null,
+    };
+    expect(applyDraftToTransaction(old, draftFromTransaction(old)).category).toBe("");
   });
 });

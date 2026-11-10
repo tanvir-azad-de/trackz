@@ -12,10 +12,11 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 431 tests passing (437 before the form + settings rework
-  deleted the keypad's 15 tests and added 9), tsc -b clean,
-  typecheck:api clean, production build 53,671 bytes gzipped JS
-  (-748 from that rework; +2,399 from lucide-preact; +627 from the month pills before that; the
+  Baseline: 449 tests passing (+18 from round 2 below; 437 before the
+  form + settings rework deleted the keypad's 15 tests and added 9),
+  tsc -b clean, typecheck:api clean, production build 53,900 bytes
+  gzipped JS (+229 from round 2; -748 from the rework; +2,399 from
+  lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
   the same number rounded). Production = origin/main = 7fe522c, deployed
@@ -48,6 +49,68 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  ROUND 2 (issues 6-8) — DONE 2026-11-10, NOT YET DEPLOYED. Decisions
+  locked through the question tool, do not relitigate.
+    6. Transfer, Lent out and I owe carry NO category.
+       domain/transaction.ts usesCategory() is the one rule. The form
+       hides the field (the lone row-3 field goes full width),
+       validateDraft stops requiring it, and build/applyDraft blank it,
+       so editing an old row clears it too. csv.ts accepts a blank
+       category for those types only. Before this, the app's own export
+       of such a row would have FAILED to re-import ("Missing
+       category"). List rows and toasts fall back to the type label
+       (categoryOrTypeLabel).
+       Existing data: the user chose a CSV edit over an in-app action.
+       dummyData/trackz-backup-2026-11-10.clean.csv (+ .changes.md):
+       149 categories cleared (136 Transfer, 7 Lent, 6 Kaution), the 6
+       Kaution moved into notes, updatedAt restamped on those 149.
+       Verified: the app's parser gives 0 errors on 1542 rows, the id
+       set is identical, cent sums per (account, cashflow) and per type
+       are identical, the 304 diffed cells match the log exactly, and
+       unchanged lines are byte-identical. The user imports it AFTER
+       this is deployed: the old parser rejects blank categories.
+    7. Settings: two groups, [Accounts (was "Account types"),
+       Categories, Merchants] and [Sync, Data], plus a disabled
+       "Version <sha> · <date>" button. The label is built at build time
+       by src/app/buildVersion.ts from VERCEL_GIT_COMMIT_SHA, else
+       `git rev-parse`, inlined as __APP_VERSION__. Like
+       VITE_GOOGLE_CLIENT_ID it only changes on a new build. Not the
+       hook's 1.0.x counter, which bumps the dead legacy app.
+    8. Home "What changed this month", rebuilt after a grill session.
+       The user confirmed all four symptoms: bills spiking on payment
+       day, early-month "down" noise, a wrong "usual", and new
+       categories missing. Now:
+       - Same days of past months: days 1..today against days 1..today
+         of each of the last 6 months, not a prorated full-month
+         average. Electricity, 72 € on the 7th every month, read "up
+         400%" on the 9th and now reads 0.
+       - "Usual" divides by the baseline months in which the category
+         had ANY spend in the whole month, not by 6. The user was shown
+         Electricity (started in July: ÷6 gives a false +50%) against
+         Restaurant (an empty July no longer pulls usual down) and
+         chose this knowingly.
+       - Changes under 10 € are dropped (MIN_INSIGHT_DELTA_CENTS).
+       - New categories (no spend in any baseline month) show as "New:
+         X". A non-new category whose usual by today is 0 shows without
+         a %.
+       - Uses the real date (getLocalToday), not the latest transaction's
+         date. The hero card still uses the latest-transaction month,
+         unchanged.
+       The real-data test now pins exact cents (fixture recomputed by a
+       standalone python script, half-up rounding) instead of % ranges
+       written for the old formula. deltas.test.ts holds the synthetic
+       cases. A dead Math.min clamp found during mutation testing was
+       deleted (no row's day can exceed its own month).
+    Mutation-tested: 6 (issue 6) + 4 (version) + 11 (engine), all
+    caught. Playwright (live dev, 390x844 @2x, real taps), exact values:
+    feed = ["New: Health Insurance" +110,00 €, "Restaurant is down 75%"
+    10,00 vs 40,00 €]; Electricity flat and Groceries +5 € absent;
+    transfer form fields Amount|Date, Type|From account, To account
+    @348px, Notes, saved with category "" and toast "Saved 50,00 € ·
+    Transfer"; Lent out form 377/377 (no scroll); Settings groups
+    [[Accounts, Categories, Merchants], [Sync, Data]]; version
+    "Version 2ccafb3 · 10 Nov 2026", disabled.
 
   FORM + SETTINGS REWORK — DONE 2026-11-10, NOT YET DEPLOYED. The user
   reported 5 issues. Decisions were locked through the question tool,

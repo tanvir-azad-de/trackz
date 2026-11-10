@@ -27,3 +27,15 @@ docs/renovation_version_1.txt section 5, "FORM + SETTINGS REWORK".
 - [ ] **Top spacing without titles.** With the screen titles gone, check that
       Home, Activity, Accounts and Settings start clear of the status bar in
       the installed PWA.
+
+## Round 2 (issues 6–8)
+
+- [ ] **Import the cleaned CSV**, after deploying: Settings → Data → Import
+      `trackz-backup-2026-11-10.clean.csv` on the production URL. Check that
+      the preview shows 1542 transactions, and that Lent out shows 6 rows
+      whose notes say "Kaution".
+- [ ] **What changed this month** on real data: does each card now match
+      your sense of the month? Electricity should not appear unless the bill
+      changed.
+- [ ] **Version row** shows the deployed commit, the same hash as on
+      Vercel's deployment.

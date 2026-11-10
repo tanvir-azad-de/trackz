@@ -1,4 +1,4 @@
-import type { Account, Cashflow, CategoryType, Transaction } from "@/domain/transaction";
+import { usesCategory, type Account, type Cashflow, type CategoryType, type Transaction } from "@/domain/transaction";
 import { newTransactionId } from "@/domain/id";
 import { isValidISODate } from "@/domain/dates";
 import type { Cents } from "@/domain/money";
@@ -102,7 +102,7 @@ export function validateDraft(draft: EntryDraft, knownAccounts: readonly Account
 
   if (draft.amountCents <= 0) errors.push("Enter an amount greater than 0.");
   if (!isValidISODate(draft.date)) errors.push("Pick a valid date.");
-  if (!draft.category.trim()) errors.push("Pick or type a category.");
+  if (usesCategory(draft.categoryType) && !draft.category.trim()) errors.push("Pick or type a category.");
   if (!draft.account.trim()) errors.push("Pick or type an account.");
 
   if (draft.categoryType === "transfer") {
@@ -134,7 +134,7 @@ export function buildTransaction(draft: EntryDraft, createdAt: string = new Date
     account: draft.account.trim(),
     destinationAccount: cashflow === "none" ? draft.destinationAccount.trim() : "",
     cashflow,
-    category: draft.category.trim(),
+    category: categoryForDraft(draft),
     categoryType: draft.categoryType,
     merchant: draft.merchant.trim(),
     amountCents: draft.amountCents,
@@ -145,14 +145,6 @@ export function buildTransaction(draft: EntryDraft, createdAt: string = new Date
   };
 }
 
-/**
- * Inverse of buildTransaction, for the Activity screen's edit flow
- * (Phase 11) — preserves the original id and createdAt instead of
- * minting new ones, so an edited transaction stays the "same" row (undo
- * restores the exact prior object, and the key the list renders by
- * doesn't change under the user's finger). Caller must check
- * validateDraft() first, same contract as buildTransaction.
- */
 /**
  * Inverse of buildTransaction, for the Activity screen's edit flow
  * (Phase 11) — preserves the original id and createdAt instead of
@@ -177,10 +169,21 @@ export function applyDraftToTransaction(existing: Transaction, draft: EntryDraft
     account: draft.account.trim(),
     destinationAccount: cashflow === "none" ? draft.destinationAccount.trim() : "",
     cashflow,
-    category: draft.category.trim(),
+    category: categoryForDraft(draft),
     categoryType: draft.categoryType,
     merchant: draft.merchant.trim(),
     amountCents: draft.amountCents,
     notes: draft.notes.trim(),
   };
+}
+
+/**
+ * The category a draft saves with. Blank for the types that carry none
+ * (usesCategory), whatever the draft holds — and it can hold one: the
+ * form hides the field rather than clearing it, and the remembered last
+ * entry seeds it. Blanking on the way out, not in the form, means an
+ * Expense -> Transfer -> Expense switch keeps the user's pick.
+ */
+function categoryForDraft(draft: EntryDraft): string {
+  return usesCategory(draft.categoryType) ? draft.category.trim() : "";
 }

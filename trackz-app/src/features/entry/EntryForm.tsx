@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { CATEGORY_TYPES, categoryTypeLabel } from "@/domain/transaction";
+import { CATEGORY_TYPES, categoryTypeLabel, usesCategory } from "@/domain/transaction";
 import type { Account, Category, Merchant } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { amountInputFromCents, parseAmountInput } from "@/features/entry/amountInput";
@@ -23,10 +23,10 @@ interface EntryFormProps {
  * its own CTAs in the Sheet footer, so they stay pinned.
  *
  * A 2-column grid, so the common case is 4 rows and the sheet needs no
- * scroll: Amount|Date, Type|Account, Category|Merchant, Notes. Transfer
- * puts "To account" in Merchant's slot (a transfer has no counterparty);
- * Lent out / I owe add a full-width Direction row, the only case that
- * grows the form.
+ * scroll: Amount|Date, Type|Account, Category|Merchant, Notes. Category
+ * is hidden for the types that carry none (domain usesCategory): Transfer
+ * shows To account alone in row 3, and Lent out / I owe show Merchant
+ * (the person) alone, plus a full-width Direction row.
  */
 export function EntryForm({ draft, onChange, accounts, categories, merchants, errors }: EntryFormProps) {
   // The raw text, not the parsed cents: re-deriving the field from
@@ -44,6 +44,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
   const accountNames = accounts.map((a) => a.name);
 
   const isTransfer = draft.categoryType === "transfer";
+  const showsCategory = usesCategory(draft.categoryType);
   const isBidirectional = draft.categoryType === "receivable" || draft.categoryType === "payable";
 
   return (
@@ -105,32 +106,37 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
         placeholder="e.g. ADVZ"
       />
 
-      <NamePicker
-        label="Category"
-        value={draft.category}
-        ranked={categoryNames}
-        onChange={(v) => set("category", v)}
-        placeholder="e.g. Groceries"
-      />
-
-      {isTransfer ? (
+      {showsCategory && (
         <NamePicker
-          label="To account"
-          value={draft.destinationAccount}
-          ranked={accountNames}
-          onChange={(v) => set("destinationAccount", v)}
-          placeholder="e.g. REVO"
-        />
-      ) : (
-        <NamePicker
-          label="Merchant"
-          value={draft.merchant}
-          ranked={merchantNames}
-          onChange={(v) => set("merchant", v)}
-          placeholder="e.g. Edeka"
-          allowBlank
+          label="Category"
+          value={draft.category}
+          ranked={categoryNames}
+          onChange={(v) => set("category", v)}
+          placeholder="e.g. Groceries"
         />
       )}
+
+      {/* Full width when Category is hidden, so the row doesn't end in a gap. */}
+      <div class={showsCategory ? "entry-form__cell" : "entry-form__full"}>
+        {isTransfer ? (
+          <NamePicker
+            label="To account"
+            value={draft.destinationAccount}
+            ranked={accountNames}
+            onChange={(v) => set("destinationAccount", v)}
+            placeholder="e.g. REVO"
+          />
+        ) : (
+          <NamePicker
+            label="Merchant"
+            value={draft.merchant}
+            ranked={merchantNames}
+            onChange={(v) => set("merchant", v)}
+            placeholder="e.g. Edeka"
+            allowBlank
+          />
+        )}
+      </div>
 
       {isBidirectional && (
         <div class="entry-form__field entry-form__full">

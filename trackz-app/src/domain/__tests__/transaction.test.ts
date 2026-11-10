@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORY_TYPES, categoryTypeLabel, getSignedAmountCents, type Transaction } from "@/domain/transaction";
+import { CATEGORY_TYPES, categoryOrTypeLabel, categoryTypeLabel, getSignedAmountCents, usesCategory, type Transaction } from "@/domain/transaction";
 
 function tx(overrides: Partial<Transaction>): Transaction {
   return {
@@ -87,5 +87,16 @@ describe("categoryTypeLabel", () => {
       "Lent out",
       "I owe",
     ]);
+  });
+});
+
+describe("usesCategory / categoryOrTypeLabel", () => {
+  it("is false only for transfer, receivable and payable", () => {
+    expect(CATEGORY_TYPES.filter((t) => !usesCategory(t))).toEqual(["transfer", "receivable", "payable"]);
+  });
+
+  it("falls back to the type label only when the category is blank", () => {
+    expect(categoryOrTypeLabel({ category: "", categoryType: "receivable" })).toBe("Lent out");
+    expect(categoryOrTypeLabel({ category: "Groceries", categoryType: "expense" })).toBe("Groceries");
   });
 });

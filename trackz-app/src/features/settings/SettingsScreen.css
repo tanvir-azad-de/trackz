@@ -83,25 +83,48 @@
 
 /* ---- Data (CSV export/import) ---- */
 
-.settings-rows {
+.settings-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  /* Clips the rows' pressed background to the rounded corners. */
+  overflow: hidden;
 }
 
 .settings-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--surface-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background: none;
+  border: none;
   min-height: var(--touch-target-min);
   padding: var(--space-3) var(--space-4);
   color: var(--text-primary);
   font-size: var(--text-base);
   font-weight: 600;
   text-align: left;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settings-row:active {
+  background: var(--surface-2);
+}
+
+.settings-version {
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  font-feature-settings: var(--font-feature-numeric);
 }
 
 .settings-row__label {

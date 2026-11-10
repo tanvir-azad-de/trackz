@@ -2,7 +2,7 @@ import { toCents, centsToFixed } from "@/domain/money";
 import { isValidISODate } from "@/domain/dates";
 import { contentDerivedTransactionId } from "@/domain/id";
 import type { CategoryType, Cashflow, Transaction } from "@/domain/transaction";
-import { CATEGORY_TYPES } from "@/domain/transaction";
+import { CATEGORY_TYPES, usesCategory } from "@/domain/transaction";
 
 /**
  * Legacy CSV columns, matching dummyData/trackz-backup-2026-10-31.csv
@@ -185,12 +185,16 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       errors.push({ line: lineNumber, message: `Invalid cashflow: "${cashflowRaw}"` });
       continue;
     }
-    if (!category) {
-      errors.push({ line: lineNumber, message: "Missing category" });
-      continue;
-    }
     if (!isCategoryType(categoryTypeRaw)) {
       errors.push({ line: lineNumber, message: `Invalid category_type: "${categoryTypeRaw}"` });
+      continue;
+    }
+    // Type first, then category: a blank category is how transfer and Lent
+    // out / I owe rows are stored (domain usesCategory), so whether it is
+    // missing depends on the type. Rejecting it for every type would make
+    // the app's own export fail to re-import.
+    if (!category && usesCategory(categoryTypeRaw)) {
+      errors.push({ line: lineNumber, message: "Missing category" });
       continue;
     }
     if (cashflowRaw === "none" && !destinationAccount) {

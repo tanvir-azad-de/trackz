@@ -72,6 +72,23 @@ export function categoryTypeLabel(type: CategoryType): string {
   }
 }
 
+/**
+ * Whether rows of this type carry a category at all (user decision
+ * 2026-11-10). A transfer between my own accounts has nothing to
+ * categorise, and on Lent out / I owe the counterparty in `merchant` says
+ * everything: the old "Transfer" / "Lent" categories only repeated the
+ * type. These rows store category "". The form hides the field, the draft
+ * blanks it, and CSV import accepts it blank for these types alone.
+ */
+export function usesCategory(type: CategoryType): boolean {
+  return type !== "transfer" && type !== "receivable" && type !== "payable";
+}
+
+/** A row's category, or its type label when it has none (see usesCategory). For toasts and list rows. */
+export function categoryOrTypeLabel(tx: Pick<Transaction, "category" | "categoryType">): string {
+  return tx.category || categoryTypeLabel(tx.categoryType);
+}
+
 export type Cashflow = "in" | "out" | "none"; // "none" = transfer between own accounts
 
 export interface Transaction {

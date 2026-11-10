@@ -1,5 +1,5 @@
 import type { Transaction } from "@/domain/transaction";
-import { categoryTypeLabel } from "@/domain/transaction";
+import { categoryOrTypeLabel, categoryTypeLabel } from "@/domain/transaction";
 import { Money } from "@/components/Money";
 
 interface TransactionRowProps {
@@ -17,9 +17,15 @@ interface TransactionRowProps {
  */
 export function TransactionRow({ transaction, onOpen }: TransactionRowProps) {
   const tx = transaction;
-  const primaryLabel = tx.merchant || tx.category;
+  // categoryOrTypeLabel, not tx.category: transfers and Lent out / I owe
+  // rows have no category (domain usesCategory), so a transfer with no
+  // merchant would otherwise render a blank title, and a Lent out row a
+  // secondary line starting " · ".
+  const primaryLabel = tx.merchant || categoryOrTypeLabel(tx);
   const isTransfer = tx.cashflow === "none";
-  const secondaryLabel = isTransfer ? `${tx.account} → ${tx.destinationAccount}` : `${tx.category} · ${tx.account}`;
+  const secondaryLabel = isTransfer
+    ? `${tx.account} → ${tx.destinationAccount}`
+    : [tx.category, tx.account].filter(Boolean).join(" · ");
   const relabel = showsRelabel(tx.categoryType) ? categoryTypeLabel(tx.categoryType) : null;
 
   const amountClass =

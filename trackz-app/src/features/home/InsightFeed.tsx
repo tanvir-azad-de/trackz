@@ -9,16 +9,17 @@ interface InsightFeedProps {
 }
 
 function describeDelta(d: CategoryDelta): { tone: "up" | "down"; title: string } {
-  const pct = Math.round(Math.abs(d.deltaPercent ?? 0));
-  if (d.deltaCents >= 0) {
-    return { tone: "up", title: `${d.category} is up ${pct}%` };
-  }
-  return { tone: "down", title: `${d.category} is down ${pct}%` };
+  if (d.isNew) return { tone: "up", title: `New: ${d.category}` };
+  const tone = d.deltaCents >= 0 ? "up" : "down";
+  // No percentage when usual-by-today is 0 but the category isn't new
+  // (e.g. a bill paid earlier in the month than usual): "+∞%" says nothing.
+  const pct = d.deltaPercent === null ? "" : ` ${Math.round(Math.abs(d.deltaPercent))}%`;
+  return { tone, title: `${d.category} is ${tone}${pct}` };
 }
 
 export function InsightFeed({ deltas, onSelectCategory }: InsightFeedProps) {
   if (deltas.length === 0) {
-    return <p class="insight-feed__empty">Not enough history yet to compare this month.</p>;
+    return <p class="insight-feed__empty">Nothing is more than 10 € off its usual so far this month.</p>;
   }
   return (
     <div class="insight-feed">
@@ -38,7 +39,15 @@ export function InsightFeed({ deltas, onSelectCategory }: InsightFeedProps) {
             <div class="insight__body">
               <div class="insight__title">{title}</div>
               <div class="insight__detail">
-                <Money cents={d.thisMonthCents} /> this month vs <Money cents={d.baselineAvgCents} /> usual
+                {d.isNew ? (
+                  <>
+                    <Money cents={d.thisMonthCents} /> so far, none in the last 6 months
+                  </>
+                ) : (
+                  <>
+                    <Money cents={d.thisMonthCents} /> so far vs <Money cents={d.baselineAvgCents} /> usual by now
+                  </>
+                )}
               </div>
             </div>
             <div class={`insight__amount insight__amount--${tone === "up" ? "neg" : "pos"}`}>

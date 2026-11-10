@@ -11,6 +11,10 @@
   grid-column: 1 / -1;
 }
 
+.entry-form__cell {
+  min-width: 0;
+}
+
 .entry-form__amount {
   position: relative;
   display: flex;

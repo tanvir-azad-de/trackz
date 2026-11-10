@@ -45,6 +45,10 @@ Check these before trusting this document. If the code has changed, the code win
   `quoteCsvField` (the quoting rules).
 - `trackz-app/src/domain/transaction.ts`: `CATEGORY_TYPES`, the meaning of
   `non_expense`/`non_income`, and why a category can carry several types.
+- `trackz-app/src/domain/transaction.ts` `usesCategory`: `transfer`,
+  `receivable` and `payable` rows carry a BLANK category (2026-11-10). A
+  category on one of them is the oddity to report, and a blank one is
+  correct, not a missing field.
 - `trackz-app/src/domain/merchant.ts`: `normalizeMerchant` (the merge key).
 - `trackz-app/src/sync/merge.ts`: last-writer-wins on `updatedAt`, and a tie
   goes to local.

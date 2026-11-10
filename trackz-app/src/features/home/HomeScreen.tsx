@@ -9,7 +9,7 @@ import {
   getMostSurprisingDeltas,
   summarizeMonth,
 } from "@/insights/engine";
-import { getMonthEndDate, getMonthStartDate } from "@/domain/dates";
+import { getLocalToday, getMonthEndDate, getMonthStartDate, toMonthKey } from "@/domain/dates";
 import type { ActivityFilter } from "@/features/activity/filter";
 import { emptyFilter } from "@/features/activity/filter";
 import { HeroCard } from "./HeroCard";
@@ -40,9 +40,16 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
       ...a,
       accountType: accountTypes[a.account] ?? "cash",
     }));
-    const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, monthKey, 6, latestDate));
+    // The real date, not the latest transaction's (user decision
+    // 2026-11-10): "so far this month" means up to today, and the
+    // same-days baseline must stop at the same day. Early in a month with
+    // nothing logged yet, this gives an empty feed rather than last
+    // month's figures under this month's heading.
+    const today = getLocalToday();
+    const insightMonthKey = toMonthKey(today);
+    const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, insightMonthKey, 6, today));
 
-    return { summary, liquidCashCents, accounts, deltas, monthKey };
+    return { summary, liquidCashCents, accounts, deltas, monthKey, insightMonthKey };
   }, [transactions, accountTypes]);
 
   if (!data) {
@@ -74,8 +81,8 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
       ...emptyFilter(),
       categories: [category],
       categoryTypes: ["expense"],
-      from: getMonthStartDate(data.monthKey),
-      to: getMonthEndDate(data.monthKey),
+      from: getMonthStartDate(data.insightMonthKey),
+      to: getMonthEndDate(data.insightMonthKey),
     };
     onDrillDown(filter);
   }

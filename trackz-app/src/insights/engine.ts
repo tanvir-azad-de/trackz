@@ -74,36 +74,55 @@ export function getLiquidCashCents(
 
 export interface CategoryDelta {
   category: string;
+  /** Spend from day 1 up to the as-of day. */
   thisMonthCents: Cents;
+  /** Usual spend by the same day of the month, see getCategoryDeltasForMonth. */
   baselineAvgCents: Cents;
   deltaCents: Cents; // thisMonth - baseline
-  deltaPercent: number | null; // null if baseline is 0 (no history to compare against)
+  deltaPercent: number | null; // null when baselineAvgCents is 0
+  /** No spend at all in any baseline month: a new category, not a change. */
+  isNew: boolean;
 }
+
+/** The "what changed" feed drops anything that moved by less than this (user decision 2026-11-10). */
+export const MIN_INSIGHT_DELTA_CENTS: Cents = 1000;
 
 function daysElapsedInMonth(monthKey: string, asOfDate: string): number {
   const monthStart = getMonthStartDate(monthKey);
   const monthEnd = getMonthEndDate(monthKey);
   const clamped = asOfDate < monthStart ? monthStart : asOfDate > monthEnd ? monthEnd : asOfDate;
-  const dayOfMonth = Number(clamped.slice(8, 10));
-  return dayOfMonth;
+  return Number(clamped.slice(8, 10));
 }
 
-function daysInMonth(monthKey: string): number {
-  return Number(getMonthEndDate(monthKey).slice(8, 10));
-}
 
 /**
- * For every expense category active in `monthKey`, compares its total to
- * the average of the same category over the preceding `baselineMonths`
- * months. This is the "compare against your own history" baseline from
- * the renovation decisions (no explicit budgets).
+ * For every expense category with spend in `monthKey` up to `asOfDate`,
+ * compares it to what the same category usually costs BY THE SAME DAY of
+ * the month, over the preceding `baselineMonths` months (user decisions
+ * 2026-11-10, replacing a prorated full-month average).
  *
- * `asOfDate` (defaults to the last day of monthKey, i.e. a complete
- * month) is used to PRORATE the baseline average to the same number of
- * elapsed days. Without this, a partial month (e.g. "today" is the 17th)
- * gets compared against a full-month average and every category falsely
- * looks like it collapsed — caught via a real headless-browser smoke
- * test against the live October 2026 data during Phase 10 development.
+ * WHY SAME DAYS, NOT PRORATION. The old baseline was the 6-month average
+ * times the fraction of the month elapsed, which assumes spending is
+ * spread evenly. Bills are not: a 72 € electricity bill paid on the 7th
+ * of every month read "up 400%" on the 9th against a prorated 14,40 €.
+ * Comparing days 1..N with days 1..N of past months compares like with
+ * like. A month shorter than N (the 31st against September) simply
+ * contributes its whole length: no row's day can exceed its own month,
+ * so no clamp is needed.
+ *
+ * WHY "MONTHS WITH SPEND" AS THE DIVISOR, NOT `baselineMonths`. The
+ * average divides by the number of baseline months in which the
+ * category had ANY spend in the whole month, not just the window. A bill
+ * that started in July therefore averages over its 4 real months instead
+ * of being diluted by 2 empty ones into a false "up 50%". Counting the
+ * whole month rather than the window keeps a bill paid on the 9th one
+ * month and the 11th the next from dropping out of the divisor.
+ * The cost, accepted when chosen: for occasional spending, a month with
+ * no spend at all does not pull "usual" down.
+ *
+ * A category with no spend in any baseline month is flagged `isNew`.
+ * Categories with no spend so far this month are not listed: early in a
+ * month that is usually "not logged yet", not "stopped spending".
  */
 export function getCategoryDeltasForMonth(
   transactions: Transaction[],
@@ -111,50 +130,58 @@ export function getCategoryDeltasForMonth(
   baselineMonths = 6,
   asOfDate: string = getMonthEndDate(monthKey),
 ): CategoryDelta[] {
-  const thisMonthTotals = new Map<string, Cents>();
-  for (const tx of transactions) {
-    if (tx.categoryType !== "expense") continue;
-    if (toMonthKey(tx.date) !== monthKey) continue;
-    thisMonthTotals.set(tx.category, addCents(thisMonthTotals.get(tx.category) ?? 0, tx.amountCents));
-  }
+  const asOfDay = daysElapsedInMonth(monthKey, asOfDate);
 
   const priorMonthKeys: string[] = [];
   for (let i = 1; i <= baselineMonths; i++) {
     priorMonthKeys.push(shiftMonthKey(monthKey, -i));
   }
 
-  const baselineTotals = new Map<string, Map<string, Cents>>(); // category -> monthKey -> total
+  const thisMonthTotals = new Map<string, Cents>();
+  const windowTotals = new Map<string, Cents>(); // category -> sum over baseline windows
+  const monthsWithSpend = new Map<string, Set<string>>(); // category -> baseline months with any spend
+
   for (const tx of transactions) {
     if (tx.categoryType !== "expense") continue;
     const txMonth = toMonthKey(tx.date);
-    if (!priorMonthKeys.includes(txMonth)) continue;
-    if (!baselineTotals.has(tx.category)) baselineTotals.set(tx.category, new Map());
-    const perMonth = baselineTotals.get(tx.category)!;
-    perMonth.set(txMonth, addCents(perMonth.get(txMonth) ?? 0, tx.amountCents));
-  }
+    const day = Number(tx.date.slice(8, 10));
 
-  // Prorate: baseline months are assumed complete, so scale the average
-  // down to the same fraction of the month that has actually elapsed.
-  const elapsedFraction = daysElapsedInMonth(monthKey, asOfDate) / daysInMonth(monthKey);
+    if (txMonth === monthKey) {
+      if (day <= asOfDay) thisMonthTotals.set(tx.category, addCents(thisMonthTotals.get(tx.category) ?? 0, tx.amountCents));
+      continue;
+    }
+    if (!priorMonthKeys.includes(txMonth)) continue;
+
+    if (!monthsWithSpend.has(tx.category)) monthsWithSpend.set(tx.category, new Set());
+    monthsWithSpend.get(tx.category)!.add(txMonth);
+    if (day <= asOfDay) {
+      windowTotals.set(tx.category, addCents(windowTotals.get(tx.category) ?? 0, tx.amountCents));
+    }
+  }
 
   const results: CategoryDelta[] = [];
   for (const [category, thisMonthCents] of thisMonthTotals) {
-    const perMonth = baselineTotals.get(category);
-    const sum = perMonth ? addCents(...priorMonthKeys.map((m) => perMonth.get(m) ?? 0)) : 0;
-    const fullMonthAvgCents = Math.round(sum / baselineMonths);
-    const baselineAvgCents = Math.round(fullMonthAvgCents * elapsedFraction);
+    const months = monthsWithSpend.get(category)?.size ?? 0;
+    const baselineAvgCents = months > 0 ? Math.round((windowTotals.get(category) ?? 0) / months) : 0;
     const deltaCents = thisMonthCents - baselineAvgCents;
     const deltaPercent = baselineAvgCents > 0 ? (deltaCents / baselineAvgCents) * 100 : null;
-    results.push({ category, thisMonthCents, baselineAvgCents, deltaCents, deltaPercent });
+    results.push({ category, thisMonthCents, baselineAvgCents, deltaCents, deltaPercent, isNew: months === 0 });
   }
 
   return results.sort((a, b) => b.thisMonthCents - a.thisMonthCents);
 }
 
-/** Ranks categories by absolute deviation from baseline — "what changed" feed, biggest surprise first. */
+/**
+ * Ranks the feed by absolute deviation, biggest first, and drops changes
+ * under MIN_INSIGHT_DELTA_CENTS. New categories are ranked by their whole
+ * amount, which IS their delta. A category whose usual by this day is 0
+ * but which is not new (a bill paid earlier than usual) is kept, with no
+ * percentage. It used to be dropped along with new ones, which hid
+ * exactly the real changes.
+ */
 export function getMostSurprisingDeltas(deltas: CategoryDelta[], limit = 4): CategoryDelta[] {
-  return [...deltas]
-    .filter((d) => d.deltaPercent !== null)
+  return deltas
+    .filter((d) => Math.abs(d.deltaCents) >= MIN_INSIGHT_DELTA_CENTS)
     .sort((a, b) => Math.abs(b.deltaCents) - Math.abs(a.deltaCents))
     .slice(0, limit);
 }

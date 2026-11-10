@@ -18,7 +18,7 @@ export interface ExpectedValues {
     september: { monthKey: string; incomeCents: number; expenseCents: number; surplusCents: number };
     topCategory: { category: string; amountCents: number };
     alsoInTop4: string[];
-    deltas: { category: string; minPercent: number; maxPercent: number }[];
+    deltas: { asOfDate: string; category: string; thisMonthCents: number; baselineAvgCents: number; isNew: boolean }[];
     accountBalance: { account: string; balanceCents: number };
     monthlyExpense: { monthKey: string; expenseCents: number };
     balanceSeries: { account: string; points: Record<string, number> }[];

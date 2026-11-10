@@ -93,6 +93,24 @@ describe("serializeTransactionsCsv", () => {
     expect(transactions[0]).toEqual(original);
   });
 
+  it("round-trips the blank category that transfer and Lent out / I owe rows carry", () => {
+    const rows = [
+      makeTransaction({ id: "txn_t", cashflow: "none", categoryType: "transfer", category: "", destinationAccount: "REVO", merchant: "" }),
+      makeTransaction({ id: "txn_r", categoryType: "receivable", category: "", merchant: "Friend" }),
+      makeTransaction({ id: "txn_p", cashflow: "in", categoryType: "payable", category: "", merchant: "Friend" }),
+    ];
+    const { transactions, errors } = parseTransactionsCsv(serializeTransactionsCsv(rows));
+    expect(errors).toEqual([]);
+    expect(transactions).toEqual(rows);
+  });
+
+  it("still rejects a blank category on every type that uses one", () => {
+    for (const categoryType of ["expense", "income", "non_expense", "non_income"] as const) {
+      const csv = serializeTransactionsCsv([makeTransaction({ categoryType, category: "" })]);
+      expect(parseTransactionsCsv(csv).errors.map((e) => e.message)).toEqual(["Missing category"]);
+    }
+  });
+
   // dummyData/ is gitignored real financial data — absent on a fresh clone.
   // skipIf, NOT an early `return` inside the test: a bare return reported
   // this as a PASS with zero assertions, hiding it even from the skip tally.

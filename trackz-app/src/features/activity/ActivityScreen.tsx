@@ -16,7 +16,7 @@ import { ActivityList, type MonthJump } from "./ActivityList";
 import { MonthPills } from "./MonthPills";
 import { FilterSheet } from "./FilterSheet";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
-import type { Transaction } from "@/domain/transaction";
+import { categoryOrTypeLabel, type Transaction } from "@/domain/transaction";
 import type { ToastState } from "@/components/Toast";
 import "@/components/Sheet.css";
 import "@/features/entry/EntryForm.css";
@@ -83,7 +83,7 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
     setOpenTransaction(null);
     onToast({
       id: Date.now(),
-      message: `Updated ${updated.category}`,
+      message: `Updated ${categoryOrTypeLabel(updated)}`,
       actionLabel: before ? "Undo" : undefined,
       onAction: before ? () => updateTransaction(before) : undefined,
     });
@@ -94,7 +94,7 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
     setOpenTransaction(null);
     onToast({
       id: Date.now(),
-      message: `Deleted ${target.category}`,
+      message: `Deleted ${categoryOrTypeLabel(target)}`,
       actionLabel: "Undo",
       // Phase 15a: the row never left storage, it was only tombstoned
       // (see repository.deleteTransaction). Undo clears the tombstone

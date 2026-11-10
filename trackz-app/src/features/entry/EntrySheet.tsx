@@ -7,7 +7,7 @@ import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/ra
 import { buildTransaction, validateDraft, type EntryDraft } from "@/features/entry/draft";
 import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
 import { EntryForm } from "./EntryForm";
-import type { Transaction } from "@/domain/transaction";
+import { categoryOrTypeLabel, type Transaction } from "@/domain/transaction";
 import { formatEUR } from "@/domain/money";
 import "@/components/Sheet.css";
 import "./EntryForm.css";
@@ -80,5 +80,5 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
 
 /** Formats the undo toast message shown by App after a save. */
 export function savedToastMessage(tx: Transaction): string {
-  return `Saved ${formatEUR(tx.amountCents)} · ${tx.category}`;
+  return `Saved ${formatEUR(tx.amountCents)} · ${categoryOrTypeLabel(tx)}`;
 }

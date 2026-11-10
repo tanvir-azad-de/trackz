@@ -3,7 +3,9 @@ import { defineConfig, type Plugin } from 'vite'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
+import { execSync } from 'node:child_process'
 import { stampServiceWorker } from './src/pwa/stampServiceWorker.ts'
+import { buildVersionLabel } from './src/app/buildVersion.ts'
 
 /**
  * Stamp a build id into dist/sw.js so the browser actually notices deploys.
@@ -50,9 +52,26 @@ function stampServiceWorkerPlugin(): Plugin {
   }
 }
 
+/**
+ * The commit being built. Vercel's env var first: it is always set there,
+ * whereas a git checkout on the build machine is an implementation detail.
+ * Falls back to local git, then to undefined ("dev").
+ */
+function currentCommitSha(): string | undefined {
+  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA
+  try {
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString()
+  } catch {
+    return undefined
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [preact(), stampServiceWorkerPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(buildVersionLabel(currentCommitSha(), new Date().toISOString())),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
