@@ -30,7 +30,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = 8c6a035, deployed
+  the same number rounded). Production = origin/main = 8e18415, deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -47,7 +47,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
-  ENTRY ERROR LIST REMOVED — 2026-11-11, NOT YET DEPLOYED. User
+  ENTRY ERROR LIST REMOVED — 2026-11-11, DEPLOYED in 8e18415. User
   decision, after the keyboard fix passed on the iPhone (both bug fixes
   below were confirmed on device via the dev server): EntryForm's
   .entry-form__errors list appeared and grew as fields changed, shifting
@@ -57,7 +57,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   390x844 @2x: sheet height 451px constant from open through amount,
   account and category; Save disabled until all are set, then saves.
 
-  TWO BUG FIXES — 2026-11-11, NOT YET DEPLOYED.
+  TWO BUG FIXES — 2026-11-11, DEPLOYED in 7e3cf55 (pushed with 8e18415;
+  live bundle index-Db__WW-1.js contains the visualViewport guard).
   1. iOS keyboard shift: Add sheet -> Amount -> Done left the app shifted
      up with a black band until Home was opened. New
      src/app/keyboardScroll.ts (installed in main.tsx) saves the scroll
