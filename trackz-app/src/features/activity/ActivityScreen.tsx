@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "preact/hooks";
+import { useMemo, useRef, useState, type Dispatch, type StateUpdater } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { FunnelX, SlidersHorizontal, X } from "@/components/icons";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
@@ -32,7 +32,15 @@ import "./TransactionDetailSheet.css";
 import "./ActivityScreen.css";
 
 interface ActivityScreenProps {
-  initialFilter: ActivityFilter | null;
+  /**
+   * Owned by App, not by this screen. Tabs unmount on switch, so local
+   * state seeded from a deep link re-seeded on every return: clearing a
+   * Debts drill-down's name, leaving and coming back brought the name
+   * back (bug 2026-11-11). Writing every edit up to App makes the filter
+   * the user last saw the one they return to.
+   */
+  filter: ActivityFilter;
+  setFilter: Dispatch<StateUpdater<ActivityFilter>>;
   onToast: (toast: ToastState) => void;
 }
 
@@ -44,9 +52,8 @@ interface ActivityScreenProps {
  * edit/delete. No swipe gestures — see TransactionRow.tsx's comment and
  * the Phase 11 status note in docs/renovation_version_1.txt.
  */
-export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) {
+export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenProps) {
   const transactions = useTransactions();
-  const [filter, setFilter] = useState<ActivityFilter>(initialFilter ?? emptyFilter());
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [openTransaction, setOpenTransaction] = useState<Transaction | null>(null);
 

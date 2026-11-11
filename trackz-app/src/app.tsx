@@ -40,6 +40,9 @@ export function App() {
   // passed to ActivityScreen as `key` — remounting resets the screen's
   // scroll position and internal state cleanly, and plain tab-switching
   // (which doesn't touch the nonce) leaves the screen's own state alone.
+  // The filter itself lives here and ActivityScreen writes every edit
+  // back: seeding the screen's local state from it instead re-applied a
+  // cleared deep-link search on every return to the tab.
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>(emptyFilter());
   const [activityFilterNonce, setActivityFilterNonce] = useState(0);
 
@@ -126,7 +129,12 @@ export function App() {
     <div class="app-shell">
       {activeTab === "home" && <HomeScreen onDrillDown={navigateToActivity} />}
       {activeTab === "activity" && (
-        <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />
+        <ActivityScreen
+          key={activityFilterNonce}
+          filter={activityFilter}
+          setFilter={setActivityFilter}
+          onToast={setToast}
+        />
       )}
       {activeTab === "accounts" && <AccountsScreen onDrillDown={navigateToActivity} />}
       {activeTab === "settings" && <SettingsScreen onToast={setToast} onDrillDown={navigateToActivity} />}
