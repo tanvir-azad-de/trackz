@@ -75,7 +75,6 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
         accounts={accounts}
         categories={categories}
         merchants={merchants}
-        errors={errors}
       />
     </Sheet>
   );

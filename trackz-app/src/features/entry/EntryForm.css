@@ -134,17 +134,6 @@ select.entry-form__input {
   background: var(--accent-bg);
 }
 
-.entry-form__errors {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  color: var(--negative);
-  font-size: var(--text-xs);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 /* The primary CTA in both sheets' footers (EntrySheet, TransactionDetailSheet). */
 .entry-form__save {
   background: var(--accent);

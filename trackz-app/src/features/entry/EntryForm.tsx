@@ -13,7 +13,6 @@ interface EntryFormProps {
   accounts: readonly Account[];
   categories: readonly Category[];
   merchants: readonly Merchant[];
-  errors: string[];
 }
 
 /**
@@ -27,8 +26,12 @@ interface EntryFormProps {
  * is hidden for the types that carry none (domain usesCategory): Transfer
  * shows To account alone in row 3, and Lent out / I owe show Merchant
  * (the person) alone, plus a full-width Direction row.
+ *
+ * No inline error list (user decision 2026-11-11): it appeared and grew
+ * as fields changed, shifting the sheet on every entry. The caller's
+ * disabled Save button is the only "not filled correctly" signal.
  */
-export function EntryForm({ draft, onChange, accounts, categories, merchants, errors }: EntryFormProps) {
+export function EntryForm({ draft, onChange, accounts, categories, merchants }: EntryFormProps) {
   // The raw text, not the parsed cents: re-deriving the field from
   // amountCents on every keystroke would turn a half-typed "12," into
   // "12,00" under the cursor. The form remounts with each sheet open
@@ -190,20 +193,6 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
           placeholder="Optional"
         />
       </label>
-
-      {/* Hidden while the amount is still blank: a fresh Add sheet would
-          otherwise open on a red "Enter an amount" before anything was
-          typed. Save stays disabled either way (the caller checks
-          errors, not this list), and once the amount is typed every
-          remaining problem shows. Not filtered by message text, which
-          would break silently the day validateDraft rewords it. */}
-      {errors.length > 0 && amountText.trim() !== "" && (
-        <ul class="entry-form__errors entry-form__full">
-          {errors.map((err) => (
-            <li key={err}>{err}</li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

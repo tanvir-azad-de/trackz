@@ -116,7 +116,6 @@ export function TransactionDetailSheet({
         accounts={accounts}
         categories={categories}
         merchants={merchants}
-        errors={errors}
       />
     </Sheet>
   );

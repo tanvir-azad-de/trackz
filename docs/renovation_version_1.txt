@@ -19,7 +19,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 30,975 bytes gzipped JS (+318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 30,942 bytes gzipped JS (-33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -46,6 +46,16 @@ have been wrong about something in every phase so far (see AGENTS.md's
   entry, CSV import/export, merchant merge, categories, Drive sync
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
+
+  ENTRY ERROR LIST REMOVED — 2026-11-11, NOT YET DEPLOYED. User
+  decision, after the keyboard fix passed on the iPhone (both bug fixes
+  below were confirmed on device via the dev server): EntryForm's
+  .entry-form__errors list appeared and grew as fields changed, shifting
+  the sheet on every entry. Removed with its CSS and EntryForm's `errors`
+  prop; both callers still run validateDraft and keep Save disabled, now
+  the only "not filled correctly" signal. Driven in Playwright at
+  390x844 @2x: sheet height 451px constant from open through amount,
+  account and category; Save disabled until all are set, then saves.
 
   TWO BUG FIXES — 2026-11-11, NOT YET DEPLOYED.
   1. iOS keyboard shift: Add sheet -> Amount -> Done left the app shifted

@@ -1,5 +1,8 @@
 # Device check: keyboard shift after Done (2026-11-11)
 
+Status: confirmed fixed on the iPhone via the dev server (2026-11-11);
+re-run on production after the deploy.
+
 Bug: on iPhone, Add sheet -> tap Amount -> keyboard up -> Done. The whole
 app stayed shifted up with a black band at the bottom until Home was opened.
 
