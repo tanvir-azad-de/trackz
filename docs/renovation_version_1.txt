@@ -28,7 +28,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = 17570b5, deployed
+  the same number rounded). Production = origin/main = 8c6a035, deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -59,7 +59,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  HOME BALANCE CARDS — DONE, NOT YET COMMITTED OR DEPLOYED (2026-11-11).
+  HOME BALANCE CARDS — DONE AND DEPLOYED 2026-11-11 (49422c2, 8c6a035;
+  live bundle index-BUdo477C.js carries the "8c6a035" stamp and
+  "balance-list", checked by curl; not yet checked on a real iPhone).
   User request, design approved from a throwaway HTML mockup first:
     - Removed entirely: the Liquid hero (number, same-day comparison line,
       Daily avg and Spent tiles) and the horizontal account strip. With
