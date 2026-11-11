@@ -88,7 +88,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
       Investments. Home's account strip badges any non-cash account.
     - dummyData/trackz-backup-2026-11-11.clean.csv = the 11-11 backup
       with the cell added; nothing else changed (row/id/cent sums checked).
-    - Open: docs/device-check-credit-cards.md.
+    - docs/device-check-credit-cards.md: DEVICE-VERIFIED 2026-11-11, all 7.
 
   6-MONTH CHART + ACTIVITY TWEAKS — DONE AND DEPLOYED 2026-11-11 (d63f0ae;
   the live bundle index-DNB92xpq.js contains "category-sheet", checked by curl).
