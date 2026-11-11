@@ -27,7 +27,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = fe9afdb, deployed
+  the same number rounded). Production = origin/main = b414d81, deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -58,7 +58,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  DELETE TOAST AT 1s — DONE 2026-11-11, NOT YET DEPLOYED. User request:
+  DELETE TOAST AT 1s — DONE AND DEPLOYED 2026-11-11 (b414d81; live bundle
+  index-3RplSNKI.js carries the "b414d81" version stamp and the 1s/500ms
+  durations, checked by curl). User request:
   delete toast 1s (was 5s); their call to KEEP its Undo, since a deleted
   row has nothing left to re-edit. Pure builder
   features/activity/deletedToast.ts takes the undo callback (no repository
@@ -70,7 +72,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   isEmpty() true, so a reload runs dev/seed.ts and loads the sample data.
   Seed a test with two rows if it deletes one.
 
-  EDIT TOAST WITHOUT UNDO — DONE 2026-11-11, NOT YET DEPLOYED. User
+  EDIT TOAST WITHOUT UNDO — DONE AND DEPLOYED 2026-11-11 (b414d81; live bundle
+  index-3RplSNKI.js carries the "b414d81" version stamp and the 1s/500ms
+  durations, checked by curl). User
   request: the "Updated …" toast after an edit shows for 500ms; their call
   to drop its Undo (unreachable in 500ms; a wrong edit is re-edited).
   Delete keeps its 5s Undo. Pure builder features/activity/updatedToast.ts,
