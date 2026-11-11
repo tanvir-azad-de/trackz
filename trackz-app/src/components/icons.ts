@@ -17,6 +17,7 @@ export {
   ChevronDown,
   ChevronRight,
   Delete,
+  FunnelX,
   House,
   List,
   Plus,

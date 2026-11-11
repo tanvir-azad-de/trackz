@@ -33,6 +33,7 @@
   --positive: #30d98a; /* income, surplus */
   --positive-bg: rgba(48, 217, 138, 0.14);
   --negative: #ff6b6b; /* expense, deficit */
+  --negative-strong: #ff9999; /* red on an accent-tinted fill (active month pill) */
   --negative-bg: rgba(255, 107, 107, 0.14);
   --neutral: #ffb454; /* transfers, lent/owed, attention */
   --neutral-bg: rgba(255, 180, 84, 0.14);

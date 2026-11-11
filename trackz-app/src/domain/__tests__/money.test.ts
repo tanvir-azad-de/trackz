@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addCents, centsToFixed, formatEUR, toCents } from "@/domain/money";
+import { addCents, centsToFixed, formatCompactEUR, formatEUR, toCents } from "@/domain/money";
 
 describe("money (integer cents)", () => {
   it("converts decimal strings to exact cents", () => {
@@ -21,5 +21,18 @@ describe("money (integer cents)", () => {
   it("centsToFixed renders without a currency symbol", () => {
     expect(centsToFixed(123456)).toBe("1234.56");
     expect(centsToFixed(-500)).toBe("5.00"); // caller applies sign separately
+  });
+
+  it("formatCompactEUR: whole euros under 1.000 €, one-decimal k from there", () => {
+    expect(formatCompactEUR(0)).toBe("0 €");
+    expect(formatCompactEUR(85049)).toBe("850 €");
+    expect(formatCompactEUR(99949)).toBe("999 €");
+    // 999,60 € rounds to 1000 € and must switch to k, not print "1000 €".
+    expect(formatCompactEUR(99960)).toBe("1,0k €");
+    expect(formatCompactEUR(123456)).toBe("1,2k €");
+    expect(formatCompactEUR(1234567)).toBe("12,3k €");
+    expect(formatCompactEUR(-123456)).toBe("-1,2k €");
+    expect(formatCompactEUR(-0)).toBe("0 €");
+    expect(formatCompactEUR(-40)).toBe("0 €");
   });
 });

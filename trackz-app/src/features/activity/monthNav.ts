@@ -1,4 +1,5 @@
 import type { MonthGroup } from "@/features/activity/group";
+import { shortMonthName } from "@/domain/dates";
 
 /**
  * Pure half of the Activity month pills (2026-11-10, approved as
@@ -6,15 +7,10 @@ import type { MonthGroup } from "@/features/activity/group";
  * wiring in ActivityList.tsx are the thin half.
  */
 
-// A fixed table, not Intl: en-GB's short September is "Sept", which would
-// make one pill wider than its neighbours and break the "Nov / Oct / Sep"
-// rhythm the mockup was approved with.
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 /** "Nov" in `today`'s year, "Dec 2025" in any other. `monthKey` is "YYYY-MM". */
 export function monthPillLabel(monthKey: string, today: string): string {
-  const name = SHORT_MONTHS[Number(monthKey.slice(5, 7)) - 1];
-  return monthKey.slice(0, 4) === today.slice(0, 4) ? name! : `${name} ${monthKey.slice(0, 4)}`;
+  const name = shortMonthName(monthKey);
+  return monthKey.slice(0, 4) === today.slice(0, 4) ? name : `${name} ${monthKey.slice(0, 4)}`;
 }
 
 /**

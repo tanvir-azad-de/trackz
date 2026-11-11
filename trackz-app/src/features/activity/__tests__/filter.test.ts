@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
 import {
+  clearFacets,
   activeFacetCount,
   emptyFilter,
   filterTransactions,
@@ -40,6 +41,21 @@ beforeAll(() => {
   expect(result.errors).toEqual([]);
   transactions = result.transactions;
   referenceTotals = JSON.parse(readFileSync(referenceTotalsPath, "utf-8"));
+});
+
+describe("clearFacets", () => {
+  it("clears every facet and keeps the search text", () => {
+    const f = clearFacets({
+      query: "rewe",
+      accounts: ["ADVZ"],
+      categories: ["Groceries"],
+      categoryTypes: ["expense"],
+      from: "2026-10-01",
+      to: "2026-10-31",
+    });
+    expect(f).toEqual({ ...emptyFilter(), query: "rewe" });
+    expect(activeFacetCount(f)).toBe(0);
+  });
 });
 
 describe("normalizeForSearch", () => {

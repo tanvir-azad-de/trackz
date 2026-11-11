@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
-import { SlidersHorizontal } from "@/components/icons";
+import { FunnelX, SlidersHorizontal, X } from "@/components/icons";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
 import { getLocalToday } from "@/domain/dates";
 import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
 import { deleteTransaction, updateTransaction, undeleteTransaction } from "@/storage/repository";
 import {
+  activeFacetCount,
+  clearFacets,
   emptyFilter,
   filterTransactions,
   isFilterActive,
@@ -57,9 +59,13 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
 
   const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter]);
   const months = useMemo(() => groupByMonthAndDay(filtered), [filtered]);
-  const monthKeys = useMemo(() => months.map((m) => m.monthKey), [months]);
+  // MonthGroup.netCents is the sum of the month's day-card nets (group.ts
+  // builds both from the same rows), so a pill follows the active filter
+  // exactly like the cards below it.
+  const pillItems = useMemo(() => months.map((m) => ({ monthKey: m.monthKey, cents: m.netCents })), [months]);
 
   const headerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [activeMonth, setActiveMonth] = useState<string | null>(null);
   const [jump, setJump] = useState<MonthJump | null>(null);
 
@@ -107,19 +113,40 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
 
   const noTransactionsAtAll = transactions.length === 0;
   const filterIsActive = isFilterActive(filter);
+  const hasFacets = activeFacetCount(filter) > 0;
+
+  function handleClearSearch() {
+    setFilter((f) => ({ ...f, query: "" }));
+    // Tapping the button blurs the input; give focus back so the next
+    // search can be typed straight away.
+    searchRef.current?.focus();
+  }
 
   return (
     <main class="activity-screen">
 
       <div class="activity-screen__sticky-header" ref={headerRef}>
         <div class="activity-screen__controls">
-          <input
-            type="search"
-            class="activity-screen__search"
-            placeholder="Search merchant, category, notes…"
-            value={filter.query}
-            onInput={(e) => setFilter((f) => ({ ...f, query: e.currentTarget.value }))}
-          />
+          <div class="activity-screen__search-wrap">
+            <input
+              ref={searchRef}
+              type="search"
+              class="activity-screen__search"
+              placeholder="Search merchant, category, notes…"
+              value={filter.query}
+              onInput={(e) => setFilter((f) => ({ ...f, query: e.currentTarget.value }))}
+            />
+            {filter.query !== "" && (
+              <button
+                type="button"
+                class="activity-screen__search-clear"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+              >
+                <X size="1em" />
+              </button>
+            )}
+          </div>
           <button
             type="button"
             class="activity-screen__filter-button"
@@ -129,10 +156,20 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
             <SlidersHorizontal size="1em" />
             {filterIsActive && <span class="activity-screen__filter-badge" />}
           </button>
+          {hasFacets && (
+            <button
+              type="button"
+              class="activity-screen__filter-button"
+              onClick={() => setFilter(clearFacets)}
+              aria-label="Reset filters"
+            >
+              <FunnelX size="1em" />
+            </button>
+          )}
         </div>
 
-        {monthKeys.length > 0 && (
-          <MonthPills monthKeys={monthKeys} active={activeMonth} today={today} onPick={handlePickMonth} />
+        {months.length > 0 && (
+          <MonthPills items={pillItems} tone="net" active={activeMonth} today={today} onPick={handlePickMonth} />
         )}
       </div>
 

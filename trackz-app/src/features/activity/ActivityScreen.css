@@ -32,14 +32,49 @@
   margin-bottom: var(--space-3);
 }
 
+.activity-screen__search-wrap {
+  position: relative;
+  flex: 1;
+  /* min-width: 0 lets the wrap shrink when the reset button appears;
+     a flex item's default min-width: auto would push Filter off-screen. */
+  min-width: 0;
+  display: flex;
+}
+
 .activity-screen__search {
   flex: 1;
+  min-width: 0;
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+  /* After the shorthand, so it wins: room for the clear button so typed
+     text never runs under it. */
+  padding-right: var(--touch-target-min);
   color: var(--text-primary);
   min-height: var(--touch-target-min);
+}
+
+/* Safari/Chrome draw their own cancel glyph on type="search"; with the
+   custom clear button that would be two X's side by side. */
+.activity-screen__search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.activity-screen__search-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--touch-target-min);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-lg);
 }
 
 .activity-screen__search::placeholder {

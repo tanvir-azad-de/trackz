@@ -1,10 +1,10 @@
-import { useMemo } from "preact/hooks";
+import { useCallback, useMemo, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
   getAccountBalances,
   getCategoryDeltasForMonth,
-  getCumulativeExpenseSeries,
+  getMonthlyExpenseSeries,
   getDailyExpenseAvgCents,
   getLiquidCashCents,
   getLiquidVsSameDayAverage,
@@ -17,10 +17,15 @@ import { emptyFilter } from "@/features/activity/filter";
 import { HeroCard } from "./HeroCard";
 import { AccountStrip } from "./AccountStrip";
 import { SpendChart } from "./SpendChart";
+import { CategorySheet } from "./CategorySheet";
 import { InsightFeed } from "./InsightFeed";
 import "./HeroCard.css";
 import "./AccountStrip.css";
 import "./SpendChart.css";
+import "@/components/Sheet.css";
+import "@/features/activity/MonthPills.css";
+import "@/features/entry/EntryForm.css";
+import "./CategorySheet.css";
 import "./InsightFeed.css";
 import "./HomeScreen.css";
 
@@ -31,6 +36,10 @@ interface HomeScreenProps {
 
 export function HomeScreen({ onDrillDown }: HomeScreenProps) {
   const transactions = useTransactions();
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+  // Stable identity: Sheet re-runs its scroll-lock effect whenever onClose
+  // changes, and Home re-renders on every storage change.
+  const closeCategorySheet = useCallback(() => setCategorySheetOpen(false), []);
   const accountTypes = useAccountTypes();
 
   const data = useMemo(() => {
@@ -54,7 +63,7 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     const dailyExpenseAvgCents = getDailyExpenseAvgCents(transactions, today);
     const liquidComparison = getLiquidVsSameDayAverage(transactions, accountTypes, liquidCashCents, today);
     const dayOfMonth = Number(today.slice(8, 10));
-    const spendSeries = getCumulativeExpenseSeries(transactions, today);
+    const spendSeries = getMonthlyExpenseSeries(transactions, insightMonthKey, 6, today);
 
     return { today, spendSeries, summary, liquidCashCents, liquidComparison, dayOfMonth, dailyExpenseAvgCents, accounts, deltas, insightMonthKey };
   }, [transactions, accountTypes]);
@@ -104,10 +113,17 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
         expenseCents={data.summary.expenseCents}
       />
       <AccountStrip accounts={data.accounts} />
-      <h2 class="home-screen__section-title">Spending this month</h2>
-      <SpendChart series={data.spendSeries} today={data.today} />
+      <h2 class="home-screen__section-title">Spending, last 6 months</h2>
+      <SpendChart series={data.spendSeries} onOpen={() => setCategorySheetOpen(true)} />
       <h2 class="home-screen__section-title">What changed this month</h2>
       <InsightFeed deltas={data.deltas} onSelectCategory={onDrillDown ? handleDrillDown : undefined} />
+      <CategorySheet
+        open={categorySheetOpen}
+        onClose={closeCategorySheet}
+        transactions={transactions}
+        series={data.spendSeries}
+        today={data.today}
+      />
     </main>
   );
 }

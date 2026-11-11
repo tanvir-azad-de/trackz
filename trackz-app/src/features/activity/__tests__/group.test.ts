@@ -104,6 +104,24 @@ describe("groupByMonthAndDay", () => {
     expect(groups[0]!.netCents).toBe(2000);
   });
 
+  it("month netCents (the month pill's figure) is the exact sum of its day cards' nets", () => {
+    const txs = [
+      makeTx({ id: "1", date: "2026-10-17", cashflow: "out", categoryType: "expense", amountCents: 1234 }),
+      makeTx({ id: "2", date: "2026-10-17", cashflow: "in", categoryType: "income", amountCents: 500 }),
+      makeTx({ id: "3", date: "2026-10-03", cashflow: "out", categoryType: "non_expense", amountCents: 2001 }),
+      makeTx({ id: "4", date: "2026-10-01", cashflow: "none", categoryType: "transfer", amountCents: 9999, destinationAccount: "Cash" }),
+    ];
+    const [october] = groupByMonthAndDay(txs);
+    expect(october!.days.map((d) => d.netCents)).toEqual([-734, -2001, 0]);
+    expect(october!.netCents).toBe(-2735);
+  });
+
+  it.skipIf(!hasFixture)("every real month's pill net equals the sum of its day nets", () => {
+    for (const month of groupByMonthAndDay(filterTransactions(transactions, emptyFilter()))) {
+      expect(month.netCents).toBe(month.days.reduce((sum, d) => sum + d.netCents, 0));
+    }
+  });
+
   it.skipIf(!hasFixture)("re-grouping all real October 2026 transactions matches an independently-computed day count", () => {
     const octoberTxs = filterTransactions(transactions, { ...emptyFilter(), from: "2026-10-01", to: "2026-10-17" });
     const groups = groupByMonthAndDay(octoberTxs);

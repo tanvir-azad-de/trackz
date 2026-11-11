@@ -13,6 +13,8 @@ interface SheetProps {
    * and needs a background to hide the rows passing beneath.
    */
   footer?: ComponentChildren;
+  /** Extra class on .sheet, for a per-sheet size (CategorySheet's fixed height). */
+  class?: string;
 }
 
 /**
@@ -27,7 +29,7 @@ interface SheetProps {
  *   page behind a fixed-position sheet from scrolling on iOS).
  * - max-height 85dvh with internal scroll, safe-area bottom padding.
  */
-export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
+export function Sheet({ open, onClose, title, children, footer, class: className }: SheetProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -50,7 +52,7 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
   return (
     <div class="sheet-backdrop" onClick={onClose}>
       <div
-        class="sheet"
+        class={className ? `sheet ${className}` : "sheet"}
         role="dialog"
         aria-modal="true"
         aria-label={title}

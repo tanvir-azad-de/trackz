@@ -1,21 +1,43 @@
 import { useEffect, useRef } from "preact/hooks";
 import { monthPillLabel } from "@/features/activity/monthNav";
+import type { Cents } from "@/domain/money";
+import { Money } from "@/components/Money";
+
+export interface MonthPillItem {
+  /** "YYYY-MM". */
+  monthKey: string;
+  cents: Cents;
+}
 
 interface MonthPillsProps {
-  /** "YYYY-MM", newest first: only months present in the current (filtered) list. */
-  monthKeys: readonly string[];
+  /** Newest first. */
+  items: readonly MonthPillItem[];
   active: string | null;
   today: string;
   onPick: (monthKey: string) => void;
+  /**
+   * "net": a signed net, green when money came in and red when it went
+   * out (Activity: the month's net, the sum of its day cards' nets).
+   * "expense": a spending total, unsigned and red when non-zero (Home's
+   * category sheet: the same figure as the chart point).
+   */
+  tone: "net" | "expense";
+}
+
+function amountClass(cents: Cents, tone: MonthPillsProps["tone"]): string {
+  if (cents === 0) return "";
+  if (tone === "expense") return "month-pills__amount--negative";
+  return cents > 0 ? "month-pills__amount--positive" : "month-pills__amount--negative";
 }
 
 /**
- * Horizontally scrolling month pills under Activity's search row
- * (2026-11-10, docs/mockups/activity-month-pills.html). Highlights the
- * month in view and jumps to a month on tap; ActivityList does both of
- * those, this only renders and keeps the active pill in view.
+ * Horizontally scrolling month pills: under Activity's search row
+ * (2026-11-10, docs/mockups/activity-month-pills.html; restyled
+ * 2026-11-11 from the user's two-span mockup) and atop Home's category
+ * sheet. Highlights `active` and reports taps; the caller owns what a tap
+ * means. This only renders and keeps the active pill in view.
  */
-export function MonthPills({ monthKeys, active, today, onPick }: MonthPillsProps) {
+export function MonthPills({ items, active, today, onPick, tone }: MonthPillsProps) {
   const stripRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -30,7 +52,7 @@ export function MonthPills({ monthKeys, active, today, onPick }: MonthPillsProps
 
   return (
     <nav class="month-pills" ref={stripRef} aria-label="Jump to month">
-      {monthKeys.map((key) => (
+      {items.map(({ monthKey: key, cents }) => (
         <button
           key={key}
           type="button"
@@ -38,7 +60,8 @@ export function MonthPills({ monthKeys, active, today, onPick }: MonthPillsProps
           aria-current={key === active ? "true" : undefined}
           onClick={() => onPick(key)}
         >
-          {monthPillLabel(key, today)}
+          <span class="month-pills__month">{monthPillLabel(key, today)}</span>
+          <Money cents={cents} signed={tone === "net"} class={`month-pills__amount ${amountClass(cents, tone)}`} />
         </button>
       ))}
     </nav>

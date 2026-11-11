@@ -1,0 +1,112 @@
+/* Fixed height, whatever the month holds (user request 2026-11-11):
+   switching between a 15-category month and an empty one used to resize
+   the sheet under the user's thumb, moving the pills they were tapping.
+   height, not min-height: .sheet's max-height is the same 85dvh, and the
+   content keeps scrolling inside because .sheet__content has min-height:
+   0 and overflow-y: auto. flex: 1 makes the content fill the space, so a
+   short list leaves the empty room at the bottom instead of collapsing
+   the content box. */
+.category-sheet {
+  height: 85dvh;
+}
+
+.category-sheet .sheet__content {
+  flex: 1 1 auto;
+  /* The list scrolls in .category-sheet__scroll instead, so the pills
+     stay pinned. visible, not hidden: it also stops this box clipping the
+     pill strip's edge bleed, so the strip reaches the sheet edge as it
+     reaches the screen edge on Activity. */
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+.category-sheet__pills {
+  flex: 0 0 auto;
+}
+
+.category-sheet__scroll {
+  flex: 1 1 auto;
+  /* min-height: 0 lets this flex child shrink below its content so it
+     scrolls; the default min-height: auto would grow it past the sheet. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.category-sheet__pills {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-5);
+}
+
+.category-sheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.category-sheet__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.category-sheet__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.category-sheet__name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-sheet__stats {
+  display: flex;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+}
+
+.category-sheet__total {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.category-sheet__percent {
+  /* Fixed width so the totals line up in a column whatever the percent. */
+  width: 48px;
+  text-align: right;
+  color: var(--text-secondary);
+}
+
+.category-sheet__track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.category-sheet__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--negative);
+}
+
+.category-sheet__empty {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  text-align: center;
+  padding: var(--space-8) 0;
+}

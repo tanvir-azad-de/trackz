@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCumulativeExpenseSeries, getDailyExpenseAvgCents, getLiquidVsSameDayAverage, summarizeMonth } from "@/insights/engine";
+import { getDailyExpenseAvgCents, getLiquidVsSameDayAverage, getMonthlyExpenseSeries, summarizeMonth } from "@/insights/engine";
 import type { Cashflow, CategoryType, Transaction } from "@/domain/transaction";
 
 /**
@@ -105,21 +105,35 @@ describe("getLiquidVsSameDayAverage", () => {
   });
 });
 
-describe("getCumulativeExpenseSeries", () => {
-  it("runs from 0 through each day up to today, expense rows only", () => {
-    const txs = [
-      row("2026-11-01", "expense", "out", 1000),
-      row("2026-11-03", "expense", "out", 250),
-      row("2026-11-03", "expense", "out", 50),
-      row("2026-11-02", "non_expense", "out", 9999),
-      row("2026-11-02", "income", "in", 9999),
-      row("2026-10-31", "expense", "out", 9999),
-      row("2026-11-05", "expense", "out", 9999),
-    ];
-    expect(getCumulativeExpenseSeries(txs, "2026-11-04")).toEqual([0, 1000, 1000, 1300, 1300]);
+describe("getMonthlyExpenseSeries", () => {
+  const txs = [
+    row("2026-11-01", "expense", "out", 1000),
+    row("2026-11-03", "expense", "out", 250),
+    row("2026-11-02", "non_expense", "out", 9999),
+    row("2026-11-02", "income", "in", 9999),
+    // Later than today: must not reach the November point.
+    row("2026-11-05", "expense", "out", 7777),
+    row("2026-10-31", "expense", "out", 400),
+    // A refund booked as a negative expense row nets against the month.
+    row("2026-09-10", "expense", "out", 2000),
+    row("2026-09-11", "expense", "out", -300),
+    // Older than the 6-month window.
+    row("2026-05-31", "expense", "out", 5555),
+  ];
+
+  it("gives six months oldest first, the last capped at today", () => {
+    expect(getMonthlyExpenseSeries(txs, "2026-11", 6, "2026-11-04")).toEqual([
+      { monthKey: "2026-06", expenseCents: 0 },
+      { monthKey: "2026-07", expenseCents: 0 },
+      { monthKey: "2026-08", expenseCents: 0 },
+      { monthKey: "2026-09", expenseCents: 1700 },
+      { monthKey: "2026-10", expenseCents: 400 },
+      { monthKey: "2026-11", expenseCents: 1250 },
+    ]);
   });
 
-  it("is [0, 0] on the 1st with nothing logged, so the line still draws", () => {
-    expect(getCumulativeExpenseSeries([], "2026-11-01")).toEqual([0, 0]);
+  it("ends at the hero's Spent figure for the same today", () => {
+    const series = getMonthlyExpenseSeries(txs, "2026-11", 6, "2026-11-04");
+    expect(series[5]!.expenseCents).toBe(summarizeMonth(txs, "2026-11", "2026-11-04").expenseCents);
   });
 });

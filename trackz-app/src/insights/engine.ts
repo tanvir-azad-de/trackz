@@ -253,12 +253,18 @@ export function getMostSurprisingDeltas(deltas: CategoryDelta[], limit = 4): Cat
     .slice(0, limit);
 }
 
-/** Per-category expense ranking for a month, for the "where it went" bar list. */
-export function getTopCategoriesForMonth(transactions: Transaction[], monthKey: string, limit = 5) {
+/**
+ * Per-category expense ranking for a month, biggest first: Home's
+ * category sheet (2026-11-11). `asOfDate` caps the current month at today,
+ * like summarizeMonth, so the categories add up to the chart point and
+ * the Spent tile rather than counting a later-dated row.
+ */
+export function getTopCategoriesForMonth(transactions: Transaction[], monthKey: string, limit = 5, asOfDate?: string) {
   const totals = new Map<string, Cents>();
   for (const tx of transactions) {
     if (tx.categoryType !== "expense") continue;
     if (toMonthKey(tx.date) !== monthKey) continue;
+    if (asOfDate && tx.date > asOfDate) continue;
     totals.set(tx.category, addCents(totals.get(tx.category) ?? 0, tx.amountCents));
   }
   return [...totals.entries()]
@@ -388,45 +394,30 @@ export function getTotalAssetsCents(transactions: Transaction[]): Cents {
 }
 
 /**
- * Running total of this month's expense, for Home's spending chart (Phase
- * 14, user decision 2026-11-10: one chart, a running-total line). Index d
- * is the total through day d of today's month, index 0 is 0, so the line
- * starts from nothing and still draws on the 1st (uPlot draws no line
- * through a single point). Ends at today: later-dated rows are excluded,
- * matching the hero's Spent tile, so the line's end equals that figure.
- * categoryType "expense" only, for the same reason as summarizeMonth.
+ * Expense totals for the `months` months ending at (and including)
+ * monthKey, oldest first: Home's 6-month chart (user decision 2026-11-11,
+ * replacing Phase 14's running-total line for this month only).
+ *
+ * Each month goes through summarizeMonth, so the sign convention and the
+ * expense-only rule are that function's, not a second copy here. (The
+ * previous body summed raw tx.amountCents. For expense rows that is the
+ * same number, since net-worth signs an expense as -amountCents, checked
+ * by mutation. The reuse buys one definition, not a fix.) `asOfDate` caps the current month at today: without it a later-dated
+ * row lands in the last point, and the point stops equalling the hero's
+ * Spent tile, which is summarizeMonth(..., today).
  */
-export function getCumulativeExpenseSeries(transactions: Transaction[], today: string): Cents[] {
-  const monthKey = toMonthKey(today);
-  const days = Number(today.slice(8, 10));
-  const perDay: Cents[] = new Array(days + 1).fill(0);
-  for (const tx of transactions) {
-    if (tx.categoryType !== "expense" || toMonthKey(tx.date) !== monthKey || tx.date > today) continue;
-    const d = Number(tx.date.slice(8, 10));
-    perDay[d] = addCents(perDay[d]!, -getSignedAmountCents(tx, { kind: "net-worth" }));
-  }
-  for (let d = 1; d <= days; d++) perDay[d] = addCents(perDay[d - 1]!, perDay[d]!);
-  return perDay;
-}
-
-/** Monthly expense totals for N months ending at (and including) monthKey — feeds the sparkline. */
 export function getMonthlyExpenseSeries(
   transactions: Transaction[],
   monthKey: string,
   months = 6,
+  asOfDate?: string,
 ): Array<{ monthKey: string; expenseCents: Cents }> {
-  const keys: string[] = [];
-  for (let i = months - 1; i >= 0; i--) keys.push(shiftMonthKey(monthKey, -i));
-
-  const totals = new Map<string, Cents>();
-  for (const tx of transactions) {
-    if (tx.categoryType !== "expense") continue;
-    const txMonth = toMonthKey(tx.date);
-    if (!keys.includes(txMonth)) continue;
-    totals.set(txMonth, addCents(totals.get(txMonth) ?? 0, tx.amountCents));
+  const series: Array<{ monthKey: string; expenseCents: Cents }> = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const key = shiftMonthKey(monthKey, -i);
+    series.push({ monthKey: key, expenseCents: summarizeMonth(transactions, key, asOfDate).expenseCents });
   }
-
-  return keys.map((k) => ({ monthKey: k, expenseCents: totals.get(k) ?? 0 }));
+  return series;
 }
 
 // re-exported for convenience at call sites that build their own ranges

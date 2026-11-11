@@ -31,6 +31,15 @@ export function emptyFilter(): ActivityFilter {
   return { query: "", accounts: [], categories: [], categoryTypes: [], from: "", to: "" };
 }
 
+/**
+ * The reset button beside Filter (user decision 2026-11-11): clears every
+ * facet but keeps the search text, which has its own clear button. Using
+ * emptyFilter() alone would also wipe a query the user is still reading.
+ */
+export function clearFacets(filter: ActivityFilter): ActivityFilter {
+  return { ...emptyFilter(), query: filter.query };
+}
+
 /** Number of distinct filter facets in use — drives the filter button's badge. Search is not counted (it has its own visible input). */
 export function activeFacetCount(filter: ActivityFilter): number {
   let count = 0;

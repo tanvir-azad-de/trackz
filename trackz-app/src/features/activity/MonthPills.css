@@ -16,21 +16,52 @@
 
 .month-pills__pill {
   flex: 0 0 auto;
-  /* 36px tall: below the 44px touch minimum, but each pill is wider
-     than 44 and they are spaced 8px apart, matching the approved mockup. */
-  height: 36px;
-  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* 40px tall: below the 44px touch minimum, but each pill is far wider
+     than 44 and they are spaced 8px apart. */
+  height: 40px;
+  padding: 0 18px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-1);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  /* Transparent rather than --border-subtle (user mockup 2026-11-11): the
+     surface-2 fill already separates a pill from the page, and keeping a
+     1px border on every state stops the active pill from jumping 1px. */
+  border: 1px solid transparent;
+  background: var(--surface-2);
+  font-size: 15px;
   white-space: nowrap;
+}
+
+.month-pills__month {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.month-pills__amount {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.month-pills__amount--positive {
+  color: var(--positive);
+}
+
+.month-pills__amount--negative {
+  color: var(--negative);
 }
 
 .month-pills__pill[aria-current="true"] {
   background: var(--accent-bg);
   border-color: var(--accent);
-  color: var(--accent-strong);
+}
+
+.month-pills__pill[aria-current="true"] .month-pills__month {
+  color: var(--text-primary);
+}
+
+/* The mockup lightens red on the active pill: plain --negative on the
+   purple tint is the lowest-contrast pair in the strip. */
+.month-pills__pill[aria-current="true"] .month-pills__amount--negative {
+  color: var(--negative-strong);
 }

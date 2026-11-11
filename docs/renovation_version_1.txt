@@ -12,11 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 466 tests passing (+5 from the Phase 14 chart; +12 from the
+  Baseline: 478 tests passing (+5 from the category sheet; +7 from the
+  6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 54,438 bytes gzipped JS (+34 from the tab scroll reset; -35 from the Accounts date fix; +243
+  build 55,777 bytes gzipped JS (+31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
+  restyle; +707 from the 6-month chart + Activity
+  tweaks, against a 54,437 rebuild of 9d052ec; +34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
   the hero rework, measured
   against a 53,904 rebuild of 7c0ff7d; +229 from round 2; -748 from the rework; +2,399 from
@@ -53,6 +56,95 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  6-MONTH CHART + ACTIVITY TWEAKS — DONE 2026-11-11, NOT YET DEPLOYED.
+  User requests, decisions are theirs:
+    - Home's chart is now total expense for each of the last 6 months,
+      this month so far as the last point, amount above each point and
+      "Jun".."Nov" below (their reference HTML). This SUPERSEDES the
+      Phase 14 running-total line below. getCumulativeExpenseSeries was
+      deleted. getMonthlyExpenseSeries now goes through summarizeMonth
+      with an asOfDate cap, so the last point equals the Spent tile.
+      The plan called its old raw-amountCents sum a sign bug. Mutation
+      showed it is not: net-worth signs an expense as -amountCents, so
+      the two sums are identical. The reuse buys one definition, not a fix.
+      The chart is plain inline SVG (SpendChart.tsx + pure
+      chartGeometry.ts), not Sparkline: uPlot's canvas has no text labels.
+      Labels use formatCompactEUR ("850 €", "1,2k €"; user chose compact
+      over whole euros and cents). The title is "Spending, last 6 months".
+      The month name table moved to domain/dates.ts shortMonthName.
+      Value labels get a card-coloured halo, because a steep drop runs
+      the line through the next label.
+    - Activity: a FunnelX "Reset filters" button right of Filter, shown
+      only when a facet is set. It clears facets and keeps the search
+      text (clearFacets; user decision). The filter badge still lights
+      for a search query alone, as before.
+    - Activity: an X inside the search field when it has text. It
+      clears the text and refocuses the input. The native
+      ::-webkit-search-cancel-button is hidden so there are not two X's.
+    - Month pills read "Oct · -1.234,56 €"-style. The figure is
+      MonthGroup.netCents, which is the sum of the day-card nets and
+      follows the active filter.
+  Mutation-tested: 7. The today cap, k threshold, clearFacets query,
+  zero-guard, negative clamp and month net were all caught. The
+  "sign fix" survived, as explained above. Playwright (live dev,
+  390x844 @2x, dev seed):
+    - chart months Jun..Nov, no value-label overlap, page width 390;
+    - the first pill's net equals the summed day nets to the cent;
+    - clear X is 44x44, empties the input, keeps focus;
+    - reset appears only after a facet, keeps the query, and is 44x44
+      without horizontal scroll.
+  iPhone-only, open: whether refocusing after Clear keeps the iOS
+  keyboard up (docs/device-check-activity-tweaks.md).
+  Same day, second round (user mockups, decisions are theirs):
+    - Month pills restyled as two spans: grey month, then the amount
+      coloured by sign (--positive / --negative). surface-2 fill,
+      transparent 1px border, 40px tall. The active pill is accent-bg with
+      an --accent border; its red lightens to the new --negative-strong
+      token. MonthPills is now generic (items + tone "net" | "expense"),
+      and ActivityScreen maps MonthGroup.netCents into it.
+    - Tapping the Home chart opens CategorySheet (originally with no CTAs;
+      see the OK entry below).
+      Its 6 pills show each month's EXPENSE total (the chart point, so
+      the bars add up to it; user chose this over the mockup's net).
+      Below them, every expense category of the picked month, biggest
+      first, with amount, share and a bar. All bars are --negative (user
+      chose one colour over a per-category palette). It always opens on
+      the current month (user choice). getTopCategoriesForMonth gained
+      an asOfDate cap; categoryShares/formatPercent are the pure half.
+      Measured: 8-15 expense categories per month, so there is no cap.
+    - Two bugs found in Playwright and fixed:
+      a. resetting the month on OPEN drew the previous month for a
+         frame, so it now resets on close;
+      b. the strip's edge bleed is clipped by .sheet__content's
+         overflow, so the bleed is zeroed inside the sheet.
+    Mutation-tested: 5, all caught. Playwright: rows sum to the active
+    pill to the cent for the picked month, sorted descending, no
+    horizontal scroll, backdrop closes it, and a reopen is on Nov.
+    The Nov empty state was seen only because the dev seed ends in
+    October.
+    - CategorySheet has a FIXED height of 85dvh (user request): it no
+      longer resizes when switching between a 15-category month and an
+      empty one. Sheet gained an optional `class` prop for this; other
+      sheets are unchanged. Playwright: 717px at 844 for an empty month,
+      15 rows and 8 rows; the 15-row list scrolls inside.
+    - CategorySheet gained a pinned OK that only closes it (user
+      request; this supersedes "no CTAs" above). It sits in Sheet's footer
+      slot with the shared entry-form__save style. Playwright: the OK
+      button stays at y=780 (348x44) before and after scrolling the list
+      to the end, and tapping it closes the sheet.
+    - The sheet's month pills are pinned (user request); only the
+      category list scrolls, in .category-sheet__scroll. .sheet__content
+      is overflow: visible here, which also gives back the strip's edge
+      bleed, so the zero-bleed rule from fix b above was deleted.
+      Switching month scrolls the list back to the top.
+      Playwright, using real wheel events:
+        - over the list it scrolls 0 -> 327 while the pills stay at y=202
+          and OK at y=780;
+        - over the pills nothing scrolls vertically;
+        - .sheet__content never overflows (566/566);
+        - the strip spans 1..389;
+        - after switching month the list is back at 0.
 
   HOME HERO REWORK — DONE AND DEPLOYED 2026-11-10 (ff26f40; the live
   bundle contains "month avg for the", checked by curl). The user found
@@ -391,7 +483,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
     [Oct 2025]. Bundle 51,393 -> 52,020 bytes gzipped (+627).
 
   NOT DONE — the numbered phases left:
-    - Phase 14 (charts). DONE AND DEPLOYED 2026-11-10 (014ae5d). User
+    - Phase 14 (charts). DONE AND DEPLOYED 2026-11-10 (014ae5d).
+      SUPERSEDED 2026-11-11 by the 6-month chart (see the entry at the
+      top of this section); the Sparkline bug fixes below still stand. User
       decisions, which supersede the original plan and the context
       below: ONE chart, on Home, a running-total line of this month's
       expense, placed between the account strip and "What changed this

@@ -55,3 +55,23 @@ export function addCents(...values: Cents[]): Cents {
 export function isZeroCents(cents: Cents): boolean {
   return cents === 0;
 }
+
+/**
+ * Short EUR for chart labels (Home's 6-month chart, user decision
+ * 2026-11-11): whole euros under 1.000 €, otherwise thousands to one
+ * decimal with a "k" — "850 €", "1,2k €", "12,0k €". Hand-rolled because
+ * de-DE Intl compact notation does not abbreviate thousands at all.
+ *
+ * The threshold is tested on ROUNDED euros, not raw cents: 999,60 € rounds
+ * to 1000, and testing cents < 100000 would print "1000 €" — wider than
+ * the "1,0k €" it should be, which is the overlap this format exists to
+ * avoid.
+ */
+export function formatCompactEUR(cents: Cents): string {
+  if (!Number.isFinite(cents)) return "0 €";
+  const sign = cents < 0 && Math.round(Math.abs(cents) / 100) !== 0 ? "-" : "";
+  const euros = Math.round(Math.abs(cents) / 100);
+  if (euros < 1000) return `${sign}${euros} €`;
+  const tenthsOfK = Math.round(euros / 100);
+  return `${sign}${Math.trunc(tenthsOfK / 10)},${tenthsOfK % 10}k €`;
+}

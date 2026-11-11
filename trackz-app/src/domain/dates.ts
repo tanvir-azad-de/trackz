@@ -39,6 +39,17 @@ export function isValidISODate(value: string): value is ISODate {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
+// A fixed table, not Intl: en-GB's short September is "Sept", which would
+// make one label wider than its neighbours and break the "Nov / Oct / Sep"
+// rhythm the Activity month pills were approved with. Home's 6-month chart
+// labels use it too.
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** "Sep" for "2026-09". */
+export function shortMonthName(monthKey: string): string {
+  return SHORT_MONTHS[Number(monthKey.slice(5, 7)) - 1]!;
+}
+
 /** Add (or subtract, with a negative count) whole months to a "YYYY-MM" key, DST-safe. */
 export function shiftMonthKey(monthKey: string, count: number): string {
   const [y, m] = monthKey.split("-").map(Number) as [number, number];

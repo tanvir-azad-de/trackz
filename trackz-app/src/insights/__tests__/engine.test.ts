@@ -13,7 +13,6 @@ import {
   getPayableBalances,
   getReceivableBalances,
   getTopCategoriesForMonth,
-  getCumulativeExpenseSeries,
   getDailyExpenseAvgCents,
   getLiquidVsSameDayAverage,
   getTotalAssetsCents,
@@ -74,10 +73,10 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
     expect(getDailyExpenseAvgCents(transactions, want.dailyExpenseAvg.today)).toBe(want.dailyExpenseAvg.cents);
   });
 
-  it("ends October's running expense total at the same figure as the daily average's numerator", () => {
-    const series = getCumulativeExpenseSeries(transactions, want.dailyExpenseAvg.today);
-    expect(series).toHaveLength(16);
-    expect(series[15]).toBe(want.dailyExpenseAvg.expenseCents);
+  it("ends the 6-month chart series at the same figure as the daily average's numerator", () => {
+    const series = getMonthlyExpenseSeries(transactions, "2026-10", 6, want.dailyExpenseAvg.today);
+    expect(series).toHaveLength(6);
+    expect(series[5]!.expenseCents).toBe(want.dailyExpenseAvg.expenseCents);
   });
 
   it("averages liquid cash on the same day of the previous 6 months", () => {
@@ -88,6 +87,11 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
       expect(r.averageCents).toBe(w.averageCents);
       expect(r.monthsUsed).toBe(6);
     }
+  });
+
+  it("caps the category list at today, so October's categories add up to the daily average's numerator", () => {
+    const all = getTopCategoriesForMonth(transactions, "2026-10", Infinity, want.dailyExpenseAvg.today);
+    expect(all.reduce((sum, c) => sum + c.amountCents, 0)).toBe(want.dailyExpenseAvg.expenseCents);
   });
 
   it("ranks top expense categories for September", () => {
