@@ -6,7 +6,7 @@ export interface ToastState {
   actionLabel?: string;
   onAction?: () => void;
   /** Per-toast override of the default 5s auto-dismiss. Added for the
-   * service-worker update prompt (Phase 16): a 5s edit/delete "Undo"
+   * service-worker update prompt (Phase 16): a 5s delete "Undo"
    * toast and a "new version available, reload when convenient" prompt
    * have very different urgency — the SW toast should sit until the
    * user acts on it, not vanish before they've noticed. */

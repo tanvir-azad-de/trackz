@@ -19,6 +19,7 @@ import { MonthPills } from "./MonthPills";
 import { FilterSheet } from "./FilterSheet";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { categoryOrTypeLabel, type Transaction } from "@/domain/transaction";
+import { updatedToast } from "@/features/activity/updatedToast";
 import type { ToastState } from "@/components/Toast";
 import "@/components/Sheet.css";
 import "@/features/entry/EntryForm.css";
@@ -84,15 +85,9 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
   const resetKey = JSON.stringify(filter);
 
   function handleSaveEdit(updated: Transaction) {
-    const before = openTransaction;
     updateTransaction(updated);
     setOpenTransaction(null);
-    onToast({
-      id: Date.now(),
-      message: `Updated ${categoryOrTypeLabel(updated)}`,
-      actionLabel: before ? "Undo" : undefined,
-      onAction: before ? () => updateTransaction(before) : undefined,
-    });
+    onToast(updatedToast(updated, Date.now()));
   }
 
   function handleDelete(target: Transaction) {
