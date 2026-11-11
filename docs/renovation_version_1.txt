@@ -95,8 +95,10 @@ have been wrong about something in every phase so far (see AGENTS.md's
     - clear X is 44x44, empties the input, keeps focus;
     - reset appears only after a facet, keeps the query, and is 44x44
       without horizontal scroll.
-  iPhone-only, open: whether refocusing after Clear keeps the iOS
-  keyboard up (docs/device-check-activity-tweaks.md).
+  iPhone: DEVICE-VERIFIED 2026-11-11 on production, every item in
+  docs/device-check-activity-tweaks.md passed. That includes the
+  keyboard staying up after Clear, the pinned sheet pills, and no
+  scroll bleeding to the page behind.
   Same day, second round (user mockups, decisions are theirs):
     - Month pills restyled as two spans: grey month, then the amount
       coloured by sign (--positive / --negative). surface-2 fill,
