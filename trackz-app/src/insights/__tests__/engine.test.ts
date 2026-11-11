@@ -15,7 +15,6 @@ import {
   getTopCategoriesForMonth,
   getDailyExpenseAvgCents,
   getLiquidVsSameDayAverage,
-  getTotalAssetsCents,
   summarizeMonth,
 } from "@/insights/engine";
 import type { Transaction } from "@/domain/transaction";
@@ -194,10 +193,6 @@ describe.skipIf(!hasFixture)("Phase 12: account activity, receivables/payables, 
   it("returns an empty list for payables ('I owe') — zero payable rows exist in the real dataset", () => {
     expect(getPayableBalances(transactions)).toEqual([]);
   });
-
-  it("computes total assets as liquid + receivables - payables, reconciling Home's liquid-only hero with the Accounts screen's fuller picture", () => {
-    expect(getTotalAssetsCents(transactions)).toBe(want.totalAssetsCents);
-  });
 });
 
 /**
@@ -225,9 +220,5 @@ describe.skipIf(!hasFixture)("account-type classification: cash vs investment", 
     expect(byAccount["SCLB"]).toBe("investment");
     expect(byAccount["CMRZ"]).toBe("cash");
     expect(byAccount["ADVZ"]).toBe("cash");
-  });
-
-  it("getTotalAssetsCents is unaffected by account-type classification — investment balances are still real assets, not excluded from the full picture", () => {
-    expect(getTotalAssetsCents(transactions)).toBe(want.totalAssetsCents);
   });
 });

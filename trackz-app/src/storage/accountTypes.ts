@@ -1,18 +1,16 @@
-import type { AccountType } from "@/domain/transaction";
+import { isAccountType, type AccountType } from "@/domain/transaction";
 
 /**
- * Persisted account-type classification (cash vs investment) — see the
- * AccountType comment in domain/transaction.ts for why this is the one
- * piece of account metadata that IS stored, unlike everything else
- * (balances/names), which Phase 0 locked as pure transaction derivations.
+ * Persisted account-type classification (cash / investment / credit
+ * card) — see the AccountType comment in domain/transaction.ts for why
+ * this is the one piece of account metadata that IS stored, unlike
+ * everything else (balances/names), which Phase 0 locked as pure
+ * transaction derivations.
  *
- * Caught live during Phase 12 QA: SCLB (Scalable Capital, a real
- * brokerage account in the user's data) was being summed into Home's
- * "Liquid" hero and the Accounts screen's "Liquid" total alongside true
- * cash accounts, overstating spendable cash by its full
- * balance. This map is
- * the fix: SCLB is seeded as "investment" below; everything else
- * defaults to "cash" so no other account's behavior changes.
+ * Its source of truth is the CSV (user decision 2026-11-11): an import
+ * replaces the whole map from the file's `accountTypes` config cell
+ * (replaceAccountTypes), and the entry form sets one entry when it
+ * creates a new account. There is no Settings control any more.
  *
  * New, namespaced key — same posture as storage/repository.ts.
  *
@@ -29,24 +27,6 @@ import type { AccountType } from "@/domain/transaction";
  * class of silent mismatch as the Phase 13a preview-vs-Home bug.
  */
 const STORAGE_KEY = "trackz.v2.accountTypes";
-
-/**
- * Marks that the seed has been applied, so it is applied exactly once per
- * device rather than on every read.
- *
- * This flag is the fix for a phantom third writer. readRaw() used to merge
- * `{...SEED_DEFAULTS, ...parsed}` on EVERY read, which hardcoded
- * SCLB: "investment" into the result forever. Once this map syncs, that
- * becomes destructive: a device with cleared storage re-seeds "investment"
- * and can overwrite a deliberate "cash" that the user set on another
- * device. A seed is a first-run convenience, not a standing opinion.
- */
-const SEED_APPLIED_KEY = "trackz.v2.accountTypes.seeded";
-
-/** Known non-cash accounts, seeded once rather than requiring the user to manually reclassify SCLB after every Phase 0-style fresh import. */
-const SEED_DEFAULTS: Record<string, AccountType> = {
-  SCLB: "investment",
-};
 
 /** A classification plus when it was last set, for cross-device merging. */
 export interface AccountTypeEntry {
@@ -87,15 +67,14 @@ function readRaw(): AccountTypeMap {
       const parsed = JSON.parse(raw);
       if (typeof parsed === "object" && parsed !== null) {
         for (const [account, value] of Object.entries(parsed as Record<string, unknown>)) {
-          if (value === "cash" || value === "investment") {
+          if (isAccountType(value)) {
             // Old flat shape.
             stored[account] = { type: value, updatedAt: new Date(0).toISOString() };
           } else if (
             typeof value === "object" &&
             value !== null &&
             "type" in value &&
-            ((value as AccountTypeEntry).type === "cash" ||
-              (value as AccountTypeEntry).type === "investment")
+            isAccountType((value as AccountTypeEntry).type)
           ) {
             const entry = value as AccountTypeEntry;
             stored[account] = {
@@ -112,44 +91,7 @@ function readRaw(): AccountTypeMap {
     stored = {};
   }
 
-  return applySeedOnce(stored);
-}
-
-/**
- * Apply SEED_DEFAULTS only on a genuinely first run, and record that it
- * happened. "First run" means the seed flag is absent AND the account has
- * no stored classification — so a user who explicitly set SCLB to "cash"
- * before this flag existed does not get it silently flipped back.
- */
-function applySeedOnce(stored: AccountTypeMap): AccountTypeMap {
-  let alreadySeeded = true;
-  try {
-    alreadySeeded = localStorage.getItem(SEED_APPLIED_KEY) !== null;
-  } catch {
-    // No localStorage (private browsing, or Node): treat the seed as done
-    // rather than re-seeding on every read, which is the bug being fixed.
-    return stored;
-  }
-
-  if (alreadySeeded) return stored;
-
-  const seeded: AccountTypeMap = { ...stored };
-  const now = new Date(0).toISOString();
-  for (const [account, type] of Object.entries(SEED_DEFAULTS)) {
-    // Epoch-dated for the same reason as the migration: a seed is the
-    // weakest possible claim and must lose to any real user edit.
-    if (!seeded[account]) seeded[account] = { type, updatedAt: now };
-  }
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-    localStorage.setItem(SEED_APPLIED_KEY, new Date().toISOString());
-  } catch {
-    // Unwritable storage: returning the seeded view is still correct for
-    // this session.
-  }
-
-  return seeded;
+  return stored;
 }
 
 function writeRaw(types: AccountTypeMap): void {
@@ -200,7 +142,7 @@ export function mergeAccountTypes(remote: AccountTypeMap | undefined): boolean {
   let changed = false;
 
   for (const [account, remoteEntry] of Object.entries(remote)) {
-    if (remoteEntry?.type !== "cash" && remoteEntry?.type !== "investment") continue;
+    if (!isAccountType(remoteEntry?.type)) continue;
 
     const localEntry = local[account];
     if (!localEntry) {
@@ -225,11 +167,19 @@ export function mergeAccountTypes(remote: AccountTypeMap | undefined): boolean {
   return changed;
 }
 
-/** Test-only: forget that the seed ran, so first-run behaviour can be exercised. */
-export function resetSeedForTesting(): void {
-  try {
-    localStorage.removeItem(SEED_APPLIED_KEY);
-  } catch {
-    // Nothing to reset without storage.
-  }
+/**
+ * Replace the whole map with an import's classification (the CSV is the
+ * source of truth). Every entry is stamped now, so the next sync's
+ * per-account last-writer-wins carries the import to other devices.
+ *
+ * Accounts absent from `types` are NOT kept: a stale local entry for an
+ * account the file no longer has would otherwise linger. (Sync's merge is
+ * a union, so another device can still send it back; it is harmless,
+ * since an account with no rows is never shown.)
+ */
+export function replaceAccountTypes(types: Record<string, AccountType>, now: string = new Date().toISOString()): void {
+  const next: AccountTypeMap = {};
+  for (const [account, type] of Object.entries(types)) next[account] = { type, updatedAt: now };
+  writeRaw(next);
+  notify();
 }

@@ -571,7 +571,7 @@ describe("committing a CSV import", () => {
     vi.useFakeTimers();
     try {
       // The user imports a file that deliberately omits row-3.
-      await commitImport([synced[0]!, synced[1]!]);
+      await commitImport([synced[0]!, synced[1]!], {});
 
       // Drain any timer the commit might have armed. THE BUG: a
       // non-silent write arms the debounce here, performSync unions local
@@ -588,11 +588,31 @@ describe("committing a CSV import", () => {
     expect(uploaded.transactions.map((t) => t.id)).toEqual(["row-1", "row-2"]);
   });
 
+  it("uploads the imported file's account types, not this device's old ones", async () => {
+    const { commitImport } = await import("@/features/settings/commitImport");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+    const { setAccountType, getAccountTypes } = await import("@/storage/accountTypes");
+
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z")]);
+    setAccountType("Stale", "investment");
+    await startSignedIn();
+
+    await commitImport([tx("row-1", "2026-01-02T00:00:00Z")], { ADVZ: "credit_card" });
+
+    // The CSV is the source of truth: the device's own map is replaced,
+    // and Drive gets the file's map so the other device follows.
+    expect(getAccountTypes()).toEqual({ ADVZ: "credit_card" });
+    const uploaded = driveMock.uploadToDrive.mock.calls.at(-1)?.[0] as SyncDocument;
+    expect(Object.fromEntries(Object.entries(uploaded.accountTypes ?? {}).map(([k, v]) => [k, v.type]))).toEqual({
+      ADVZ: "credit_card",
+    });
+  });
+
   it("touches Drive not at all when signed out", async () => {
     const { commitImport } = await import("@/features/settings/commitImport");
     const { getTransactions } = await import("@/storage/repository");
 
-    const result = await commitImport([tx("row-1", "2026-01-02T00:00:00Z")]);
+    const result = await commitImport([tx("row-1", "2026-01-02T00:00:00Z")], {});
 
     // Sync is optional; the app is fully usable on localStorage alone. An
     // import must not require it, nor report a Drive problem there isn't one.
@@ -610,7 +630,7 @@ describe("committing a CSV import", () => {
     await startSignedIn();
     driveMock.uploadToDrive.mockRejectedValue(new Error("Failed to upload to Drive: 500"));
 
-    const result = await commitImport([tx("row-2", "2026-01-02T00:00:00Z")]);
+    const result = await commitImport([tx("row-2", "2026-01-02T00:00:00Z")], {});
 
     // The local import stands — it already committed, and throwing it away
     // because the network blinked would be worse.

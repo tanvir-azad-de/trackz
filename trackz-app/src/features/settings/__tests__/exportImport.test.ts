@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildExportCsv, canCommit, exportFileName, previewImport } from "@/features/settings/exportImport";
-import { CSV_HEADERS_V2, serializeTransactionsCsv } from "@/storage/csv";
+import { CSV_HEADERS_V2, CSV_HEADERS_V3, parseTransactionsCsv, serializeTransactionsCsv } from "@/storage/csv";
 import type { Transaction } from "@/domain/transaction";
 
 function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
@@ -29,9 +29,21 @@ describe("exportFileName", () => {
 });
 
 describe("buildExportCsv", () => {
-  it("delegates to serializeTransactionsCsv (v2 header)", () => {
-    const tx = makeTransaction();
-    expect(buildExportCsv([tx])).toBe(serializeTransactionsCsv([tx]));
+  it("writes a type for EVERY account, defaulting the unclassified ones to cash", () => {
+    const csv = buildExportCsv(
+      [
+        makeTransaction({ id: "txn_1", account: "ADVZ" }),
+        // SCLB only as a destination, as in the real data.
+        makeTransaction({ id: "txn_2", account: "CMRZ", cashflow: "none", categoryType: "transfer", category: "", destinationAccount: "SCLB" }),
+      ],
+      { ADVZ: "credit_card", SCLB: "investment", Unused: "investment" },
+    );
+
+    // CMRZ has no entry and is written as cash, else the app's own export
+    // would fail its own import ("no type for CMRZ"). Unused has no rows
+    // and is dropped.
+    expect(parseTransactionsCsv(csv).accountTypes).toEqual({ ADVZ: "credit_card", CMRZ: "cash", SCLB: "investment" });
+    expect(canCommit(previewImport("backup.csv", csv))).toBe(true);
   });
 });
 
@@ -48,7 +60,7 @@ describe("previewImport", () => {
         merchant: "Employer",
         amountCents: 500000,
       }),
-    ]);
+    ], { CMRZ: "cash" });
     const preview = previewImport("backup.csv", csv);
 
     expect(preview.fileName).toBe("backup.csv");
@@ -63,33 +75,51 @@ describe("previewImport", () => {
     expect(canCommit(preview)).toBe(true);
   });
 
-  it("excludes investment accounts from liquidCashCents when given the current accountTypes map (regression: preview must match what Home shows after commit)", () => {
-    // Caught live via Playwright during this phase's own verification:
-    // re-importing the real backup showed "Liquid 3.147,07 €" in this
-    // preview, but Home immediately showed "847,07 €" for the exact
-    // same data once committed, because accountTypes.ts's SCLB=
-    // investment classification is a SEPARATE store (keyed by account
-    // name) that survives a transaction import untouched — the preview
-    // must honor it too, or it's lying about what's about to happen.
-    const csv = serializeTransactionsCsv([
-      makeTransaction({ id: "txn_1", account: "CASH", amountCents: 1000 }),
-      makeTransaction({
-        id: "txn_2",
-        account: "SCLB",
-        category: "Salary",
-        categoryType: "income",
-        cashflow: "in",
-        merchant: "Employer",
-        amountCents: 500000,
-      }),
-    ]);
+  it("takes account types from the FILE, so Liquid excludes its investment and credit-card accounts", () => {
+    const csv = serializeTransactionsCsv(
+      [
+        makeTransaction({ id: "txn_1", account: "CASH", amountCents: 1000 }),
+        makeTransaction({ id: "txn_2", account: "SCLB", category: "Salary", categoryType: "income", cashflow: "in", amountCents: 500000 }),
+        makeTransaction({ id: "txn_3", account: "ADVZ", amountCents: 7000 }),
+      ],
+      { CASH: "cash", SCLB: "investment", ADVZ: "credit_card" },
+    );
 
-    const withoutClassification = previewImport("backup.csv", csv);
-    expect(withoutClassification.liquidCashCents).toBe(500000 - 1000); // SCLB counted as cash by default
+    const preview = previewImport("backup.csv", csv);
 
-    const withClassification = previewImport("backup.csv", csv, { SCLB: "investment" });
-    expect(withClassification.liquidCashCents).toBe(-1000); // SCLB excluded
-    expect(withClassification.totalAssetsCents).toBe(500000 - 1000); // unaffected by classification
+    expect(preview.liquidCashCents).toBe(-1000); // CASH only
+    expect(preview.accountTypes).toEqual({ CASH: "cash", SCLB: "investment", ADVZ: "credit_card" });
+    expect(canCommit(preview)).toBe(true);
+  });
+
+  it("rejects a file with no accountTypes cell (user decision: no default to cash)", () => {
+    const v3 = [
+      CSV_HEADERS_V3.join(","),
+      "2026-10-17,CMRZ,,out,Groceries,expense,Edeka,12.40,EUR,,txn_1,2026-10-17T00:00:00.000Z,2026-10-17T00:00:00.000Z,",
+    ].join("\n");
+
+    const preview = previewImport("old.csv", v3);
+
+    expect(preview.errors.map((e) => e.message)).toEqual([expect.stringContaining("No accountTypes config cell")]);
+    expect(canCommit(preview)).toBe(false);
+  });
+
+  it("rejects a file whose cell leaves an account untyped, naming it", () => {
+    const csv = serializeTransactionsCsv(
+      [
+        makeTransaction({ id: "txn_1", account: "CMRZ" }),
+        makeTransaction({ id: "txn_2", account: "CMRZ", cashflow: "none", categoryType: "transfer", category: "", destinationAccount: "SCLB" }),
+      ],
+      { CMRZ: "cash" },
+    );
+
+    const preview = previewImport("backup.csv", csv);
+
+    // SCLB is only a destination; checking `account` alone would miss it
+    // and SCLB would land in Liquid.
+    expect(preview.errors.map((e) => e.message)).toEqual(["accountTypes: no type for SCLB"]);
+    expect(preview.transactions).toEqual([]);
+    expect(preview.accountTypes).toEqual({});
   });
 
   it("is all-or-nothing: any row error empties transactions and blocks commit", () => {

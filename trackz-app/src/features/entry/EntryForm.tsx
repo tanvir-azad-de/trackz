@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
-import { CATEGORY_TYPES, categoryTypeLabel, usesCategory } from "@/domain/transaction";
-import type { Account, Category, Merchant } from "@/domain/transaction";
+import { ACCOUNT_TYPES, CATEGORY_TYPES, accountTypeLabel, categoryTypeLabel, usesCategory } from "@/domain/transaction";
+import type { Account, AccountType, Category, Merchant } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { amountInputFromCents, parseAmountInput } from "@/features/entry/amountInput";
 import { NamePicker } from "./NamePicker";
@@ -46,6 +46,11 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
   const isTransfer = draft.categoryType === "transfer";
   const showsCategory = usesCategory(draft.categoryType);
   const isBidirectional = draft.categoryType === "receivable" || draft.categoryType === "payable";
+  // Only a brand-new account gets a type picker (user decision 2026-11-11);
+  // an existing one's type is the CSV's and is not editable here.
+  const isNewName = (name: string) => name.trim() !== "" && !accountNames.includes(name.trim());
+  const accountIsNew = isNewName(draft.account);
+  const destinationIsNew = isTransfer && isNewName(draft.destinationAccount);
 
   return (
     <div class="entry-form">
@@ -106,6 +111,14 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
         placeholder="e.g. ADVZ"
       />
 
+      {accountIsNew && (
+        <AccountTypeField
+          label={isTransfer ? "From account type" : "Account type"}
+          value={draft.accountType ?? "cash"}
+          onChange={(t) => set("accountType", t)}
+        />
+      )}
+
       {showsCategory && (
         <NamePicker
           label="Category"
@@ -137,6 +150,14 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
           />
         )}
       </div>
+
+      {destinationIsNew && (
+        <AccountTypeField
+          label="To account type"
+          value={draft.destinationAccountType ?? "cash"}
+          onChange={(t) => set("destinationAccountType", t)}
+        />
+      )}
 
       {isBidirectional && (
         <div class="entry-form__field entry-form__full">
@@ -184,5 +205,21 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants, er
         </ul>
       )}
     </div>
+  );
+}
+
+/** Full width, so the two-column rows around it keep their pairs. */
+function AccountTypeField({ label, value, onChange }: { label: string; value: AccountType; onChange: (t: AccountType) => void }) {
+  return (
+    <label class="entry-form__field entry-form__full">
+      <span class="entry-form__label">{label}</span>
+      <SelectInput value={value} onChange={(e) => onChange(e.currentTarget.value as AccountType)}>
+        {ACCOUNT_TYPES.map((t) => (
+          <option key={t} value={t}>
+            {accountTypeLabel(t)}
+          </option>
+        ))}
+      </SelectInput>
+    </label>
   );
 }

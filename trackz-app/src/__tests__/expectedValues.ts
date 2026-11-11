@@ -26,7 +26,6 @@ export interface ExpectedValues {
     monthlyExpense: { monthKey: string; expenseCents: number };
     balanceSeries: { account: string; points: Record<string, number> }[];
     receivables: { outstandingCents: Record<string, number>; settledToZero: string[]; totalCents: number };
-    totalAssetsCents: number;
     liquid: { investmentAccount: string; allCashCents: number; withInvestmentExcludedCents: number };
   };
   categoryRename: { diningRowAmountCents: number; feesRowAmountCents: number };

@@ -130,16 +130,35 @@ export interface Account {
 }
 
 /**
- * "cash" (spendable, counted in Home's "Liquid" hero) vs "investment"
- * (a real asset, but not spendable cash — e.g. a brokerage account).
- * Unlike Account above, this IS persisted (see storage/accountTypes.ts):
- * it's a user classification with no transaction-derivable signal, not
- * something Phase 0's "always derive from transactions" rule covers.
- * Defaults to "cash" for any account with no explicit entry, so every
- * pre-Phase-12 account keeps behaving exactly as before unless a user
- * (or a seed, like SCLB below) says otherwise.
+ * "cash" (spendable, the only type counted in Home's "Liquid" hero),
+ * "investment" (a real asset, not spendable — e.g. a brokerage account)
+ * and "credit_card" (spending happens here, but the balance is money
+ * owed, not money held — e.g. ADVZ). Unlike Account above, this IS
+ * persisted (see storage/accountTypes.ts): it has no
+ * transaction-derivable signal.
+ *
+ * The CSV is its source of truth (user decision 2026-11-11): import sets
+ * it from the file's `accountTypes` config cell (storage/csv.ts), and the
+ * only in-app writer is the entry form's picker for a brand-new account.
+ * An account with no entry reads as "cash".
  */
-export type AccountType = "cash" | "investment";
+export const ACCOUNT_TYPES = ["cash", "investment", "credit_card"] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
+export function isAccountType(value: unknown): value is AccountType {
+  return (ACCOUNT_TYPES as readonly unknown[]).includes(value);
+}
+
+export function accountTypeLabel(type: AccountType): string {
+  switch (type) {
+    case "cash":
+      return "Cash";
+    case "investment":
+      return "Investment";
+    case "credit_card":
+      return "Credit card";
+  }
+}
 
 /**
  * A category is identified by NAME ALONE. `categoryType` is deliberately

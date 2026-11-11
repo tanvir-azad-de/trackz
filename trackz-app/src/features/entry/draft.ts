@@ -1,4 +1,11 @@
-import { usesCategory, type Account, type Cashflow, type CategoryType, type Transaction } from "@/domain/transaction";
+import {
+  usesCategory,
+  type Account,
+  type AccountType,
+  type Cashflow,
+  type CategoryType,
+  type Transaction,
+} from "@/domain/transaction";
 import { newTransactionId } from "@/domain/id";
 import { isValidISODate } from "@/domain/dates";
 import type { Cents } from "@/domain/money";
@@ -25,6 +32,13 @@ export interface EntryDraft {
    */
   direction: "out" | "in";
   notes: string;
+  /**
+   * The type picked for `account` / `destinationAccount` when that name is
+   * NEW (the entry form only asks then). Optional, and absent means "cash":
+   * an existing account's type comes from the CSV, never from this form.
+   */
+  accountType?: AccountType;
+  destinationAccountType?: AccountType;
 }
 
 export function emptyDraft(today: string, amountCents: Cents = 0): EntryDraft {
@@ -119,6 +133,24 @@ export function validateDraft(draft: EntryDraft, knownAccounts: readonly Account
   void knownAccounts;
 
   return errors;
+}
+
+/**
+ * The account-type entries a save must write: one per account name in the
+ * draft that no transaction uses yet. Existing accounts are left alone —
+ * their type is the CSV's (user decision 2026-11-11), so an Add or an
+ * edit must never overwrite it, whatever stale value the draft carries.
+ */
+export function newAccountTypes(draft: EntryDraft, knownAccounts: readonly Account[]): Record<string, AccountType> {
+  const known = new Set(knownAccounts.map((a) => a.name));
+  const result: Record<string, AccountType> = {};
+  const account = draft.account.trim();
+  if (account && !known.has(account)) result[account] = draft.accountType ?? "cash";
+  if (draft.categoryType === "transfer") {
+    const destination = draft.destinationAccount.trim();
+    if (destination && !known.has(destination)) result[destination] = draft.destinationAccountType ?? "cash";
+  }
+  return result;
 }
 
 export function isDraftValid(draft: EntryDraft, knownAccounts: readonly Account[]): boolean {

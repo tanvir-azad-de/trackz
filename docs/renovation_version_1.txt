@@ -12,12 +12,13 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 478 tests passing (+5 from the category sheet; +7 from the
+  Baseline: 488 tests passing (+10 from credit-card account types below;
+  +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 55,777 bytes gzipped JS (+31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
+  build 55,840 bytes gzipped JS (+63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
   tweaks, against a 54,437 rebuild of 9d052ec; +34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
@@ -56,6 +57,37 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  CREDIT CARDS + CSV-SOURCED ACCOUNT TYPES — DONE 2026-11-11, NOT YET
+  DEPLOYED. User request: Home's Liquid included ADVZ, a credit card.
+  Decisions are theirs (grill session):
+    - AccountType gains "credit_card" (domain ACCOUNT_TYPES). Liquid =
+      cash accounts only; getLiquidCashCents already excluded anything
+      !== "cash", so the bug was classification, not the sum. Measured on
+      dummyData/trackz-backup-2026-11-11.csv: ADVZ is active, balance
+      negative; Home's Liquid after import equalled an independent python
+      sum of CMRZ+REVO+CASH to the cent (figure not copied here).
+    - The CSV is the ONLY source of account types. New trailing column
+      `accountTypes` (CSV_HEADERS_V4), a config cell filled on ONE row:
+      `ADVZ=credit_card;CASH=cash;...`. Import reads whichever row has it
+      (sorting moves it), accepts identical repeats, rejects two different
+      cells, an unknown type, and — user's call over defaulting to cash —
+      a file with no cell or with any account (account OR
+      destinationAccount: SCLB is destination-only) left untyped. So
+      V1-V3 backups no longer import without the cell added. Export writes
+      every account, unclassified ones as cash. Import replaces the stored
+      map wholesale (replaceAccountTypes) before the Drive overwrite.
+    - Settings: the Accounts row, sheet and Cash/Investment toggle are
+      deleted. The SCLB first-run seed is deleted too (a second source).
+    - Entry form: a type picker (native select) appears only when the
+      account / To account name is new; existing accounts' types are never
+      written from the form (draft.ts newAccountTypes).
+    - Accounts: Total Assets card removed (and getTotalAssetsCents, and
+      the import preview's Total line). New "Credit cards" section after
+      Investments. Home's account strip badges any non-cash account.
+    - dummyData/trackz-backup-2026-11-11.clean.csv = the 11-11 backup
+      with the cell added; nothing else changed (row/id/cent sums checked).
+    - Open: docs/device-check-credit-cards.md.
 
   6-MONTH CHART + ACTIVITY TWEAKS — DONE AND DEPLOYED 2026-11-11 (d63f0ae;
   the live bundle index-DNB92xpq.js contains "category-sheet", checked by curl).

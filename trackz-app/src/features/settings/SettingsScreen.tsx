@@ -1,11 +1,7 @@
 import { useMemo, useRef, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { useAccountTypes } from "@/storage/useAccountTypes";
-import { setAccountType } from "@/storage/accountTypes";
-import { deriveAccounts, getAllAccountBalances } from "@/storage/derive";
-import type { AccountType } from "@/domain/transaction";
 import { getLocalToday } from "@/domain/dates";
-import { Card } from "@/components/Card";
 import { Money } from "@/components/Money";
 import { Sheet } from "@/components/Sheet";
 import type { ToastState } from "@/components/Toast";
@@ -27,14 +23,8 @@ interface SettingsScreenProps {
   onToast?: (toast: ToastState) => void;
 }
 
-const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
-  { value: "cash", label: "Cash" },
-  { value: "investment", label: "Investment" },
-];
-
 /**
- * Settings (Phase 13a): account-type classification (Cash/Investment)
- * plus a Data section for CSV export/import — the piece that makes the
+ * Settings (Phase 13a): a Data section for CSV export/import — the piece that makes the
  * rebuild actually usable outside dev, since src/dev/seed.ts is the
  * ONLY way real data reaches this app otherwise, and that path is
  * explicitly disabled in production builds (import.meta.env.DEV guard).
@@ -43,16 +33,13 @@ const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
  * operation and why there is no delete. The guided merchant-merge
  * screen is Phase 6 part 2, below it.
  *
- * Account types: each account gets a Cash/Investment segmented toggle.
- * Changes are immediate (no draft + Apply like FilterSheet) — unlike a
- * multi-facet filter, there's exactly one meaningful value per account
- * at a time, so a confirm step would just be friction. An undo-able
- * toast (reusing the same Toast primitive Phase 8/11 use for
- * save/delete) is the safety net instead of a draft step.
+ * Account types have NO control here (user decision 2026-11-11, which
+ * deleted the Cash/Investment toggle): the CSV's accountTypes config cell
+ * is their source, set on import, written back on export.
  *
  * Data: export serializes every transaction to this app's own CSV
- * format (storage/csv.ts's CSV_HEADERS_V3 — the legacy 10 columns plus
- * id/createdAt/updatedAt/deletedAt, so a round trip is lossless, unlike
+ * format (storage/csv.ts's CSV_HEADERS_V4 — the legacy 10 columns plus
+ * id/createdAt/updatedAt/deletedAt and the accountTypes cell, so a round trip is lossless, unlike
  * the original backup format). Deleted transactions are never included
  * here (useTransactions() already filters tombstones) — this is a
  * human-facing backup, and a "deleted" row reappearing in a CSV someone
@@ -61,7 +48,7 @@ const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
  * silent commit: replaceAllTransactions() (storage/repository.ts)
  * destroys whatever is currently stored, so the preview shows parse
  * errors, derived account/category/merchant counts, and the resulting
- * Liquid/Total figures BEFORE the user can confirm — reusing Sheet
+ * Liquid figure BEFORE the user can confirm — reusing Sheet
  * (Phase 8/11/13's shared bottom-sheet primitive) rather than a new
  * modal concept. If the store is non-empty, the confirm button is
  * disabled until the user has exported first, so "I imported the
@@ -81,33 +68,11 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   const [exportedSinceLastChange, setExportedSinceLastChange] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<"accountTypes" | "sync" | "data" | null>(null);
+  const [openSection, setOpenSection] = useState<"sync" | "data" | null>(null);
   const syncState = useSyncStatus();
 
   const duplicateGroupCount = useMemo(() => countDuplicateMerchantGroups(transactions), [transactions]);
   const categoryCount = useMemo(() => countCategories(transactions), [transactions]);
-
-  const accounts = useMemo(() => {
-    const names = deriveAccounts(transactions).map((a) => a.name);
-    const balances = getAllAccountBalances(transactions);
-    return names.map((name) => ({
-      name,
-      balanceCents: balances[name] ?? 0,
-      accountType: accountTypesMap[name] ?? "cash",
-    }));
-  }, [transactions, accountTypesMap]);
-
-  function handleChange(account: string, type: AccountType) {
-    const previous = accountTypesMap[account] ?? "cash";
-    if (previous === type) return;
-    setAccountType(account, type);
-    onToast?.({
-      id: Date.now(),
-      message: `${account} set to ${type === "cash" ? "Cash" : "Investment"}`,
-      actionLabel: "Undo",
-      onAction: () => setAccountType(account, previous),
-    });
-  }
 
   /**
    * Blob + synthetic <a download> — the standard pattern, but iOS Safari
@@ -122,7 +87,7 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   async function handleExport() {
     setExporting(true);
     try {
-      const csv = buildExportCsv(transactions);
+      const csv = buildExportCsv(transactions, accountTypesMap);
       const fileName = exportFileName(getLocalToday());
       const file = new File([csv], fileName, { type: "text/csv" });
 
@@ -164,7 +129,7 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
     // lives OUTSIDE the Data sheet for the same reason: the sheet unmounts
     // its children while closed, and this handler runs after the picker.
     setOpenSection(null);
-    setImportPreview(previewImport(file.name, text, accountTypesMap));
+    setImportPreview(previewImport(file.name, text));
     input.value = ""; // allow re-selecting the same file name later
   }
 
@@ -179,13 +144,13 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   async function handleConfirmImport() {
     if (!importPreview || !canCommit(importPreview)) return;
 
-    const { transactions: imported, fileName } = importPreview;
+    const { transactions: imported, fileName, accountTypes: importedTypes } = importPreview;
     // Close the sheet first: the Drive overwrite is a network round trip,
     // and leaving the preview open behind a spinner invites a second tap.
     setImportPreview(null);
     setExportedSinceLastChange(false);
 
-    const result = await commitImport(imported);
+    const result = await commitImport(imported, importedTypes);
 
     const summary = `Imported ${imported.length} transactions from ${fileName}`;
     onToast?.({
@@ -277,7 +242,6 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
       {/* Grouped by what the rows act on: your data's names, then where the
           data lives (user decision 2026-11-10). */}
       <div class="settings-group">
-        <SettingsRow label="Accounts" detail={String(accounts.length)} onClick={() => setOpenSection("accountTypes")} />
         <SettingsRow label="Categories" detail={String(categoryCount)} onClick={() => setCategoriesOpen(true)} />
         <SettingsRow
           label="Merchants"
@@ -308,46 +272,6 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
         class="settings-data-file-input"
         onChange={handleFileSelected}
       />
-
-      <Sheet open={openSection === "accountTypes"} onClose={() => setOpenSection(null)} title="Accounts">
-        <p class="settings-screen__hint">
-          Set each account's type. Cash accounts count toward Home's "Liquid" total. Investment accounts (like a brokerage account) are
-          tracked separately, since their balance isn't spendable cash.
-        </p>
-
-        {accounts.length === 0 ? (
-          <p class="settings-screen__empty">No accounts yet. Tap the + button to log your first transaction.</p>
-        ) : (
-          <div class="settings-account-list">
-            {accounts.map((acc) => (
-              <Card class="settings-account-card" key={acc.name}>
-                <div class="settings-account-card__row">
-                  <div class="settings-account-card__identity">
-                    <div class="settings-account-card__name">{acc.name}</div>
-                    <Money cents={acc.balanceCents} class="settings-account-card__balance" />
-                  </div>
-                  <div class="settings-account-card__toggle" role="radiogroup" aria-label={`${acc.name} account type`}>
-                    {ACCOUNT_TYPE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={acc.accountType === opt.value}
-                        class={`settings-account-card__option ${
-                          acc.accountType === opt.value ? "settings-account-card__option--active" : ""
-                        }`}
-                        onClick={() => handleChange(acc.name, opt.value)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </Sheet>
 
       <Sheet open={openSection === "sync"} onClose={() => setOpenSection(null)} title="Sync">
         <SyncSettings onToast={onToast} />
@@ -409,10 +333,6 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
                   <div>
                     <span>Liquid</span>
                     <Money cents={importPreview.liquidCashCents} />
-                  </div>
-                  <div>
-                    <span>Total assets</span>
-                    <Money cents={importPreview.totalAssetsCents} />
                   </div>
                 </div>
 

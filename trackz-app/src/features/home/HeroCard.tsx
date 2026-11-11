@@ -28,15 +28,13 @@ interface HeroCardProps {
  *
  * Labeled "Liquid" rather than "Net worth" (Phase 12 decision): this
  * figure is CASH account balances only (getLiquidCashCents, which
- * excludes accounts classified "investment" — e.g. SCLB/Scalable
- * Capital, caught live during Phase 12 QA overstating this number by its
- * full balance before the account-type classification was
- * added). Outstanding "Lent out" receivables and investment balances are
- * real assets but aren't spendable cash, so folding them in here would
- * make the headline number silently drift from what the Accounts
- * screen's own math shows unless every reader remembered the
- * distinction. The Accounts screen's total-assets card is the one place
- * Liquid + Investments + Lent out are added together.
+ * excludes accounts classified "investment" or "credit_card" — e.g. SCLB,
+ * caught in Phase 12 QA overstating this number by its full balance, and
+ * ADVZ, whose unpaid card spend was coming off it, 2026-11-11).
+ * Outstanding "Lent out" receivables and investment balances are real
+ * assets but aren't spendable cash. Nothing in the app adds them
+ * together any more: the Accounts screen's Total Assets card was removed
+ * on 2026-11-11 (user decision).
  */
 export function HeroCard({ liquidCashCents, liquidComparison, dayOfMonth, dailyExpenseAvgCents, expenseCents }: HeroCardProps) {
   const { deltaPercent, monthsUsed } = liquidComparison;

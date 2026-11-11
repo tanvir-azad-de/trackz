@@ -64,8 +64,9 @@ it works.
 - **Dates are UTC-anchored `YYYY-MM-DD` strings.** `domain/dates.ts` only;
   tests run under both `Asia/Dhaka` and `America/Los_Angeles`.
 - **Accounts and categories are derived from transactions**, never separately
-  persisted. The one exception is account type (cash/investment), which has no
-  transaction-derivable signal.
+  persisted. The one exception is account type (cash/investment/credit_card),
+  which has no transaction-derivable signal. Its source is the CSV's
+  `accountTypes` config cell; there is no Settings control. Liquid is cash only.
 - **A category is its name alone.** `categoryType` is a property of each
   transaction — one category legitimately carries several types.
 - **`non_expense` / `non_income`** mean money moved but the amount is not

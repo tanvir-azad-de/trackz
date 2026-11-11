@@ -6,7 +6,6 @@ import {
   getAccountBalanceSeries,
   getPayableBalances,
   getReceivableBalances,
-  getTotalAssetsCents,
   type AccountActivity,
 } from "@/insights/engine";
 import { formatDayLabel, getLocalToday, getMonthStartDate, getMonthEndDate, toMonthKey } from "@/domain/dates";
@@ -27,18 +26,12 @@ type AccountRow = AccountActivity & { series: Array<{ monthKey: string; balanceC
 
 /**
  * Phase 12: balance cards with sparklines, receivables/payables surfaced
- * as "Lent out"/"I owe" per the locked relabel decisions. A dedicated
- * total-assets header reconciles this screen with Home's hero card,
- * which (per the Phase 12 design decision) was relabeled "Liquid" rather
- * than made to include receivables — one concept per screen, see
- * docs/renovation_version_1.txt's Phase 12 write-up.
+ * as "Lent out"/"I owe" per the locked relabel decisions.
  *
- * Accounts are split into Cash / Investments sections (added after
- * Phase 12 shipped): SCLB (Scalable Capital, a real brokerage account)
- * was being counted as liquid cash, overstating "Liquid" on both this
- * screen and Home's hero by its full balance. The cash/investment
- * classification lives in storage/accountTypes.ts, defaulting every
- * account to "cash" so no other account's section changes.
+ * Accounts are split into Cash / Investments / Credit cards sections by
+ * the CSV-sourced classification in storage/accountTypes.ts (an account
+ * with no entry is Cash). The Total Assets card that summed them was
+ * removed on 2026-11-11 (user decision), with getTotalAssetsCents.
  */
 export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
   const transactions = useTransactions();
@@ -59,23 +52,14 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
     }));
     const cashAccounts = allAccounts.filter((a) => a.accountType === "cash");
     const investmentAccounts = allAccounts.filter((a) => a.accountType === "investment");
-
-    const liquidCents = cashAccounts.reduce((sum, a) => sum + a.balanceCents, 0);
-    const investmentsCents = investmentAccounts.reduce((sum, a) => sum + a.balanceCents, 0);
-    const receivables = getReceivableBalances(transactions);
-    const payables = getPayableBalances(transactions);
-    const totalAssetsCents = getTotalAssetsCents(transactions);
-    const lentOutCents = receivables.reduce((sum, r) => sum + r.balanceCents, 0);
+    const creditCardAccounts = allAccounts.filter((a) => a.accountType === "credit_card");
 
     return {
       cashAccounts,
       investmentAccounts,
-      receivables,
-      payables,
-      liquidCents,
-      investmentsCents,
-      lentOutCents,
-      totalAssetsCents,
+      creditCardAccounts,
+      receivables: getReceivableBalances(transactions),
+      payables: getPayableBalances(transactions),
       monthKey,
     };
   }, [transactions, accountTypes]);
@@ -132,31 +116,6 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
 
   return (
     <main class="accounts-screen">
-
-      <Card class="total-assets-card">
-        <div class="total-assets-card__row">
-          <span class="total-assets-card__label">Liquid</span>
-          <Money cents={data.liquidCents} class="total-assets-card__value" />
-        </div>
-        {data.investmentsCents !== 0 && (
-          <div class="total-assets-card__row">
-            <span class="total-assets-card__label">Investments</span>
-            <Money cents={data.investmentsCents} class="total-assets-card__value" />
-          </div>
-        )}
-        {data.lentOutCents > 0 && (
-          <div class="total-assets-card__row">
-            <span class="total-assets-card__label">Lent out</span>
-            <Money cents={data.lentOutCents} class="total-assets-card__value total-assets-card__value--neutral" />
-          </div>
-        )}
-        <div class="total-assets-card__divider" />
-        <div class="total-assets-card__row total-assets-card__row--total">
-          <span class="total-assets-card__label">Total</span>
-          <Money cents={data.totalAssetsCents} class="total-assets-card__value total-assets-card__value--total" />
-        </div>
-      </Card>
-
       <h2 class="accounts-screen__section-title">Cash</h2>
       <div class="account-list">{data.cashAccounts.map(renderAccountCard)}</div>
 
@@ -164,6 +123,13 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
         <>
           <h2 class="accounts-screen__section-title">Investments</h2>
           <div class="account-list">{data.investmentAccounts.map(renderAccountCard)}</div>
+        </>
+      )}
+
+      {data.creditCardAccounts.length > 0 && (
+        <>
+          <h2 class="accounts-screen__section-title">Credit cards</h2>
+          <div class="account-list">{data.creditCardAccounts.map(renderAccountCard)}</div>
         </>
       )}
 

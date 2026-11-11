@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { parseTransactionsCsv, serializeTransactionsCsv, CSV_HEADERS, CSV_HEADERS_V2, CSV_HEADERS_V3 } from "@/storage/csv";
+import { parseTransactionsCsv, serializeTransactionsCsv, CSV_HEADERS, CSV_HEADERS_V2, CSV_HEADERS_V3, CSV_HEADERS_V4 } from "@/storage/csv";
 import type { Transaction } from "@/domain/transaction";
 
 /**
@@ -39,10 +39,10 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
 }
 
 describe("serializeTransactionsCsv", () => {
-  it("writes the v3 header (legacy 10 columns + id + createdAt + updatedAt + deletedAt)", () => {
+  it("writes the v4 header (legacy 10 columns + id + createdAt + updatedAt + deletedAt + accountTypes)", () => {
     const csv = serializeTransactionsCsv([]);
     const [header] = csv.split("\r\n");
-    expect(header).toBe(CSV_HEADERS_V3.join(","));
+    expect(header).toBe(CSV_HEADERS_V4.join(","));
   });
 
   it("round-trips a single transaction through parse, including id/createdAt/updatedAt/deletedAt", () => {
@@ -251,5 +251,68 @@ describe("import is idempotent across devices", () => {
     // A file that already carries ids is authoritative; deriving over the
     // top would break round-tripping an export.
     expect(transactions[0]!.id).toBe("txn_explicit");
+  });
+});
+
+describe("the accountTypes config cell (V4)", () => {
+  const header = CSV_HEADERS_V4.join(",");
+  const row = (cell: string, date = "2026-10-17") =>
+    `${date},CMRZ,,out,Groceries,expense,Edeka,12.40,EUR,,,,,,${cell}`;
+
+  it("round-trips through serialize, on the first row only", () => {
+    const tx: Transaction = {
+      id: "txn_1",
+      date: "2026-10-17",
+      account: "ADVZ",
+      destinationAccount: "",
+      cashflow: "out",
+      category: "Groceries",
+      categoryType: "expense",
+      merchant: "Edeka",
+      amountCents: 1240,
+      notes: "",
+      createdAt: "2026-10-17T14:00:00.000Z",
+      updatedAt: "2026-10-17T14:00:00.000Z",
+      deletedAt: null,
+    };
+    const csv = serializeTransactionsCsv([tx, { ...tx, id: "txn_2" }], { SCLB: "investment", ADVZ: "credit_card" });
+    const [, first, second] = csv.split("\r\n");
+
+    // Sorted, so two exports of the same data diff cleanly.
+    expect(first!.endsWith(",ADVZ=credit_card;SCLB=investment")).toBe(true);
+    expect(second!.endsWith(",")).toBe(true);
+    expect(parseTransactionsCsv(csv).accountTypes).toEqual({ ADVZ: "credit_card", SCLB: "investment" });
+  });
+
+  it("reads the cell from whichever row holds it (a spreadsheet sort moves it)", () => {
+    const csv = [header, row(""), row(" CMRZ = cash ; ADVZ=credit_card ;")].join("\n");
+    const result = parseTransactionsCsv(csv);
+
+    expect(result.errors).toEqual([]);
+    expect(result.accountTypes).toEqual({ CMRZ: "cash", ADVZ: "credit_card" });
+  });
+
+  it("is null when no row holds it, so the importer can reject the file", () => {
+    expect(parseTransactionsCsv([header, row("")].join("\n")).accountTypes).toBeNull();
+  });
+
+  it("accepts the same cell twice but rejects two different ones", () => {
+    const same = parseTransactionsCsv([header, row("CMRZ=cash"), row("CMRZ=cash")].join("\n"));
+    expect(same.errors).toEqual([]);
+
+    const different = parseTransactionsCsv([header, row("CMRZ=cash"), row("CMRZ=investment")].join("\n"));
+    expect(different.errors).toEqual([
+      { line: 3, message: "accountTypes: a second, different config cell (only one row may set it)" },
+    ]);
+  });
+
+  it("rejects an unknown type, a pair without =, and one account given two types", () => {
+    const msg = (cell: string) => parseTransactionsCsv([header, row(cell)].join("\n")).errors.map((e) => e.message);
+
+    expect(msg("CMRZ=savings")).toEqual([
+      'accountTypes: "CMRZ" has type "savings", expected one of cash, investment, credit_card',
+    ]);
+    expect(msg("CMRZ")).toEqual(['accountTypes: "CMRZ" is not NAME=type']);
+    expect(msg("CMRZ=cash;CMRZ=investment")).toEqual(['accountTypes: "CMRZ" is listed as both cash and investment']);
   });
 });

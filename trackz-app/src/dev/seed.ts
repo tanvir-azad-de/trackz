@@ -1,5 +1,6 @@
 import { parseTransactionsCsv } from "@/storage/csv";
 import { replaceAllTransactions, isEmpty } from "@/storage/repository";
+import { replaceAccountTypes } from "@/storage/accountTypes";
 
 /**
  * Dev convenience only: loads the real anonymized-ish CSV backup into
@@ -36,10 +37,12 @@ export function seedDevDataIfEmpty(): void {
     return;
   }
 
-  const { transactions, errors } = parseTransactionsCsv(seedCsv);
+  const { transactions, errors, accountTypes } = parseTransactionsCsv(seedCsv);
   if (errors.length > 0) {
     console.warn(`[dev seed] ${errors.length} CSV rows failed to parse`, errors.slice(0, 5));
   }
   replaceAllTransactions(transactions);
+  // A V4 seed carries its own classification; an older one leaves the map alone.
+  if (accountTypes) replaceAccountTypes(accountTypes);
   console.info(`[dev seed] loaded ${transactions.length} transactions from seed-transactions.csv`);
 }

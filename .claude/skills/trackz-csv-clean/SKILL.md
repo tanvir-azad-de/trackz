@@ -41,7 +41,8 @@ never with `split(",")`. Merchants and notes contain commas.
 Check these before trusting this document. If the code has changed, the code wins, and this file gets updated in the same change.
 
 - `trackz-app/src/storage/csv.ts`: accepted headers (V1 10 columns, V2
-  `+id,createdAt`, V3 `+updatedAt,deletedAt`), every validation rule, and
+  `+id,createdAt`, V3 `+updatedAt,deletedAt`, V4 `+accountTypes`), every
+  validation rule, and
   `quoteCsvField` (the quoting rules).
 - `trackz-app/src/domain/transaction.ts`: `CATEGORY_TYPES`, the meaning of
   `non_expense`/`non_income`, and why a category can carry several types.
@@ -107,7 +108,13 @@ These have exactly one correct answer:
   must be > 0 with ≤ 2 decimals. Drop the minus sign from a negative amount
   only after Phase C confirms which cashflow it means; never flip a
   sign silently.
-- **Header**: write the V3 header exactly.
+- **Header**: write the V4 header exactly. Import REJECTS a file with no
+  `accountTypes` config cell or with an account (in `account` or
+  `destinationAccount`) the cell leaves untyped: exactly one row carries
+  `NAME=type;NAME=type` (cash / investment / credit_card), the rest blank.
+  Carry the input's cell over; when upgrading a V1-V3 file, ask the user
+  for each account's type rather than guessing. The cell is not a
+  transaction field, so adding it does not bump `updatedAt`.
 
 ## Phase C: Proposed changes (nothing is applied without approval)
 

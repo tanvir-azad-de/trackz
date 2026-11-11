@@ -1,8 +1,8 @@
 import { toCents, centsToFixed } from "@/domain/money";
 import { isValidISODate } from "@/domain/dates";
 import { contentDerivedTransactionId } from "@/domain/id";
-import type { CategoryType, Cashflow, Transaction } from "@/domain/transaction";
-import { CATEGORY_TYPES, usesCategory } from "@/domain/transaction";
+import type { AccountType, CategoryType, Cashflow, Transaction } from "@/domain/transaction";
+import { ACCOUNT_TYPES, CATEGORY_TYPES, isAccountType, usesCategory } from "@/domain/transaction";
 
 /**
  * Legacy CSV columns, matching dummyData/trackz-backup-2026-10-31.csv
@@ -54,6 +54,51 @@ export const CSV_HEADERS_V2 = [...CSV_HEADERS, "id", "createdAt"] as const;
  */
 export const CSV_HEADERS_V3 = [...CSV_HEADERS_V2, "updatedAt", "deletedAt"] as const;
 
+/**
+ * 2026-11-11: adds `accountTypes`, a CONFIG CELL rather than a per-row
+ * field (user decision). Exactly one row carries the whole
+ * classification, e.g. `ADVZ=credit_card;CMRZ=cash;SCLB=investment`; on
+ * every other row it is blank. Appended last, same reason as V2/V3.
+ *
+ * Why not a per-row column: SCLB never appears in `account`, only in
+ * `destinationAccount`, so a column describing each row's account cannot
+ * type it; and a per-row value can disagree with itself.
+ *
+ * Why "whichever row has it" instead of "the first row": the user edits
+ * this file in a spreadsheet, and sorting moves the cell. Two rows with
+ * the SAME value are accepted for the same reason (a copied row); two
+ * DIFFERENT values are an error, since either choice would be a guess.
+ */
+export const CSV_HEADERS_V4 = [...CSV_HEADERS_V3, "accountTypes"] as const;
+
+/** `ADVZ=credit_card;CMRZ=cash` -> map, or an error message. Names sorted on write so exports diff cleanly. */
+export function parseAccountTypesCell(cell: string): { types: Record<string, AccountType> } | { error: string } {
+  const types: Record<string, AccountType> = {};
+  for (const part of cell.split(";")) {
+    const pair = part.trim();
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    const name = eq === -1 ? "" : pair.slice(0, eq).trim();
+    const type = eq === -1 ? "" : pair.slice(eq + 1).trim();
+    if (!name) return { error: `accountTypes: "${pair}" is not NAME=type` };
+    if (!isAccountType(type)) {
+      return { error: `accountTypes: "${name}" has type "${type}", expected one of ${ACCOUNT_TYPES.join(", ")}` };
+    }
+    if (types[name] !== undefined && types[name] !== type) {
+      return { error: `accountTypes: "${name}" is listed as both ${types[name]} and ${type}` };
+    }
+    types[name] = type;
+  }
+  return { types };
+}
+
+export function formatAccountTypesCell(types: Record<string, AccountType>): string {
+  return Object.keys(types)
+    .sort()
+    .map((name) => `${name}=${types[name]}`)
+    .join(";");
+}
+
 const CASHFLOWS: readonly Cashflow[] = ["in", "out", "none"];
 
 export interface CsvParseError {
@@ -64,6 +109,13 @@ export interface CsvParseError {
 export interface CsvParseResult {
   transactions: Transaction[];
   errors: CsvParseError[];
+  /**
+   * The file's accountTypes config cell, or null when it has none (a
+   * V1-V3 file, or a V4 file whose cell is blank on every row). Whether
+   * null is acceptable is the importer's call, not the parser's — see
+   * features/settings/exportImport.ts.
+   */
+  accountTypes: Record<string, AccountType> | null;
 }
 
 /** Hand-rolled single-line CSV field splitter with RFC4180 quote handling. */
@@ -110,22 +162,32 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
   const transactions: Transaction[] = [];
   const errors: CsvParseError[] = [];
 
+  let accountTypes: Record<string, AccountType> | null = null;
+  let accountTypesCell: string | null = null;
+
   if (lines.length === 0) {
-    return { transactions, errors: [{ line: 1, message: "Empty CSV file" }] };
+    return { transactions, errors: [{ line: 1, message: "Empty CSV file" }], accountTypes };
   }
 
   const header = parseCsvLine(lines[0]!);
-  const isV3 = header.length === CSV_HEADERS_V3.length && CSV_HEADERS_V3.every((h, i) => header[i] === h);
-  const isV2 = !isV3 && header.length === CSV_HEADERS_V2.length && CSV_HEADERS_V2.every((h, i) => header[i] === h);
-  const isV1 = !isV3 && !isV2 && header.length === CSV_HEADERS.length && CSV_HEADERS.every((h, i) => header[i] === h);
-  if (!isV1 && !isV2 && !isV3) {
+  const isV4 = header.length === CSV_HEADERS_V4.length && CSV_HEADERS_V4.every((h, i) => header[i] === h);
+  const isV3 = !isV4 && header.length === CSV_HEADERS_V3.length && CSV_HEADERS_V3.every((h, i) => header[i] === h);
+  const isV2 = !isV4 && !isV3 && header.length === CSV_HEADERS_V2.length && CSV_HEADERS_V2.every((h, i) => header[i] === h);
+  const isV1 = !isV4 && !isV3 && !isV2 && header.length === CSV_HEADERS.length && CSV_HEADERS.every((h, i) => header[i] === h);
+  if (!isV1 && !isV2 && !isV3 && !isV4) {
     errors.push({
       line: 1,
-      message: `Unexpected header. Expected: ${CSV_HEADERS.join(",")} (optionally with id,createdAt[,updatedAt,deletedAt] appended)`,
+      message: `Unexpected header. Expected: ${CSV_HEADERS.join(",")} (optionally with id,createdAt[,updatedAt,deletedAt[,accountTypes]] appended)`,
     });
-    return { transactions, errors };
+    return { transactions, errors, accountTypes };
   }
-  const expectedColumns = isV3 ? CSV_HEADERS_V3.length : isV2 ? CSV_HEADERS_V2.length : CSV_HEADERS.length;
+  const expectedColumns = isV4
+    ? CSV_HEADERS_V4.length
+    : isV3
+      ? CSV_HEADERS_V3.length
+      : isV2
+        ? CSV_HEADERS_V2.length
+        : CSV_HEADERS.length;
 
   /** How many rows with each content-identity we've seen so far in this file. */
   const identityCounts = new Map<string, number>();
@@ -156,6 +218,7 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       createdAtField,
       updatedAtField,
       deletedAtField,
+      accountTypesField,
     ] = fields as [
       string,
       string,
@@ -171,7 +234,23 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
       string?,
       string?,
       string?,
+      string?,
     ];
+
+    // Before the row checks, so a row that fails them still contributes
+    // its config cell; the import is rejected anyway, but the cell's own
+    // errors then show alongside the row's.
+    if (accountTypesField && accountTypesField.trim()) {
+      const cell = accountTypesField.trim();
+      if (accountTypesCell !== null && accountTypesCell !== cell) {
+        errors.push({ line: lineNumber, message: "accountTypes: a second, different config cell (only one row may set it)" });
+      } else if (accountTypesCell === null) {
+        accountTypesCell = cell;
+        const parsed = parseAccountTypesCell(cell);
+        if ("error" in parsed) errors.push({ line: lineNumber, message: parsed.error });
+        else accountTypes = parsed.types;
+      }
+    }
 
     if (!isValidISODate(date)) {
       errors.push({ line: lineNumber, message: `Invalid date: "${date}"` });
@@ -267,7 +346,7 @@ export function parseTransactionsCsv(csvText: string): CsvParseResult {
     });
   }
 
-  return { transactions, errors };
+  return { transactions, errors, accountTypes };
 }
 
 /**
@@ -285,8 +364,11 @@ function quoteCsvField(value: string): string {
 }
 
 /**
- * The inverse of parseTransactionsCsv, producing CSV_HEADERS_V3 (legacy 10
- * columns + id + createdAt + updatedAt + deletedAt, Phase 15a). Round-trip
+ * The inverse of parseTransactionsCsv, producing CSV_HEADERS_V4 (legacy 10
+ * columns + id + createdAt + updatedAt + deletedAt, Phase 15a, +
+ * accountTypes 2026-11-11). `accountTypes` lands in the first row's last
+ * cell; with no transactions there is no row to hold it, which is fine
+ * because an empty file cannot be imported anyway. Round-trip
  * tested against the real 1,456-row backup (storage/__tests__/csv.test.ts):
  * parse -> serialize -> re-parse yields byte-for-byte identical Transaction
  * objects, INCLUDING id/createdAt/updatedAt/deletedAt — the fields the
@@ -301,9 +383,13 @@ function quoteCsvField(value: string): string {
  * writes amount as a positive decimal and currency=EUR (the app is
  * EUR-only; see decisions doc).
  */
-export function serializeTransactionsCsv(transactions: Transaction[]): string {
-  const lines = [CSV_HEADERS_V3.join(",")];
-  for (const tx of transactions) {
+export function serializeTransactionsCsv(
+  transactions: Transaction[],
+  accountTypes: Record<string, AccountType> = {},
+): string {
+  const lines = [CSV_HEADERS_V4.join(",")];
+  const configCell = formatAccountTypesCell(accountTypes);
+  for (const [index, tx] of transactions.entries()) {
     const fields = [
       tx.date,
       tx.account,
@@ -319,6 +405,7 @@ export function serializeTransactionsCsv(transactions: Transaction[]): string {
       tx.createdAt,
       tx.updatedAt,
       tx.deletedAt ?? "",
+      index === 0 ? configCell : "",
     ];
     lines.push(fields.map(quoteCsvField).join(","));
   }

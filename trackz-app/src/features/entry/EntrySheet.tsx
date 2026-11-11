@@ -4,7 +4,8 @@ import { getLocalToday } from "@/domain/dates";
 import { addTransaction } from "@/storage/repository";
 import { loadRememberedEntry, saveRememberedEntry } from "@/storage/entryMemory";
 import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
-import { buildTransaction, validateDraft, type EntryDraft } from "@/features/entry/draft";
+import { buildTransaction, newAccountTypes, validateDraft, type EntryDraft } from "@/features/entry/draft";
+import { setAccountType } from "@/storage/accountTypes";
 import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
 import { EntryForm } from "./EntryForm";
 import { categoryOrTypeLabel, type Transaction } from "@/domain/transaction";
@@ -48,6 +49,9 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
   function handleSave() {
     if (errors.length > 0) return;
     const tx = buildTransaction(draft);
+    // Before addTransaction: its write arms the sync debounce, and that
+    // sync reads the account-type map, so the new type rides along.
+    for (const [name, type] of Object.entries(newAccountTypes(draft, accounts))) setAccountType(name, type);
     addTransaction(tx);
     // Before handleClose, which reads this back as the next draft.
     saveRememberedEntry(rememberFromTransaction(tx));

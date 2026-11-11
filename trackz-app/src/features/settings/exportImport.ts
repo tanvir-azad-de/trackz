@@ -1,7 +1,7 @@
 import type { Transaction, AccountType } from "@/domain/transaction";
 import { parseTransactionsCsv, serializeTransactionsCsv, type CsvParseError } from "@/storage/csv";
 import { deriveAccounts, deriveCategories, deriveMerchants } from "@/storage/derive";
-import { getLiquidCashCents, getTotalAssetsCents } from "@/insights/engine";
+import { getLiquidCashCents } from "@/insights/engine";
 
 /**
  * Pure logic for the Settings "Data" section (Phase 13a): building the
@@ -17,8 +17,26 @@ export function exportFileName(today: string): string {
   return `trackz-backup-${today}.csv`;
 }
 
-export function buildExportCsv(transactions: Transaction[]): string {
-  return serializeTransactionsCsv(transactions);
+/**
+ * Every account in `transactions` gets an entry, defaulting to "cash":
+ * import rejects a file that leaves any account untyped, so an export
+ * that omitted one (an account never classified, which reads as cash)
+ * would not re-import.
+ */
+export function buildExportCsv(transactions: Transaction[], accountTypes: Record<string, AccountType> = {}): string {
+  const complete: Record<string, AccountType> = {};
+  for (const name of accountNamesIn(transactions)) complete[name] = accountTypes[name] ?? "cash";
+  return serializeTransactionsCsv(transactions, complete);
+}
+
+/** Both columns: SCLB only ever appears as a transfer's destinationAccount. */
+function accountNamesIn(transactions: Transaction[]): Set<string> {
+  const names = new Set<string>();
+  for (const tx of transactions) {
+    if (tx.account) names.add(tx.account);
+    if (tx.destinationAccount) names.add(tx.destinationAccount);
+  }
+  return names;
 }
 
 export interface ImportPreview {
@@ -32,7 +50,8 @@ export interface ImportPreview {
   categoryCount: number;
   merchantCount: number;
   liquidCashCents: number;
-  totalAssetsCents: number;
+  /** The file's accountTypes config cell; empty unless the file is committable. Import replaces the stored map with it. */
+  accountTypes: Record<string, AccountType>;
 }
 
 const MAX_ERROR_PREVIEW = 5;
@@ -44,20 +63,35 @@ const MAX_ERROR_PREVIEW = 5;
  * file — the user fixes the source file and tries again instead of
  * discovering missing rows days later.
  *
- * `accountTypes` must be the CURRENT classification map (see
- * storage/accountTypes.ts) — account-type is keyed by account NAME and
- * is a separate store from transactions (storage/accountTypes.ts,
- * trackz.v2.accountTypes), so it survives a transaction import
- * untouched. Without threading it through, this preview's "Liquid"
- * figure would count every account (including e.g. SCLB/Scalable
- * Capital, classified "investment") as spendable cash, while Home
- * would immediately show a different, correct number the moment the
- * import actually commits — caught live in this phase's own Playwright
- * verification pass: a bare re-import of the real backup showed a
- * higher "Liquid" figure in the preview than Home showed one tap later, a user-visible contradiction for the exact same data.
+ * Account types come from the FILE, not from this device (user decision
+ * 2026-11-11: the CSV is their only source). A file with no accountTypes
+ * config cell, or one that leaves an account in its rows untyped, is
+ * rejected like any other bad row — that is also the user's decision,
+ * over defaulting to cash, which would have quietly put a credit card or
+ * a brokerage balance back into Liquid. Old V1-V3 backups therefore need
+ * the cell added before they import.
  */
-export function previewImport(fileName: string, csvText: string, accountTypes: Record<string, AccountType> = {}): ImportPreview {
-  const { transactions, errors } = parseTransactionsCsv(csvText);
+export function previewImport(fileName: string, csvText: string): ImportPreview {
+  const parsed = parseTransactionsCsv(csvText);
+  const { transactions } = parsed;
+  const errors = [...parsed.errors];
+  const accountTypes = parsed.accountTypes ?? {};
+  // Skipped when the header failed (that file already has its one useful
+  // error), when the cell itself was malformed (already reported, and
+  // "missing" would be false), and when there are no rows (the UI's
+  // "nothing to import" says it better).
+  const cellAlreadyReported = parsed.errors.some((e) => e.line === 1 || e.message.startsWith("accountTypes:"));
+  if (!cellAlreadyReported && transactions.length > 0) {
+    if (parsed.accountTypes === null) {
+      errors.push({
+        line: 1,
+        message: "No accountTypes config cell. Add an accountTypes column and, on one row, e.g. CMRZ=cash;ADVZ=credit_card;SCLB=investment",
+      });
+    } else {
+      const untyped = [...accountNamesIn(transactions)].filter((name) => accountTypes[name] === undefined).sort();
+      if (untyped.length > 0) errors.push({ line: 1, message: `accountTypes: no type for ${untyped.join(", ")}` });
+    }
+  }
   const totalRows = csvText.split(/\r?\n/).filter((l) => l.length > 0).length - 1;
   const committed = errors.length === 0 ? transactions : [];
 
@@ -72,7 +106,7 @@ export function previewImport(fileName: string, csvText: string, accountTypes: R
     categoryCount: deriveCategories(committed).length,
     merchantCount: deriveMerchants(committed).length,
     liquidCashCents: getLiquidCashCents(committed, accountTypes),
-    totalAssetsCents: getTotalAssetsCents(committed),
+    accountTypes: errors.length === 0 ? accountTypes : {},
   };
 }
 

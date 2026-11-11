@@ -1,7 +1,8 @@
 import { replaceAllTransactions } from "@/storage/repository";
 import { getAuthState } from "@/sync/auth";
 import { overwriteRemoteWithLocal } from "@/sync/coordinator";
-import type { Transaction } from "@/domain/transaction";
+import { replaceAccountTypes } from "@/storage/accountTypes";
+import type { AccountType, Transaction } from "@/domain/transaction";
 
 /**
  * Committing a CSV import, including its consequences for Drive.
@@ -63,8 +64,8 @@ export type CommitImportResult =
   | { kind: "local-but-drive-failed"; message: string };
 
 /**
- * Replace all local transactions with an imported set, then make Drive
- * match.
+ * Replace all local transactions and the account-type map with an
+ * imported file's, then make Drive match.
  *
  * ORDER IS LOAD-BEARING: the local write must land first, because
  * overwriteRemoteWithLocal() reads the repository itself
@@ -80,8 +81,14 @@ export type CommitImportResult =
  * cancellation remaining first in overwriteRemoteWithLocal's body. The
  * overwrite call is the load-bearing line; two tests fail without it.
  */
-export async function commitImport(transactions: Transaction[]): Promise<CommitImportResult> {
+export async function commitImport(
+  transactions: Transaction[],
+  accountTypes: Record<string, AccountType>,
+): Promise<CommitImportResult> {
   replaceAllTransactions(transactions, { silent: true });
+  // Also before the overwrite, which reads the map from storage
+  // (getAccountTypeEntries) for the same reason it reads the repository.
+  replaceAccountTypes(accountTypes);
 
   if (!getAuthState().isSignedIn) {
     return { kind: "local-only" };

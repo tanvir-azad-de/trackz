@@ -1,20 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 /**
- * Tests for storage/accountTypes.ts — the cash/investment classification
- * that decides what counts towards Home's "Liquid" headline.
+ * Tests for storage/accountTypes.ts — the cash / investment / credit-card
+ * classification that decides what counts towards Home's "Liquid"
+ * headline.
  *
- * Two things here are regressions with real consequences:
+ * MERGE GRANULARITY is the regression with real consequences: the map
+ * syncs, so entries carry timestamps and merge per account. Whole-map
+ * last-writer-wins would mean classifying account A here and account B
+ * there loses one of them.
  *
- * 1. THE PHANTOM SEED WRITER. readRaw() used to merge SEED_DEFAULTS into
- *    the result on EVERY read, so SCLB: "investment" was effectively
- *    hardcoded. Harmless while the map was device-local; destructive once
- *    it syncs, because a device with cleared storage would re-seed
- *    "investment" and overwrite a deliberate "cash" from another device.
- *
- * 2. MERGE GRANULARITY. The map now syncs, so entries carry timestamps and
- *    merge per account. Whole-map last-writer-wins would mean classifying
- *    account A here and account B there loses one of them.
+ * The SCLB first-run seed was deleted on 2026-11-11: the CSV's
+ * accountTypes config cell is now the only source (user decision), so a
+ * hardcoded opinion here would be a second one.
  */
 
 function installLocalStorageStub(): void {
@@ -39,45 +37,50 @@ afterEach(() => {
   delete (globalThis as { localStorage?: Storage }).localStorage;
 });
 
-describe("the SCLB seed", () => {
-  it("classifies SCLB as investment on a first run", async () => {
-    const { getAccountType } = await import("@/storage/accountTypes");
+describe("no seed", () => {
+  it("reads an unclassified SCLB as cash on a first run", async () => {
+    const { getAccountType, getAccountTypeEntries } = await import("@/storage/accountTypes");
 
-    // The Phase 12 QA finding: counted as cash, SCLB overstated spendable
-    // cash by its full balance (3.147,07 € shown vs 847,07 € true).
-    expect(getAccountType("SCLB")).toBe("investment");
-  });
-
-  it("does not resurrect itself after the user sets SCLB to cash", async () => {
-    const { getAccountType, setAccountType } = await import("@/storage/accountTypes");
-
-    getAccountType("SCLB"); // first run, seeds
-    setAccountType("SCLB", "cash");
-
-    // The old every-read merge put SEED_DEFAULTS FIRST, so a stored value
-    // did win — but the seed was still re-written on every read, which is
-    // what made it a third writer once syncing began.
+    // The CSV is the only source now; nothing is invented on first run.
     expect(getAccountType("SCLB")).toBe("cash");
+    expect(getAccountTypeEntries()).toEqual({});
+  });
+});
+
+describe("replaceAccountTypes", () => {
+  it("replaces the whole map and stamps every entry with the import time", async () => {
+    const { getAccountTypeEntries, setAccountType, replaceAccountTypes } = await import("@/storage/accountTypes");
+
+    setAccountType("Gone", "investment");
+    replaceAccountTypes({ ADVZ: "credit_card", CMRZ: "cash" }, "2026-11-11T10:00:00.000Z");
+
+    // "Gone" is not in the file, so it must not survive the import.
+    expect(getAccountTypeEntries()).toEqual({
+      ADVZ: { type: "credit_card", updatedAt: "2026-11-11T10:00:00.000Z" },
+      CMRZ: { type: "cash", updatedAt: "2026-11-11T10:00:00.000Z" },
+    });
+  });
+});
+
+describe("credit_card", () => {
+  it("survives a reload from storage", async () => {
+    localStorage.setItem(
+      "trackz.v2.accountTypes",
+      JSON.stringify({ ADVZ: { type: "credit_card", updatedAt: "2026-11-11T00:00:00Z" }, OLD: "credit_card" }),
+    );
+    const { getAccountTypes } = await import("@/storage/accountTypes");
+
+    // Both shapes: a validator that only knew cash/investment dropped these
+    // as corrupt and ADVZ silently became cash again.
+    expect(getAccountTypes()).toEqual({ ADVZ: "credit_card", OLD: "credit_card" });
   });
 
-  it("does not re-seed after the user has cleared the classification", async () => {
-    const { getAccountType, setAccountType } = await import("@/storage/accountTypes");
+  it("is accepted from a remote map", async () => {
+    const { getAccountType, mergeAccountTypes } = await import("@/storage/accountTypes");
 
-    getAccountType("SCLB");
-    setAccountType("SCLB", "cash");
+    mergeAccountTypes({ ADVZ: { type: "credit_card", updatedAt: "2026-11-11T00:00:00Z" } });
 
-    // Many reads, to catch a seed that re-applies on each one.
-    for (let i = 0; i < 5; i++) getAccountType("SCLB");
-
-    expect(getAccountType("SCLB")).toBe("cash");
-  });
-
-  it("dates the seed at the epoch so any real edit outranks it", async () => {
-    const { getAccountTypeEntries } = await import("@/storage/accountTypes");
-
-    // A seed is the weakest possible claim. Stamped "now", it would beat a
-    // genuine classification made moments earlier on another device.
-    expect(getAccountTypeEntries()["SCLB"]?.updatedAt).toBe(new Date(0).toISOString());
+    expect(getAccountType("ADVZ")).toBe("credit_card");
   });
 });
 

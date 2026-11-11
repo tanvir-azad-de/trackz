@@ -104,12 +104,14 @@ export function getLiquidVsSameDayAverage(
 /**
  * Sum of every CASH account's running balance — this is what Home's
  * "Liquid" hero shows (see docs/renovation_version_1.txt's Phase 12
- * write-up for the relabel). Investment accounts (classified via
- * storage/accountTypes.ts, e.g. SCLB/Scalable Capital) are deliberately
- * excluded: they're a real asset but not spendable cash, and including
- * them here silently overstated "Liquid" by their full balance (caught
- * live during Phase 12 QA, where the investment balance was most of the
- * number this function returned before this fix).
+ * write-up for the relabel). Every other type is excluded: investment
+ * accounts (e.g. SCLB) are an asset but not spendable, and including them
+ * overstated "Liquid" by their full balance (Phase 12 QA). Credit cards
+ * (e.g. ADVZ, 2026-11-11) hold money owed, not money held; counted as
+ * cash, unpaid card spend came off Liquid before it had left any bank.
+ *
+ * `!== "cash"` rather than a list of excluded types is deliberate: a type
+ * added later stays out of Liquid until someone decides it is spendable.
  *
  * `accountTypes` defaults to "every account is cash" so existing callers
  * that don't care about the cash/investment distinction (e.g. a future
@@ -374,23 +376,6 @@ function getCounterpartyBalances(
     .filter(([, balanceCents]) => balanceCents !== 0)
     .map(([counterparty, balanceCents]) => ({ counterparty, balanceCents }))
     .sort((a, b) => b.balanceCents - a.balanceCents);
-}
-
-/**
- * Total assets = every account's balance (cash AND investment — unlike
- * getLiquidCashCents, this does NOT filter by account type, since an
- * investment account's balance is still a real asset) + outstanding
- * receivables ("Lent out") - outstanding payables ("I owe"). This is the
- * number that makes Home's "Liquid" hero and the Accounts screen's
- * fuller breakdown reconcile: Home intentionally shows cash-only (see
- * HeroCard's relabel in Phase 12), this is the full picture shown on
- * Accounts (Liquid + Investments + Lent out = Total).
- */
-export function getTotalAssetsCents(transactions: Transaction[]): Cents {
-  const everyAccount = addCents(...getAccountBalances(transactions).map((a) => a.balanceCents));
-  const receivables = addCents(...getReceivableBalances(transactions).map((r) => r.balanceCents));
-  const payables = addCents(...getPayableBalances(transactions).map((p) => p.balanceCents));
-  return addCents(everyAccount, receivables, -payables);
 }
 
 /**

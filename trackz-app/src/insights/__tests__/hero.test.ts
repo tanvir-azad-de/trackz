@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDailyExpenseAvgCents, getLiquidVsSameDayAverage, getMonthlyExpenseSeries, summarizeMonth } from "@/insights/engine";
+import { getDailyExpenseAvgCents, getLiquidCashCents, getLiquidVsSameDayAverage, getMonthlyExpenseSeries, summarizeMonth } from "@/insights/engine";
 import type { Cashflow, CategoryType, Transaction } from "@/domain/transaction";
 
 /**
@@ -135,5 +135,30 @@ describe("getMonthlyExpenseSeries", () => {
   it("ends at the hero's Spent figure for the same today", () => {
     const series = getMonthlyExpenseSeries(txs, "2026-11", 6, "2026-11-04");
     expect(series[5]!.expenseCents).toBe(summarizeMonth(txs, "2026-11", "2026-11-04").expenseCents);
+  });
+});
+
+describe("getLiquidCashCents with a credit card", () => {
+  it("counts cash accounts only: a card's spending and its payoff transfer both stay out of Liquid", () => {
+    const txs = [
+      row("2026-11-01", "income", "in", 300000, "CMRZ"),
+      row("2026-11-02", "expense", "out", 4500, "ADVZ"), // card spend
+      row("2026-11-03", "expense", "out", 1250, "CMRZ"),
+      // Paying the card off from cash: Liquid drops by it, the card rises.
+      { ...row("2026-11-04", "transfer", "none", 4500, "CMRZ"), destinationAccount: "ADVZ", category: "" },
+      { ...row("2026-11-05", "transfer", "none", 100000, "CMRZ"), destinationAccount: "SCLB", category: "" },
+    ];
+    const types = { CMRZ: "cash", ADVZ: "credit_card", SCLB: "investment" } as const;
+
+    // CMRZ only: 300000 - 1250 - 4500 - 100000. (The card nets to zero
+    // here, so this alone cannot tell cash from credit_card; the next
+    // case can.)
+    expect(getLiquidCashCents(txs, types)).toBe(194250);
+
+    const withUnpaidSpend = [...txs, row("2026-11-06", "expense", "out", 2000, "ADVZ")];
+    // Unpaid card spend is not yet cash leaving: Liquid is unchanged.
+    expect(getLiquidCashCents(withUnpaidSpend, types)).toBe(194250);
+    // The bug this replaces: as "cash", ADVZ's -2000 lands in Liquid.
+    expect(getLiquidCashCents(withUnpaidSpend, { ...types, ADVZ: "cash" })).toBe(192250);
   });
 });

@@ -6,6 +6,7 @@ import {
   draftFromTransaction,
   emptyDraft,
   isDraftValid,
+  newAccountTypes,
   validateDraft,
 } from "@/features/entry/draft";
 import type { Account, Transaction } from "@/domain/transaction";
@@ -243,5 +244,26 @@ describe("category is blank for transfer and Lent out / I owe (usesCategory)", (
       deletedAt: null,
     };
     expect(applyDraftToTransaction(old, draftFromTransaction(old)).category).toBe("");
+  });
+});
+
+describe("newAccountTypes (the entry form's picker for a brand-new account)", () => {
+  const base = { ...emptyDraft("2026-11-11", 500), category: "Food" };
+
+  it("types a new account with the picked type, and defaults to cash when none was picked", () => {
+    expect(newAccountTypes({ ...base, account: " AMEX ", accountType: "credit_card" }, accounts)).toEqual({ AMEX: "credit_card" });
+    expect(newAccountTypes({ ...base, account: "AMEX" }, accounts)).toEqual({ AMEX: "cash" });
+  });
+
+  it("never writes a type for an existing account, whatever the draft carries", () => {
+    // The CSV owns existing accounts' types. A stale accountType left on the
+    // draft from a picker the user then backed out of must not leak.
+    expect(newAccountTypes({ ...base, account: "ADVZ", accountType: "investment" }, accounts)).toEqual({});
+  });
+
+  it("types a new transfer destination, but ignores destinationAccount on a non-transfer", () => {
+    const transfer = { ...base, categoryType: "transfer" as const, account: "CMRZ", destinationAccount: "TR", destinationAccountType: "investment" as const };
+    expect(newAccountTypes(transfer, accounts)).toEqual({ TR: "investment" });
+    expect(newAccountTypes({ ...transfer, categoryType: "expense" }, accounts)).toEqual({});
   });
 });

@@ -1,7 +1,14 @@
 import { useEffect, useState } from "preact/hooks";
 import { Sheet } from "@/components/Sheet";
 import type { Transaction } from "@/domain/transaction";
-import { applyDraftToTransaction, draftFromTransaction, validateDraft, type EntryDraft } from "@/features/entry/draft";
+import {
+  applyDraftToTransaction,
+  draftFromTransaction,
+  newAccountTypes,
+  validateDraft,
+  type EntryDraft,
+} from "@/features/entry/draft";
+import { setAccountType } from "@/storage/accountTypes";
 import { EntryForm } from "@/features/entry/EntryForm";
 import type { Account, Category, Merchant } from "@/domain/transaction";
 
@@ -64,6 +71,8 @@ export function TransactionDetailSheet({
 
   function handleSave() {
     if (errors.length > 0) return;
+    // Before onSave, for the same sync-ordering reason as EntrySheet.
+    for (const [name, type] of Object.entries(newAccountTypes(draftInProgress, accounts))) setAccountType(name, type);
     onSave(applyDraftToTransaction(transactionBeingEdited, draftInProgress));
   }
 
