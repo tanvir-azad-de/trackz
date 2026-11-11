@@ -1,6 +1,6 @@
 # Device check: credit cards + CSV account types (2026-11-11)
 
-Needs the production URL after the next deploy. Not yet done.
+Deployed 2026-11-11 (8d1d4ef). Not yet done on device.
 
 1. Device A: Settings → Data → Import `trackz-backup-2026-11-11.clean.csv`
    (export a backup first). Preview shows Liquid; it must equal Home's

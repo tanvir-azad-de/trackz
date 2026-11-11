@@ -58,8 +58,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  CREDIT CARDS + CSV-SOURCED ACCOUNT TYPES — DONE 2026-11-11, NOT YET
-  DEPLOYED. User request: Home's Liquid included ADVZ, a credit card.
+  CREDIT CARDS + CSV-SOURCED ACCOUNT TYPES — DONE AND DEPLOYED 2026-11-11
+  (8d1d4ef; live bundle index-CnLgnUa0.js contains "credit_card", checked
+  by curl). User request: Home's Liquid included ADVZ, a credit card.
   Decisions are theirs (grill session):
     - AccountType gains "credit_card" (domain ACCOUNT_TYPES). Liquid =
       cash accounts only; getLiquidCashCents already excluded anything
