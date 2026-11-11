@@ -50,7 +50,10 @@ Check these before trusting this document. If the code has changed, the code win
   `receivable` and `payable` rows carry a BLANK category (2026-11-10). A
   category on one of them is the oddity to report, and a blank one is
   correct, not a missing field.
-- `trackz-app/src/domain/merchant.ts`: `normalizeMerchant` (the merge key).
+- The merchant merge key (was `normalizeMerchant` in `domain/merchant.ts`,
+  deleted 2026-11-11 with the app's merchant merge): trim, lowercase, NFD
+  and strip combining marks, then drop every non-`[a-z0-9]` character. Accents
+  must be stripped before the filter, or "Café" keys to "caf".
 - `trackz-app/src/sync/merge.ts`: last-writer-wins on `updatedAt`, and a tie
   goes to local.
 - `trackz-app/src/features/settings/commitImport.ts`: import is a full
@@ -71,7 +74,7 @@ Report these as a short list:
 5. Transfer integrity: `cashflow=none` ⇔ `destinationAccount` set, and no
    self-transfers.
 6. Leading/trailing/double whitespace in any field.
-7. Merchant groups: same `normalizeMerchant` key, plus near-misses that key
+7. Merchant groups: same merge key (above), plus near-misses that key
    misses (shared prefix, a legal suffix like GmbH/KG/Fil./branch number/
    city, case-only differences, likely typos).
 8. Truncated merchants (`...`, `…`).

@@ -250,35 +250,6 @@ export function getAccountActivity(
   });
 }
 
-/**
- * End-of-month running balance for one account, over `months` months
- * ending at (and including) monthKey — feeds the Accounts screen's
- * sparkline (components/Sparkline.tsx). Cumulative over ALL history up to
- * each month end, not a per-month delta: a balance line must start from
- * the true running total, otherwise a dormant account (no transactions
- * this window) would wrongly show as flat-zero instead of flat-at-its-
- * actual-balance.
- */
-export function getAccountBalanceSeries(
-  transactions: Transaction[],
-  account: string,
-  monthKey: string,
-  months = 6,
-): Array<{ monthKey: string; balanceCents: Cents }> {
-  const keys: string[] = [];
-  for (let i = months - 1; i >= 0; i--) keys.push(shiftMonthKey(monthKey, -i));
-
-  return keys.map((k) => {
-    const asOfDate = getMonthEndDate(k);
-    const balanceCents = addCents(
-      ...transactions
-        .filter((tx) => tx.date <= asOfDate)
-        .map((tx) => getSignedAmountCents(tx, { kind: "account", name: account })),
-    );
-    return { monthKey: k, balanceCents };
-  });
-}
-
 export interface CounterpartyBalance {
   counterparty: string; // tx.merchant — where the counterparty name lives for receivable/payable rows
   balanceCents: Cents; // outstanding amount, always > 0 (settled-to-zero counterparties are excluded)

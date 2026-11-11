@@ -23,7 +23,6 @@ export interface ExpectedValues {
     deltas: { asOfDate: string; category: string; thisMonthCents: number; baselineAvgCents: number; isNew: boolean }[];
     accountBalance: { account: string; balanceCents: number };
     monthlyExpense: { monthKey: string; expenseCents: number };
-    balanceSeries: { account: string; points: Record<string, number> }[];
     receivables: { outstandingCents: Record<string, number>; settledToZero: string[]; totalCents: number };
     liquid: { investmentAccount: string; allCashCents: number; withInvestmentExcludedCents: number };
     balanceSheet: {
@@ -35,7 +34,6 @@ export interface ExpectedValues {
       liabilitiesTotalCents: number;
     };
   };
-  categoryRename: { diningRowAmountCents: number; feesRowAmountCents: number };
 }
 
 export const hasExpectedValues = existsSync(path);

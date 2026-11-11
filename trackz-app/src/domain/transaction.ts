@@ -30,9 +30,8 @@ import type { ISODate } from "./dates";
  *    PERSON (a friend or flatmate), not a shop. Same for
  *    receivable/payable, which is where insights/engine.ts gets the
  *    names for Lent out / I owe. Anything that rewrites merchant in
- *    bulk (Phase 6's merchant merge) is therefore touching people and
- *    partly-not-mine amounts, not just tidying shop spellings — see
- *    domain/merchant.ts's CategoryTypeBreakdown.
+ *    bulk is therefore touching people and partly-not-mine amounts, not
+ *    just tidying shop spellings.
  */
 export type CategoryType =
   | "income"
@@ -42,6 +41,13 @@ export type CategoryType =
   | "non_expense" // UI: "Non expense"
   | "receivable" // UI: "Lent out"
   | "payable"; // UI: "I owe"
+
+/**
+ * Row counts per category type for a set of rows (a category, a
+ * merchant). Moved here from domain/merchant.ts when the merchant merge
+ * ("Tidy up Merchants") was deleted on 2026-11-11.
+ */
+export type CategoryTypeBreakdown = Partial<Record<CategoryType, number>>;
 
 export const CATEGORY_TYPES: readonly CategoryType[] = [
   "income",
@@ -189,7 +195,7 @@ export function accountTypeLabel(type: AccountType): string {
  *
  * Consequence for consumers: anything needing a type must read it from
  * the transaction (or compute a per-type breakdown over rows, as
- * features/settings/nameRename.ts does). Nothing can ask a Category
+ * features/settings/nameSummary.ts does). Nothing can ask a Category
  * what type it "is", because that question has no single answer.
  */
 export interface Category {

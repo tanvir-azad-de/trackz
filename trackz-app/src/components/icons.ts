@@ -27,6 +27,5 @@ export {
   Settings,
   SlidersHorizontal,
   TrendingUp,
-  Wallet,
   X,
 } from "lucide-preact";

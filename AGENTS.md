@@ -82,9 +82,9 @@ it works.
   (app, Google account), not per origin, so dev shares the real sync file with
   production while having separate localStorage. This produced a 4368-row
   triplication incident. Device B is the production URL.
-- **`dummyData/` is real financial data and gitignored** in a public repo. Eight
+- **`dummyData/` is real financial data and gitignored** in a public repo. Six
   test files read it and skip gracefully without it. There is no CI, so a
-  fixture-less run is green while skipping 52 of 437 tests. Real figures and
+  fixture-less run is green while skipping 37 of 415 tests. Real figures and
   counterparty names go in `dummyData/snapshot-2026-10-31/expected-values.json`
   (loaded via `src/__tests__/expectedValues.ts`), never in a committed test
   or comment — the CSV being gitignored does not protect a number copied out
@@ -100,19 +100,17 @@ it works.
 ## Conventions
 
 - **Pure logic splits from plumbing.** The pure half is tested and holds no DOM
-  or repository access (`exportImport.ts`, `merchantMerge.ts`,
-  `nameRename.ts`); the thin half wires it up and is untested
-  (`SettingsScreen.tsx`). Keep orchestration that touches both the repository
+  or repository access (`exportImport.ts`, `nameSummary.ts`); the thin half wires it up
+  and is untested (`SettingsScreen.tsx`). Keep orchestration that touches both the repository
   and the sync coordinator in its own module.
 - **No gradients.** Flat dark cards, 1px `--border-subtle` edge, color reserved
   for meaning rather than decoration. `--gradient-accent` is a dead token.
-- **Reuse the primitives**: `Sheet`, `Toast`, `TypeBreakdown`, `Sparkline`.
+- **Reuse the primitives**: `Sheet`, `Toast`.
   Toast's z-index must out-rank Sheet's so an Undo stays tappable over an open
   sheet.
 - **Measure bytes before adding a dependency.** uPlot cost a measured 22.3KB
-  gzipped for a 6-point sparkline because it does not tree-shake. That cost is
-  already paid and shipped — it is an argument against the NEXT dependency, not
-  against using uPlot further. The production bundle is the number to watch
+  gzipped for a 6-point sparkline because it does not tree-shake; it was
+  removed with the sparklines on 2026-11-11. The production bundle is the number to watch
   (`gzip -c dist/assets/*.js | wc -c`); report it after each change.
 - **Comment the load-bearing line**, including why a plausible alternative is
   wrong. A rule that never fires implies a decision the code does not make —

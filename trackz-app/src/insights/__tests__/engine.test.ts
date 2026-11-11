@@ -5,7 +5,6 @@ import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
 import {
   getAccountActivity,
-  getAccountBalanceSeries,
   getAccountBalances,
   getCategoryDeltasForMonth,
   getLiquidCashCents,
@@ -140,25 +139,6 @@ describe.skipIf(!hasFixture)("Phase 12: account activity, receivables/payables, 
     // Dormant accounts are surfaced, not dropped.
     expect(byAccount["REVB"]!.lastActivityDate).toBe("2026-04-11");
     expect(byAccount["REVJ"]!.lastActivityDate).toBe("2026-08-17");
-  });
-
-  it("builds a 6-month end-of-month running balance series (cumulative, not per-month deltas), including an account that goes negative every month without special-casing", () => {
-    expect(want.balanceSeries.length).toBeGreaterThan(0); // fixture sanity
-    for (const { account, points } of want.balanceSeries) {
-      const series = getAccountBalanceSeries(transactions, account, "2026-09", 6);
-      expect(series.map((s) => s.monthKey)).toEqual([
-        "2026-04",
-        "2026-05",
-        "2026-06",
-        "2026-07",
-        "2026-08",
-        "2026-09",
-      ]);
-      const byMonth = Object.fromEntries(series.map((s) => [s.monthKey, s.balanceCents]));
-      for (const [monthKey, balanceCents] of Object.entries(points)) {
-        expect(byMonth[monthKey]).toBe(balanceCents);
-      }
-    }
   });
 
   it("computes outstanding receivable ('Lent out') balances per counterparty, excluding settled-to-zero ones", () => {

@@ -140,53 +140,6 @@ export function updateTransaction(tx: Transaction): void {
 }
 
 /**
- * Update MANY transactions in one write (Phase 6: merchant merge).
- *
- * WHY THIS EXISTS RATHER THAN A LOOP. A merchant merge rewrites every
- * row carrying a duplicate spelling — 150 rows for the 7 groups in the
- * real data, in a single user action. Calling updateTransaction() in a
- * loop would do that as 150 separate readRaw/writeRaw pairs (quadratic
- * JSON work), 150 notify() calls (so 150 UI re-renders), and 150
- * markLocalChanged() calls, each clearing and re-arming the 5s sync
- * debounce. One write, one notify, one armed debounce.
- *
- * Bumps updatedAt on every row, exactly as updateTransaction does: that
- * is what makes the rewrite propagate through sync/merge.ts's
- * last-writer-wins resolution to other devices. Without it the merge
- * would be a purely local change that the next sync could silently undo
- * by preferring another device's older-but-equal-timestamped copy.
- *
- * ALL-OR-NOTHING on unknown ids, matching updateTransaction's throwing
- * contract: ids are validated BEFORE anything is written, so a merge
- * naming one stale row cannot leave the ledger half-rewritten. A
- * partial merchant merge is a genuinely bad state — some rows renamed,
- * some not, and no record of how far it got.
- *
- * No-ops (writes nothing, notifies nobody) on an empty array, so a
- * caller that computed "no rows need changing" doesn't arm a pointless
- * sync round trip.
- */
-export function updateTransactions(updated: Transaction[]): void {
-  if (updated.length === 0) return;
-
-  const all = readRaw();
-  const indexById = new Map(all.map((t, i) => [t.id, i]));
-
-  const missing = updated.filter((t) => !indexById.has(t.id)).map((t) => t.id);
-  if (missing.length > 0) {
-    throw new Error(`updateTransactions: no transaction with id ${missing.join(", ")}`);
-  }
-
-  const now = new Date().toISOString();
-  for (const tx of updated) {
-    all[indexById.get(tx.id)!] = { ...tx, updatedAt: now };
-  }
-
-  writeRaw(all);
-  notify();
-}
-
-/**
  * Soft delete (Phase 15a): sets deletedAt + bumps updatedAt instead of
  * removing the row. See the Transaction.deletedAt doc comment for why a
  * hard delete would be invisible to sync. Throws on a missing id —

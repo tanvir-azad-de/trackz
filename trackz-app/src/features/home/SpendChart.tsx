@@ -19,7 +19,7 @@ const BOX: ChartBox = { width: 320, height: 140, padTop: 24, padBottom: 28, padX
  * Home's one chart (user decision 2026-11-11, from their reference HTML):
  * total expense for each of the last six months, this month so far being
  * the last point, with the amount above each point and the month below.
- * Plain inline SVG rather than Sparkline: uPlot draws to a canvas with no
+ * Plain inline SVG rather than the old Sparkline: uPlot drew to a canvas with no
  * text labels, and the labels are the point of this chart.
  */
 export function SpendChart({ series, onOpen }: SpendChartProps) {

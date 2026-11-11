@@ -129,7 +129,7 @@ export function App() {
         <ActivityScreen key={activityFilterNonce} initialFilter={activityFilter} onToast={setToast} />
       )}
       {activeTab === "accounts" && <AccountsScreen onDrillDown={navigateToActivity} />}
-      {activeTab === "settings" && <SettingsScreen onToast={setToast} />}
+      {activeTab === "settings" && <SettingsScreen onToast={setToast} onDrillDown={navigateToActivity} />}
       <TabBar active={activeTab} onNavigate={setActiveTab} onFabPress={() => setEntryOpen(true)} />
       <EntrySheet
         open={entryOpen}

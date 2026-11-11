@@ -7,11 +7,10 @@ import { Sheet } from "@/components/Sheet";
 import type { ToastState } from "@/components/Toast";
 import { buildExportCsv, canCommit, exportFileName, previewImport, type ImportPreview } from "@/features/settings/exportImport";
 import { commitImport } from "@/features/settings/commitImport";
-import { planMerge } from "@/features/settings/merchantMerge";
-import { planRename, type RenameField } from "@/features/settings/nameRename";
-import { MerchantMergeSheet, countDuplicateMerchantGroups } from "@/features/settings/MerchantMergeSheet";
-import { RenameSheet, countNames } from "@/features/settings/RenameSheet";
-import { updateTransactions } from "@/storage/repository";
+import type { NameField } from "@/features/settings/nameSummary";
+import type { ActivityFilter } from "@/features/activity/filter";
+import { emptyFilter } from "@/features/activity/filter";
+import { NamesSheet, countNames } from "@/features/settings/NamesSheet";
 import { SyncSettings, describeStatus } from "@/features/settings/SyncSettings";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import { isSyncConfigured } from "@/sync/auth";
@@ -21,6 +20,8 @@ import "@/components/Sheet.css";
 
 interface SettingsScreenProps {
   onToast?: (toast: ToastState) => void;
+  /** Wired by app.tsx; a Categories/Merchants row opens Activity filtered to it. */
+  onDrillDown?: (filter: ActivityFilter) => void;
 }
 
 /**
@@ -28,11 +29,10 @@ interface SettingsScreenProps {
  * rebuild actually usable outside dev, since src/dev/seed.ts is the
  * ONLY way real data reaches this app otherwise, and that path is
  * explicitly disabled in production builds (import.meta.env.DEV guard).
- * Categories (Phase 13b) and Merchants (2026-11-11): rename, which merges
- * when the target name already exists — one shared sheet, see
- * RenameSheet.tsx for why that is one operation and why there is no
- * delete. "Tidy up Merchants" is the guided merchant-merge screen
- * (Phase 6 part 2), in its own group below them.
+ * Categories (Phase 13b) and Merchants (2026-11-11): one shared list sheet
+ * (NamesSheet.tsx); tapping a name opens Activity filtered to it. Rename
+ * and the "Tidy up Merchants" merge screen were both removed 2026-11-11
+ * (user decision).
  *
  * Account types have NO control here (user decision 2026-11-11, which
  * deleted the Cash/Investment toggle): the CSV's accountTypes config cell
@@ -56,7 +56,7 @@ interface SettingsScreenProps {
  * wrong file and lost everything" requires skipping an explicit
  * warning, not just missing a small one.
  */
-export function SettingsScreen({ onToast }: SettingsScreenProps) {
+export function SettingsScreen({ onToast, onDrillDown }: SettingsScreenProps) {
   const transactions = useTransactions();
   const accountTypesMap = useAccountTypes();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,15 +67,13 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   // ordinary transaction write) so a second import later in the same
   // session can't skip the safety step by riding a stale true value.
   const [exportedSinceLastChange, setExportedSinceLastChange] = useState(false);
-  const [mergeOpen, setMergeOpen] = useState(false);
   // Field and open are separate so closing keeps the field: the sheet
   // animates out still showing what it showed, not flipping to Categories.
-  const [renameField, setRenameField] = useState<RenameField>("category");
-  const [renameOpen, setRenameOpen] = useState(false);
+  const [namesField, setNamesField] = useState<NameField>("category");
+  const [namesOpen, setNamesOpen] = useState(false);
   const [openSection, setOpenSection] = useState<"sync" | "data" | null>(null);
   const syncState = useSyncStatus();
 
-  const duplicateGroupCount = useMemo(() => countDuplicateMerchantGroups(transactions), [transactions]);
   const categoryCount = useMemo(() => countNames(transactions, "category"), [transactions]);
   const merchantCount = useMemo(() => countNames(transactions, "merchant"), [transactions]);
 
@@ -172,76 +170,21 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
   const hasExistingData = transactions.length > 0;
   const importBlockedByUnexportedData = hasExistingData && !exportedSinceLastChange;
 
-  /**
-   * Apply a merchant merge.
-   *
-   * planMerge is pure and returns only the rows that actually change, so
-   * a group where every row already carries the canonical name writes
-   * nothing at all — no pointless sync round trip. The write goes
-   * through updateTransactions() (one write, one notify, one armed
-   * debounce) rather than a loop over updateTransaction().
-   *
-   * Undo restores the PREVIOUS merchant name per row rather than a
-   * single name, because a merge collapses several spellings at once and
-   * a blanket revert would flatten them all to one of them — which is
-   * the very thing being undone.
-   */
-  function handleMerge(variants: string[], canonical: string): number {
-    const plan = planMerge(transactions, variants, canonical);
-    if (plan.changed.length === 0) return 0;
-
-    const before = plan.changed.map((row) => {
-      const original = transactions.find((t) => t.id === row.id)!;
-      return { ...original };
-    });
-
-    updateTransactions(plan.changed);
-
-    onToast?.({
-      id: Date.now(),
-      message: `Renamed ${plan.changed.length} ${plan.changed.length === 1 ? "row" : "rows"} to "${plan.canonical}"`,
-      actionLabel: "Undo",
-      onAction: () => updateTransactions(before),
-    });
-
-    return plan.changed.length;
+  function openNames(field: NameField) {
+    setNamesField(field);
+    setNamesOpen(true);
   }
 
   /**
-   * Apply a category or merchant rename (which merges when the target
-   * already exists). Mirrors handleMerge above, including the per-row Undo:
-   * restoring one blanket name would be wrong for the same reason it is
-   * there — though for categories a rename has a single source name, so
-   * the per-row snapshot is defence in depth rather than load-bearing.
-   * Kept identical anyway so the two paths cannot drift.
+   * Category -> the exact `categories` facet. Merchant -> search text,
+   * because ActivityFilter has no merchant facet; the same choice Debts
+   * makes for a counterparty. Search also matches category, notes and
+   * account, so a merchant name that appears in another row's notes pulls
+   * that row in too.
    */
-  function openRename(field: RenameField) {
-    setRenameField(field);
-    setRenameOpen(true);
-  }
-
-  function handleRename(field: RenameField, from: string, to: string): number {
-    const plan = planRename(transactions, field, from, to);
-    if (plan.changed.length === 0) return 0;
-
-    const before = plan.changed.map((row) => {
-      const original = transactions.find((t) => t.id === row.id)!;
-      return { ...original };
-    });
-
-    updateTransactions(plan.changed);
-
-    const rows = `${plan.changed.length} ${plan.changed.length === 1 ? "row" : "rows"}`;
-    onToast?.({
-      id: Date.now(),
-      message: plan.isMerge
-        ? `Moved ${rows} into "${plan.canonical}"`
-        : `Renamed ${rows} to "${plan.canonical}"`,
-      actionLabel: "Undo",
-      onAction: () => updateTransactions(before),
-    });
-
-    return plan.changed.length;
+  function drillToName(field: NameField, name: string) {
+    setNamesOpen(false);
+    onDrillDown?.(field === "category" ? { ...emptyFilter(), categories: [name] } : { ...emptyFilter(), query: name });
   }
 
   return (
@@ -252,18 +195,8 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
       {/* Grouped by what the rows act on: your data's names, then where the
           data lives (user decision 2026-11-10). */}
       <div class="settings-group">
-        <SettingsRow label="Categories" detail={String(categoryCount)} onClick={() => openRename("category")} />
-        <SettingsRow label="Merchants" detail={String(merchantCount)} onClick={() => openRename("merchant")} />
-      </div>
-
-      {/* Its own group (user decision 2026-11-11): a guided review of
-          auto-detected duplicates, not a list of names to browse. */}
-      <div class="settings-group">
-        <SettingsRow
-          label="Tidy up Merchants"
-          detail={duplicateGroupCount === 0 ? "" : `${duplicateGroupCount} to review`}
-          onClick={() => setMergeOpen(true)}
-        />
+        <SettingsRow label="Categories" detail={String(categoryCount)} onClick={() => openNames("category")} />
+        <SettingsRow label="Merchants" detail={String(merchantCount)} onClick={() => openNames("merchant")} />
       </div>
 
       <div class="settings-group">
@@ -392,23 +325,14 @@ export function SettingsScreen({ onToast }: SettingsScreenProps) {
         )}
       </Sheet>
 
-      {/* No key needed to keep a half-typed rename from crossing between
-          Categories and Merchants: every close path goes through the
-          sheet's handleClose, which clears its selection and draft. */}
-      <RenameSheet
-        field={renameField}
-        open={renameOpen}
-        onClose={() => setRenameOpen(false)}
+      <NamesSheet
+        field={namesField}
+        open={namesOpen}
+        onClose={() => setNamesOpen(false)}
         transactions={transactions}
-        onRename={(from, to) => handleRename(renameField, from, to)}
+        onSelect={(name) => drillToName(namesField, name)}
       />
 
-      <MerchantMergeSheet
-        open={mergeOpen}
-        onClose={() => setMergeOpen(false)}
-        transactions={transactions}
-        onMerge={handleMerge}
-      />
     </main>
   );
 }

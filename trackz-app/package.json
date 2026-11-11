@@ -12,8 +12,7 @@
   },
   "dependencies": {
     "lucide-preact": "^1.71.0",
-    "preact": "^11.0.2",
-    "uplot": "^1.6.32"
+    "preact": "^11.0.2"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",

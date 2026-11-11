@@ -19,8 +19,8 @@
   margin: var(--space-6) 0 var(--space-3);
 }
 
-/* The first title sits at the top of the screen now that the Total Assets
-   card above it is gone; the screen padding already spaces it. */
+/* The first title ("Lent out") sits at the top of the screen; the screen
+   padding already spaces it. */
 .accounts-screen__section-title:first-child {
   margin-top: 0;
 }
@@ -28,57 +28,6 @@
 .accounts-screen__empty {
   color: var(--text-tertiary);
   font-size: var(--text-sm);
-}
-
-/* ---- Account balance cards ---- */
-
-.account-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.account-card__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.account-card__identity {
-  flex: 0 0 64px;
-  width: 64px;
-  overflow: hidden;
-}
-
-.account-card__name {
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
-.account-card__last-activity {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.account-card__last-activity--dormant {
-  color: var(--text-tertiary);
-  opacity: 0.7;
-}
-
-.account-card__balance {
-  flex: 0 0 auto;
-  font-size: var(--text-base);
-  font-weight: 700;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.account-card__balance--negative {
-  color: var(--negative);
 }
 
 /* ---- Lent out / I owe counterparty rows ---- */

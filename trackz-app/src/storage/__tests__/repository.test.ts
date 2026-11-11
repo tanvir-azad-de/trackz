@@ -43,12 +43,10 @@ const {
   getTransactionsIncludingDeleted,
   addTransaction,
   updateTransaction,
-  updateTransactions,
   deleteTransaction,
   undeleteTransaction,
   purgeOldTombstones,
   isEmpty,
-  subscribe,
 } = await import("@/storage/repository");
 
 function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
@@ -156,96 +154,5 @@ describe("purgeOldTombstones", () => {
   it("returns 0 and writes nothing when there is nothing to purge", () => {
     addTransaction(makeTransaction());
     expect(purgeOldTombstones(90)).toBe(0);
-  });
-});
-
-describe("updateTransactions (Phase 6: bulk write for merchant merge)", () => {
-  it("applies every change in one write", () => {
-    addTransaction(makeTransaction({ id: "a", merchant: "EDEKA" }));
-    addTransaction(makeTransaction({ id: "b", merchant: "EDEKA" }));
-    addTransaction(makeTransaction({ id: "c", merchant: "Aldi" }));
-
-    const all = getTransactions();
-    updateTransactions(
-      all.filter((t) => t.merchant === "EDEKA").map((t) => ({ ...t, merchant: "Edeka" })),
-    );
-
-    const after = getTransactions();
-    expect(after.filter((t) => t.merchant === "Edeka")).toHaveLength(2);
-    expect(after.find((t) => t.id === "c")!.merchant).toBe("Aldi");
-    expect(after).toHaveLength(3); // renames, never removes
-  });
-
-  /**
-   * updatedAt is what carries the rename to other devices through
-   * sync/merge.ts's last-writer-wins resolution. Without the bump the
-   * merge would be local-only and could be silently undone by the next
-   * sync.
-   */
-  it("bumps updatedAt on every row it writes", () => {
-    addTransaction(makeTransaction({ id: "a", updatedAt: "2020-01-01T00:00:00.000Z" }));
-
-    const [row] = getTransactions();
-    updateTransactions([{ ...row!, merchant: "Edeka" }]);
-
-    expect(getTransactions()[0]!.updatedAt).not.toBe("2020-01-01T00:00:00.000Z");
-  });
-
-  it("notifies subscribers exactly once for the whole batch", () => {
-    addTransaction(makeTransaction({ id: "a", merchant: "EDEKA" }));
-    addTransaction(makeTransaction({ id: "b", merchant: "EDEKA" }));
-
-    let notifications = 0;
-    const unsubscribe = subscribe(() => notifications++);
-    updateTransactions(getTransactions().map((t) => ({ ...t, merchant: "Edeka" })));
-    unsubscribe();
-
-    // One write, one re-render, one armed sync debounce — not one per row.
-    expect(notifications).toBe(1);
-  });
-
-  it("writes nothing and notifies nobody for an empty batch", () => {
-    addTransaction(makeTransaction({ id: "a" }));
-
-    let notifications = 0;
-    const unsubscribe = subscribe(() => notifications++);
-    updateTransactions([]);
-    unsubscribe();
-
-    expect(notifications).toBe(0);
-  });
-
-  /**
-   * All-or-nothing: a half-applied merchant merge (some rows renamed,
-   * some not, no record of how far it got) is a genuinely bad state, so
-   * ids are validated before anything is written.
-   */
-  it("throws on an unknown id without writing any of the batch", () => {
-    addTransaction(makeTransaction({ id: "a", merchant: "EDEKA" }));
-    const [row] = getTransactions();
-
-    expect(() =>
-      updateTransactions([
-        { ...row!, merchant: "Edeka" },
-        { ...makeTransaction({ id: "ghost" }), merchant: "Edeka" },
-      ]),
-    ).toThrow(/ghost/);
-
-    // The valid row in the same batch must NOT have been written.
-    expect(getTransactions()[0]!.merchant).toBe("EDEKA");
-  });
-
-  it("preserves fields it was not asked to change", () => {
-    addTransaction(
-      makeTransaction({ id: "a", merchant: "EDEKA", amountCents: 999, categoryType: "non_expense" }),
-    );
-    const [row] = getTransactions();
-    updateTransactions([{ ...row!, merchant: "Edeka" }]);
-
-    const after = getTransactions()[0]!;
-    expect(after.amountCents).toBe(999);
-    expect(after.categoryType).toBe("non_expense");
-    expect(after.createdAt).toBe(row!.createdAt);
-    expect(after.id).toBe("a");
   });
 });

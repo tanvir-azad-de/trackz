@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { House, List, Plus, Settings, Wallet } from "@/components/icons";
+import { Handshake, House, List, Plus, Settings } from "@/components/icons";
 
 export type TabName = "home" | "activity" | "accounts" | "settings";
 
@@ -18,14 +18,14 @@ interface TabDef {
 const TABS: TabDef[] = [
   { name: "home", label: "Home", icon: <House size="1em" /> },
   { name: "activity", label: "Activity", icon: <List size="1em" /> },
-  { name: "accounts", label: "Accounts", icon: <Wallet size="1em" /> },
+  { name: "accounts", label: "Debts", icon: <Handshake size="1em" /> },
   { name: "settings", label: "Settings", icon: <Settings size="1em" /> },
 ];
 
 /**
  * 4 tabs + center FAB, per the locked navigation decision
  * (docs/renovation_version_1.txt). The FAB sits physically between
- * Activity and Accounts in the DOM/visual order but is NOT one of the 4
+ * Activity and Debts in the DOM/visual order but is NOT one of the 4
  * tabs — it always opens the quick-entry sheet (Phase 8), it never
  * becomes "active".
  */
