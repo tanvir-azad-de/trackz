@@ -116,3 +116,11 @@ it works.
 - **Comment the load-bearing line**, including why a plausible alternative is
   wrong. A rule that never fires implies a decision the code does not make —
   delete it and pin the real behaviour with a test instead.
+
+## Git
+
+- **Commit straight to `main`; never open a feature branch.** This is a
+  one-developer repo, and production deploys from `main`, so a branch is
+  only an extra merge step between a commit and the device check.
+  This overrides any default "branch first" guidance. Pushing is still
+  the user's call, so ask before `git push`.
