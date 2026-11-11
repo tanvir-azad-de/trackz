@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
 import {
-  planCategoryRename,
-  summarizeCategories,
-  validateCategoryRename,
-} from "@/features/settings/categoryRename";
+  planRename,
+  summarizeNames,
+  validateRename,
+} from "@/features/settings/nameRename";
 import type { CategoryType, Transaction } from "@/domain/transaction";
 import { hasExpectedValues, readExpectedValues } from "@/__tests__/expectedValues";
 
@@ -57,13 +57,13 @@ function makeTransaction(
   };
 }
 
-describe("summarizeCategories", () => {
+describe("summarizeNames (category)", () => {
   it("counts rows and sums amounts per name", () => {
-    const summaries = summarizeCategories([
+    const summaries = summarizeNames([
       makeTransaction("Restaurant", { amountCents: 1000 }),
       makeTransaction("Restaurant", { amountCents: 500 }),
       makeTransaction("Dining", { amountCents: 1250 }),
-    ]);
+    ], "category");
 
     expect(summaries).toHaveLength(2);
     const restaurant = summaries.find((s) => s.name === "Restaurant")!;
@@ -77,11 +77,11 @@ describe("summarizeCategories", () => {
   it("groups names that differ only by surrounding whitespace", () => {
     // draft.ts trims `category` on write but an imported row may not be,
     // so " Rent" and "Rent" are the SAME category, not two.
-    const summaries = summarizeCategories([
+    const summaries = summarizeNames([
       makeTransaction("Rent"),
       makeTransaction(" Rent"),
       makeTransaction("Rent "),
-    ]);
+    ], "category");
 
     expect(summaries).toHaveLength(1);
     expect(summaries[0]!.name).toBe("Rent");
@@ -89,12 +89,12 @@ describe("summarizeCategories", () => {
   });
 
   it("skips blank category names rather than inventing a category", () => {
-    const summaries = summarizeCategories([
+    const summaries = summarizeNames([
       makeTransaction("Rent"),
       makeTransaction(""),
       makeTransaction("   "),
       makeTransaction("\t"),
-    ]);
+    ], "category");
 
     // Three DISTINCT blank spellings, so this stays falsifiable: if the
     // blank guard were removed they would all trim to "" and collapse
@@ -103,12 +103,12 @@ describe("summarizeCategories", () => {
   });
 
   it("reports a per-type breakdown and flags a name carrying several types", () => {
-    const summaries = summarizeCategories([
+    const summaries = summarizeNames([
       makeTransaction("WiFi", { categoryType: "non_expense" }),
       makeTransaction("WiFi", { categoryType: "non_expense" }),
       makeTransaction("WiFi", { categoryType: "expense" }),
       makeTransaction("Rent", { categoryType: "expense" }),
-    ]);
+    ], "category");
 
     const wifi = summaries.find((s) => s.name === "WiFi")!;
     expect(wifi.categoryTypes).toEqual({ non_expense: 2, expense: 1 });
@@ -120,21 +120,21 @@ describe("summarizeCategories", () => {
   });
 
   it("sorts by row count descending, then by name", () => {
-    const summaries = summarizeCategories([
+    const summaries = summarizeNames([
       makeTransaction("Zebra"),
       makeTransaction("Apple"),
       makeTransaction("Busy"),
       makeTransaction("Busy"),
-    ]);
+    ], "category");
 
     expect(summaries.map((s) => s.name)).toEqual(["Busy", "Apple", "Zebra"]);
   });
 });
 
-describe("planCategoryRename", () => {
+describe("planRename (category)", () => {
   it("rewrites only the source rows, leaving others alone", () => {
-    const plan = planCategoryRename(
-      [makeTransaction("Dining"), makeTransaction("Groceries"), makeTransaction("Smokes")],
+    const plan = planRename(
+      [makeTransaction("Dining"), makeTransaction("Groceries"), makeTransaction("Smokes")], "category",
       "Dining",
       "Restaurant",
     );
@@ -148,7 +148,7 @@ describe("planCategoryRename", () => {
 
   it("changes nothing but the category field", () => {
     const original = makeTransaction("Dining", { amountCents: 1250, categoryType: "expense" });
-    const plan = planCategoryRename([original], "Dining", "Restaurant");
+    const plan = planRename([original], "category", "Dining", "Restaurant");
 
     expect(plan.changed[0]).toEqual({ ...original, category: "Restaurant" });
   });
@@ -156,8 +156,8 @@ describe("planCategoryRename", () => {
   it("counts rows already carrying the target name without rewriting them", () => {
     // Merging Dining (1) into Restaurant (2) must write ONE row, not three
     // — the other two would each bump updatedAt and sync for no change.
-    const plan = planCategoryRename(
-      [makeTransaction("Dining"), makeTransaction("Restaurant"), makeTransaction("Restaurant")],
+    const plan = planRename(
+      [makeTransaction("Dining"), makeTransaction("Restaurant"), makeTransaction("Restaurant")], "category",
       "Dining",
       "Restaurant",
     );
@@ -168,7 +168,7 @@ describe("planCategoryRename", () => {
   });
 
   it("matches and writes trimmed names", () => {
-    const plan = planCategoryRename([makeTransaction(" Dining ")], "Dining", "  Restaurant  ");
+    const plan = planRename([makeTransaction(" Dining ")], "category", "Dining", "  Restaurant  ");
 
     expect(plan.canonical).toBe("Restaurant");
     expect(plan.changed).toHaveLength(1);
@@ -176,11 +176,11 @@ describe("planCategoryRename", () => {
   });
 
   it("preserves categoryType, so a rename cannot turn spending into non-spending", () => {
-    const plan = planCategoryRename(
+    const plan = planRename(
       [
         makeTransaction("WiFi", { categoryType: "non_expense" }),
         makeTransaction("WiFi", { categoryType: "expense" }),
-      ],
+      ], "category",
       "WiFi",
       "Internet",
     );
@@ -190,12 +190,12 @@ describe("planCategoryRename", () => {
   });
 
   it("returns an empty plan when no row carries the source name", () => {
-    const plan = planCategoryRename([makeTransaction("Rent")], "Dining", "Restaurant");
+    const plan = planRename([makeTransaction("Rent")], "category", "Dining", "Restaurant");
     expect(plan.changed).toEqual([]);
   });
 });
 
-describe("validateCategoryRename", () => {
+describe("validateRename (category)", () => {
   const rows = [makeTransaction("Dining"), makeTransaction("Restaurant")];
 
   it("allows renaming onto a name that already exists (that is a merge)", () => {
@@ -203,19 +203,19 @@ describe("validateCategoryRename", () => {
     // ("Edeka" -> "Aldi"). Categories must NOT: "Dining" -> "Restaurant"
     // is the whole point of the feature, and the real data has no
     // case-duplicate category names to merge instead.
-    expect(validateCategoryRename(rows, "Dining", "Restaurant")).toBeNull();
+    expect(validateRename(rows, "category", "Dining", "Restaurant")).toBeNull();
   });
 
   it("allows a brand-new name", () => {
-    expect(validateCategoryRename(rows, "Dining", "Eating out")).toBeNull();
+    expect(validateRename(rows, "category", "Dining", "Eating out")).toBeNull();
   });
 
   it("rejects a blank name", () => {
-    expect(validateCategoryRename(rows, "Dining", "   ")).toBe("Enter a name.");
+    expect(validateRename(rows, "category", "Dining", "   ")).toBe("Enter a name.");
   });
 
   it("rejects a name with no letters or numbers", () => {
-    expect(validateCategoryRename(rows, "Dining", "***")).toBe(
+    expect(validateRename(rows, "category", "Dining", "***")).toBe(
       "That name has no letters or numbers in it.",
     );
   });
@@ -223,25 +223,89 @@ describe("validateCategoryRename", () => {
   it("accepts a non-ASCII name", () => {
     // \p{L} not [a-z]: "Café" and "Ernährung" are legitimate names, and
     // an ASCII-only check would reject a fully-non-Latin one outright.
-    expect(validateCategoryRename(rows, "Dining", "Café")).toBeNull();
-    expect(validateCategoryRename(rows, "Dining", "食費")).toBeNull();
+    expect(validateRename(rows, "category", "Dining", "Café")).toBeNull();
+    expect(validateRename(rows, "category", "Dining", "食費")).toBeNull();
   });
 
   it("rejects renaming a name to itself, which would write nothing", () => {
-    expect(validateCategoryRename(rows, "Dining", "Dining")).toBe("That's already the name.");
-    expect(validateCategoryRename(rows, "Dining", "  Dining  ")).toBe("That's already the name.");
+    expect(validateRename(rows, "category", "Dining", "Dining")).toBe("That's already the name.");
+    expect(validateRename(rows, "category", "Dining", "  Dining  ")).toBe("That's already the name.");
   });
 
   it("rejects a source name that no transaction carries", () => {
-    expect(validateCategoryRename(rows, "Nonexistent", "Restaurant")).toBe(
+    expect(validateRename(rows, "category", "Nonexistent", "Restaurant")).toBe(
       'No transactions are in "Nonexistent".',
     );
   });
 });
 
+describe("renaming merchants (field = merchant)", () => {
+  it("summarizes by merchant, not category, and skips rows with no merchant", () => {
+    const summaries = summarizeNames(
+      [
+        makeTransaction("Groceries", { merchant: "Edeka", amountCents: 1240 }),
+        makeTransaction("Household", { merchant: "Edeka", amountCents: 760 }),
+        makeTransaction("Groceries", { merchant: "Aldi", amountCents: 300 }),
+        makeTransaction("", { merchant: "", categoryType: "transfer", cashflow: "none" }),
+        makeTransaction("Groceries", { merchant: "  " }),
+      ],
+      "merchant",
+    );
+
+    expect(summaries.map((s) => [s.name, s.rowCount, s.totalCents])).toEqual([
+      ["Edeka", 2, 2000],
+      ["Aldi", 1, 300],
+    ]);
+  });
+
+  it("rewrites only merchant, leaving category and amounts untouched", () => {
+    const plan = planRename(
+      [
+        makeTransaction("Groceries", { merchant: "EDEKA", amountCents: 1240 }),
+        makeTransaction("Groceries", { merchant: "Edeka" }),
+        makeTransaction("EDEKA", { merchant: "Aldi" }), // category spelled like the source
+      ],
+      "merchant",
+      "EDEKA",
+      "Edeka",
+    );
+
+    expect(plan.isMerge).toBe(true);
+    expect(plan.mergedIntoCount).toBe(1);
+    expect(plan.changed).toHaveLength(1);
+    expect(plan.changed[0]).toMatchObject({ merchant: "Edeka", category: "Groceries", amountCents: 1240 });
+  });
+
+  it("keeps a person's row types when their name is renamed", () => {
+    // On receivable/payable rows merchant names a person (Lent out / I owe).
+    // A rename moves the name only; the type, and so the sign, stays.
+    const plan = planRename(
+      [
+        makeTransaction("Loan", { merchant: "Sam", categoryType: "receivable", amountCents: 5000 }),
+        makeTransaction("Loan", { merchant: "Sam", categoryType: "payable", cashflow: "in", amountCents: 2000 }),
+      ],
+      "merchant",
+      "Sam",
+      "Samir",
+    );
+
+    expect(plan.isMerge).toBe(false);
+    expect(plan.changed.map((t) => [t.merchant, t.categoryType, t.cashflow, t.amountCents])).toEqual([
+      ["Samir", "receivable", "out", 5000],
+      ["Samir", "payable", "in", 2000],
+    ]);
+  });
+
+  it("validates against merchants, not categories", () => {
+    const rows = [makeTransaction("Edeka", { merchant: "Aldi" })];
+    expect(validateRename(rows, "merchant", "Aldi", "ALDI")).toBeNull();
+    expect(validateRename(rows, "merchant", "Edeka", "Rewe")).toBe('No transactions are in "Edeka".');
+  });
+});
+
 describe.skipIf(!hasFixture)("against the real backup", () => {
   it("finds the 36 real categories with Groceries the largest", () => {
-    const summaries = summarizeCategories(transactions);
+    const summaries = summarizeNames(transactions, "category");
     expect(summaries).toHaveLength(36);
     expect(summaries[0]!.name).toBe("Groceries");
     expect(summaries[0]!.rowCount).toBe(578);
@@ -252,7 +316,7 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
     // WiFi: a shared flat contract, then a sole one after moving.
     // Neither is a mistake, which is why the UI shows this as
     // information with nothing to action.
-    const mixed = summarizeCategories(transactions).filter((s) => s.hasMixedTypes);
+    const mixed = summarizeNames(transactions, "category").filter((s) => s.hasMixedTypes);
 
     expect(mixed.map((s) => s.name).sort()).toEqual(["Shopping", "WiFi"]);
     expect(mixed.find((s) => s.name === "Shopping")!.categoryTypes).toEqual({
@@ -267,7 +331,7 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
   });
 
   it("merges the real Dining row into Restaurant, writing one row", () => {
-    const plan = planCategoryRename(transactions, "Dining", "Restaurant");
+    const plan = planRename(transactions, "category", "Dining", "Restaurant");
 
     expect(plan.isMerge).toBe(true);
     expect(plan.changed).toHaveLength(1);
@@ -277,7 +341,7 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
   });
 
   it("merges the real Fees row into Bank Charges, writing one row", () => {
-    const plan = planCategoryRename(transactions, "Fees", "Bank Charges");
+    const plan = planRename(transactions, "category", "Fees", "Bank Charges");
 
     expect(plan.isMerge).toBe(true);
     expect(plan.changed).toHaveLength(1);
@@ -286,15 +350,15 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
   });
 
   it("conserves row count and total cents across a real merge", () => {
-    const before = summarizeCategories(transactions);
+    const before = summarizeNames(transactions, "category");
     const dining = before.find((s) => s.name === "Dining")!;
     const restaurant = before.find((s) => s.name === "Restaurant")!;
 
-    const plan = planCategoryRename(transactions, "Dining", "Restaurant");
+    const plan = planRename(transactions, "category", "Dining", "Restaurant");
     const changedById = new Map(plan.changed.map((t) => [t.id, t]));
     const applied = transactions.map((t) => changedById.get(t.id) ?? t);
 
-    const after = summarizeCategories(applied);
+    const after = summarizeNames(applied, "category");
     expect(after).toHaveLength(35); // 36 - 1, Dining is gone
     expect(after.find((s) => s.name === "Dining")).toBeUndefined();
 
@@ -310,7 +374,7 @@ describe.skipIf(!hasFixture)("against the real backup", () => {
     // contentDerivedTransactionId hashes `category`, but ids are minted
     // only at CSV parse time — so the rewrite must NOT re-key rows, or
     // every renamed row would strand itself in sync as a new record.
-    const plan = planCategoryRename(transactions, "Dining", "Restaurant");
+    const plan = planRename(transactions, "category", "Dining", "Restaurant");
     const original = transactions.find((t) => t.category === "Dining")!;
 
     expect(plan.changed[0]!.id).toBe(original.id);

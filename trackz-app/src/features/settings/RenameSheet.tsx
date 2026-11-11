@@ -1,24 +1,29 @@
 import { useMemo, useState } from "preact/hooks";
 import type { Transaction } from "@/domain/transaction";
 import {
-  planCategoryRename,
-  summarizeCategories,
-  validateCategoryRename,
-  type CategorySummary,
-} from "@/features/settings/categoryRename";
+  planRename,
+  summarizeNames,
+  validateRename,
+  type NameSummary,
+  type RenameField,
+} from "@/features/settings/nameRename";
 import { Sheet } from "@/components/Sheet";
 import { Money } from "@/components/Money";
 import { TypeBreakdown } from "@/components/TypeBreakdown";
-import "./CategoriesSheet.css";
+import "./RenameSheet.css";
 
 /**
- * Phase 13b: the category editor.
+ * Phase 13b: the category editor. Since 2026-11-11 also the merchant
+ * editor (user request: Settings' "Merchants" row opens the same sheet as
+ * "Categories"); `field` picks which, and the wording comes from LABELS.
+ * The auto-detected duplicate review that "Merchants" used to open is
+ * MerchantMergeSheet, now behind "Tidy up Merchants".
  *
  * ONE OPERATION: rename, which merges when the target name already
  * exists. There is deliberately no delete — Phase 0 locked categories as
  * DERIVED from transactions, so an empty category cannot exist to be
  * deleted, and deleting one with rows means moving those rows, which is
- * what a rename already does. See categoryRename.ts's header.
+ * what a rename already does. See nameRename.ts's header.
  *
  * TWO-STEP: a list of every category, then a rename form for the one
  * picked. Unlike MerchantMergeSheet, which walks auto-detected duplicate
@@ -40,7 +45,14 @@ import "./CategoriesSheet.css";
  * here it means "this category has a history".
  */
 
-interface CategoriesSheetProps {
+/** Per-field wording. Plural is lowercase; it follows the count in the hint. */
+const LABELS: Record<RenameField, { title: string; noun: string; plural: string }> = {
+  category: { title: "Categories", noun: "category", plural: "categories" },
+  merchant: { title: "Merchants", noun: "merchant", plural: "merchants" },
+};
+
+interface RenameSheetProps {
+  field: RenameField;
   open: boolean;
   onClose: () => void;
   transactions: Transaction[];
@@ -48,16 +60,17 @@ interface CategoriesSheetProps {
   onRename: (from: string, to: string) => number;
 }
 
-export function CategoriesSheet({ open, onClose, transactions, onRename }: CategoriesSheetProps) {
-  const categories = useMemo(() => summarizeCategories(transactions), [transactions]);
+export function RenameSheet({ field, open, onClose, transactions, onRename }: RenameSheetProps) {
+  const labels = LABELS[field];
+  const names = useMemo(() => summarizeNames(transactions, field), [transactions, field]);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
-  const current = selected === null ? null : (categories.find((c) => c.name === selected) ?? null);
+  const current = selected === null ? null : (names.find((c) => c.name === selected) ?? null);
 
-  function handleSelect(category: CategorySummary) {
-    setSelected(category.name);
-    setDraft(category.name);
+  function handleSelect(summary: NameSummary) {
+    setSelected(summary.name);
+    setDraft(summary.name);
   }
 
   function handleBack() {
@@ -79,68 +92,68 @@ export function CategoriesSheet({ open, onClose, transactions, onRename }: Categ
     handleBack();
   }
 
-  const error = current === null ? null : validateCategoryRename(transactions, current.name, draft);
+  const error = current === null ? null : validateRename(transactions, field, current.name, draft);
 
   return (
-    <Sheet open={open} onClose={handleClose} title={current ? "Rename category" : "Categories"}>
+    <Sheet open={open} onClose={handleClose} title={current ? `Rename ${labels.noun}` : labels.title}>
       {current === null ? (
-        <div class="categories">
-          <p class="categories__hint">
-            {categories.length} {categories.length === 1 ? "category" : "categories"}. Tap one to
+        <div class="rename-sheet">
+          <p class="rename-sheet__hint">
+            {names.length} {names.length === 1 ? labels.noun : labels.plural}. Tap one to
             rename it — renaming it to a name that already exists merges the two.
           </p>
-          <ul class="categories__list">
-            {categories.map((c) => (
+          <ul class="rename-sheet__list">
+            {names.map((c) => (
               <li key={c.name}>
-                <button type="button" class="categories__row" onClick={() => handleSelect(c)}>
-                  <span class="categories__row-main">
-                    <span class="categories__row-name">{c.name}</span>
-                    <span class="categories__row-meta">
+                <button type="button" class="rename-sheet__row" onClick={() => handleSelect(c)}>
+                  <span class="rename-sheet__row-main">
+                    <span class="rename-sheet__row-name">{c.name}</span>
+                    <span class="rename-sheet__row-meta">
                       {c.rowCount} {c.rowCount === 1 ? "row" : "rows"}
-                      {c.hasMixedTypes && <span class="categories__mixed"> · mixed types</span>}
+                      {c.hasMixedTypes && <span class="rename-sheet__mixed"> · mixed types</span>}
                     </span>
                   </span>
-                  <span class="categories__row-amount">
+                  <span class="rename-sheet__row-amount">
                     <Money cents={c.totalCents} />
                   </span>
                 </button>
               </li>
             ))}
           </ul>
-          <button type="button" class="categories__button" onClick={handleClose}>
+          <button type="button" class="rename-sheet__button" onClick={handleClose}>
             Close
           </button>
         </div>
       ) : (
-        <div class="categories">
-          <p class="categories__current">
+        <div class="rename-sheet">
+          <p class="rename-sheet__current">
             {current.name} · {current.rowCount} {current.rowCount === 1 ? "row" : "rows"} ·{" "}
             <Money cents={current.totalCents} />
           </p>
 
           <TypeBreakdown categoryTypes={current.categoryTypes} />
           {current.hasMixedTypes && (
-            <p class="categories__note" role="note">
-              This category is used with more than one type. That's fine — renaming it keeps every
+            <p class="rename-sheet__note" role="note">
+              This {labels.noun} is used with more than one type. That's fine — renaming it keeps every
               row's type exactly as it is.
             </p>
           )}
 
-          <label class="categories__label">
+          <label class="rename-sheet__label">
             New name
             <input
-              class="categories__input"
+              class="rename-sheet__input"
               type="text"
               value={draft}
               onInput={(e) => setDraft(e.currentTarget.value)}
             />
           </label>
-          {error && <p class="categories__error">{error}</p>}
+          {error && <p class="rename-sheet__error">{error}</p>}
 
-          <p class="categories__summary">
+          <p class="rename-sheet__summary">
             {(() => {
               if (error) return "\u00a0";
-              const plan = planCategoryRename(transactions, current.name, draft);
+              const plan = planRename(transactions, field, current.name, draft);
               const rows = `${plan.changed.length} ${plan.changed.length === 1 ? "row" : "rows"}`;
               if (plan.isMerge) {
                 return `Moves ${rows} into ${plan.canonical}, which has ${plan.mergedIntoCount}. Amounts and types don't change.`;
@@ -149,17 +162,17 @@ export function CategoriesSheet({ open, onClose, transactions, onRename }: Categ
             })()}
           </p>
 
-          <div class="categories__actions">
+          <div class="rename-sheet__actions">
             <button
               type="button"
-              class="categories__button categories__button--secondary"
+              class="rename-sheet__button rename-sheet__button--secondary"
               onClick={handleBack}
             >
               Back
             </button>
             <button
               type="button"
-              class="categories__button categories__button--primary"
+              class="rename-sheet__button rename-sheet__button--primary"
               disabled={error !== null}
               onClick={handleRename}
             >
@@ -172,7 +185,7 @@ export function CategoriesSheet({ open, onClose, transactions, onRename }: Categ
   );
 }
 
-/** Distinct category count, for the Settings section summary. */
-export function countCategories(transactions: Transaction[]): number {
-  return summarizeCategories(transactions).length;
+/** Distinct name count in `field`, for the Settings row summary. */
+export function countNames(transactions: Transaction[], field: RenameField): number {
+  return summarizeNames(transactions, field).length;
 }

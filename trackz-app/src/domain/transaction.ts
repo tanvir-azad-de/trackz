@@ -189,7 +189,7 @@ export function accountTypeLabel(type: AccountType): string {
  *
  * Consequence for consumers: anything needing a type must read it from
  * the transaction (or compute a per-type breakdown over rows, as
- * features/settings/categoryRename.ts does). Nothing can ask a Category
+ * features/settings/nameRename.ts does). Nothing can ask a Category
  * what type it "is", because that question has no single answer.
  */
 export interface Category {

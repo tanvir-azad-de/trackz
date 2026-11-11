@@ -12,13 +12,13 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 491 tests passing (+1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
+  Baseline: 495 tests passing (+4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 55,862 bytes gzipped JS (+10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
+  build 56,081 bytes gzipped JS (+221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
   tweaks, against a 54,437 rebuild of 9d052ec; +34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
@@ -57,6 +57,32 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  SETTINGS MERCHANTS SHEET — DONE 2026-11-11, NOT YET DEPLOYED. User
+  request + grill answers:
+    - The old "Merchants" row (MerchantMergeSheet, the guided duplicate
+      review) is now "Tidy up Merchants", alone in its own group right
+      below Categories. Its sheet title still reads "Tidy up merchants".
+    - A new "Merchants" row sits beside Categories and opens the SAME
+      sheet: list of names with rows and total, tap -> rename, renaming
+      into an existing name merges. Plain list, no search (their call,
+      over 196 merchants in the 2026-11-11 backup, 81 used once). People
+      (receivable/payable/non_* counterparties) are mixed in with no
+      distinction (their call); renaming one renames them on Lent out /
+      I owe, merging two people merges their balances. No "different
+      merchant" guard, same as categories.
+    - Implementation: categoryRename.ts -> nameRename.ts and
+      CategoriesSheet -> RenameSheet, both taking `field`
+      ("category" | "merchant"); no second copy of the logic. Blank
+      merchants (transfers, some spending) are skipped. Same per-row
+      Undo toast as the category rename.
+    - Tests: +4 merchant cases; each `tx[field]` hard-coded back to
+      category fails at least one. Driven in Playwright at 390x844@2x:
+      groups [Categories, Merchants] / [Tidy up Merchants] / [Sync,
+      Data]; EDEKA -> Edeka merged 1 row into 2, stored merchants and
+      cents exact, categories and types untouched; the 161-row dev-seed
+      list scrolls inside the sheet. The list sorts by row count, not
+      total.
 
   DELETE TOAST AT 1s — DONE AND DEPLOYED 2026-11-11 (b414d81; live bundle
   index-3RplSNKI.js carries the "b414d81" version stamp and the 1s/500ms

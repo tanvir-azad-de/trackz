@@ -101,7 +101,7 @@ it works.
 
 - **Pure logic splits from plumbing.** The pure half is tested and holds no DOM
   or repository access (`exportImport.ts`, `merchantMerge.ts`,
-  `categoryRename.ts`); the thin half wires it up and is untested
+  `nameRename.ts`); the thin half wires it up and is untested
   (`SettingsScreen.tsx`). Keep orchestration that touches both the repository
   and the sync coordinator in its own module.
 - **No gradients.** Flat dark cards, 1px `--border-subtle` edge, color reserved

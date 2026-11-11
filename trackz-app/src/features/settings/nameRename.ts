@@ -4,7 +4,18 @@ import type { Cents } from "@/domain/money";
 
 /**
  * Phase 13b: renaming a category, which also merges when the target name
- * already exists.
+ * already exists. Generalized 2026-11-11 to merchants too (user request:
+ * a Merchants sheet that works exactly like Categories), so every function
+ * takes the `field` it renames. Everything below written about categories
+ * holds for merchants, with two differences worth knowing:
+ *   - merchants DO have spelling duplicates; those are the job of
+ *     merchantMerge.ts ("Tidy up Merchants"), which auto-detects groups
+ *     and guards against renaming into a different merchant. This rename
+ *     has no such guard, the same deliberate choice as for categories.
+ *   - on non_expense / non_income / receivable / payable rows the merchant
+ *     names a PERSON, so renaming one renames that person on Lent out /
+ *     I owe, and renaming into another person's name merges their
+ *     balances. Shown in the same list, with no distinction (user call).
  *
  * PURE. No repository, no DOM, no side effects — it computes which rows
  * would change and returns them, so the whole decision is unit-testable
@@ -54,8 +65,11 @@ import type { Cents } from "@/domain/money";
  * round-trips correctly. The import preview says so.
  */
 
-/** A category as the editor sees it: a name plus what its rows look like. */
-export interface CategorySummary {
+/** The transaction field a rename rewrites. Both are plain names on the row. */
+export type RenameField = "category" | "merchant";
+
+/** A category or merchant as the editor sees it: a name plus what its rows look like. */
+export interface NameSummary {
   name: string;
   /** Live (non-tombstoned) rows carrying this name. */
   rowCount: number;
@@ -78,10 +92,10 @@ export interface CategorySummary {
 }
 
 /** The rewrite a rename would perform. */
-export interface CategoryRenamePlan {
+export interface RenamePlan {
   /** The name every matched row will end up with. */
   canonical: string;
-  /** Rows that will actually change, with `category` already rewritten. */
+  /** Rows that will actually change, with the renamed field already rewritten. */
   changed: Transaction[];
   /**
    * Rows that already carry the target name — i.e. the rows this rename
@@ -96,17 +110,19 @@ export interface CategoryRenamePlan {
 }
 
 /**
- * Summarize every distinct category, for the editor's list.
+ * Summarize every distinct name in `field`, for the editor's list.
  *
  * Names are TRIMMED and grouped on the trimmed value, matching
  * storage/derive.ts's deriveCategories — otherwise a stray-whitespace
- * twin would appear as its own row here and be un-mergeable.
+ * twin would appear as its own row here and be un-mergeable. Blank names
+ * are skipped: a row with no merchant (every transfer, and some spending)
+ * has nothing to rename.
  */
-export function summarizeCategories(transactions: Transaction[]): CategorySummary[] {
+export function summarizeNames(transactions: Transaction[], field: RenameField): NameSummary[] {
   const byName = new Map<string, { rowCount: number; totalCents: Cents; types: Map<CategoryType, number> }>();
 
   for (const tx of transactions) {
-    const name = tx.category.trim();
+    const name = tx[field].trim();
     if (name === "") continue;
 
     let entry = byName.get(name);
@@ -145,11 +161,12 @@ export function summarizeCategories(transactions: Transaction[]): CategorySummar
  * Returns an empty `changed` when nothing needs rewriting, so the caller
  * can skip the write — and therefore the sync round trip — entirely.
  */
-export function planCategoryRename(
+export function planRename(
   transactions: Transaction[],
+  field: RenameField,
   from: string,
   to: string,
-): CategoryRenamePlan {
+): RenamePlan {
   const source = from.trim();
   const target = to.trim();
 
@@ -157,13 +174,13 @@ export function planCategoryRename(
   let mergedIntoCount = 0;
 
   for (const tx of transactions) {
-    const current = tx.category.trim();
+    const current = tx[field].trim();
     if (current === target) {
       mergedIntoCount++;
       continue;
     }
     if (current !== source) continue;
-    changed.push({ ...tx, category: target });
+    changed.push({ ...tx, [field]: target });
   }
 
   return {
@@ -179,7 +196,7 @@ export function planCategoryRename(
  * fine, or a human-readable reason it is not.
  *
  * Deliberately permissive about the TARGET — it may be an existing
- * category (that is a merge) or a brand-new name, and it need not
+ * name (that is a merge) or a brand-new one, and it need not
  * resemble the source (see this module's header for why). What it
  * rejects is a rename that cannot mean anything:
  *   - a blank target, or one with no letters or numbers at all
@@ -191,8 +208,9 @@ export function planCategoryRename(
  * broken promise Phase 15c's import bug already taught this codebase to
  * avoid.
  */
-export function validateCategoryRename(
+export function validateRename(
   transactions: Transaction[],
+  field: RenameField,
   from: string,
   to: string,
 ): string | null {
@@ -203,7 +221,7 @@ export function validateCategoryRename(
   if (!/[\p{L}\p{N}]/u.test(target)) return "That name has no letters or numbers in it.";
   if (target === source) return "That's already the name.";
 
-  const sourceExists = transactions.some((tx) => tx.category.trim() === source);
+  const sourceExists = transactions.some((tx) => tx[field].trim() === source);
   if (!sourceExists) return `No transactions are in "${source}".`;
 
   return null;

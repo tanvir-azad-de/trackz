@@ -5,7 +5,7 @@ import type { SyncStatus } from "@/sync/coordinator";
  *
  * Pure so the decision is testable without a DOM — app.tsx keeps only the
  * setToast plumbing, matching the split used by exportImport.ts /
- * merchantMerge.ts / categoryRename.ts against their screens.
+ * merchantMerge.ts / nameRename.ts against their screens.
  *
  * WHY THIS EXISTS AT ALL. Until the app header was removed (it
  * double-counted --safe-top on every screen, pushing content 118px down

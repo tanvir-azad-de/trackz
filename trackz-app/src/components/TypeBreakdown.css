@@ -1,4 +1,4 @@
-/* Shared by MerchantMergeSheet (Phase 6 part 2) and CategoriesSheet
+/* Shared by MerchantMergeSheet (Phase 6 part 2) and RenameSheet
    (Phase 13b). Was .merge-group__types, local to the merchant sheet,
    until the category editor needed the identical readout. */
 .type-breakdown {
