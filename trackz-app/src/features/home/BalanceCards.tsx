@@ -2,7 +2,7 @@ import type { ComponentType } from "preact";
 import { Card } from "@/components/Card";
 import { Money } from "@/components/Money";
 import { ArrowDown, CreditCard, Handshake, Landmark, TrendingUp } from "@/components/icons";
-import type { BalanceSheet, BalanceSheetRowKind } from "@/insights/engine";
+import type { BalanceSheet, BalanceSheetRow, BalanceSheetRowKind } from "@/insights/engine";
 import { netWorthSegments } from "./netWorthBar";
 
 /** One icon per account type, not per account (user decision 2026-11-11). */
@@ -16,6 +16,8 @@ const ROW_ICONS: Record<BalanceSheetRowKind, ComponentType<{ size?: string }>> =
 
 interface BalanceCardsProps {
   sheet: BalanceSheet;
+  /** Opens Activity for the row (see balanceRowFilter). Absent = rows not tappable. */
+  onSelectRow?: (row: BalanceSheetRow) => void;
 }
 
 /**
@@ -30,9 +32,9 @@ interface BalanceCardsProps {
  * The list was three cards with headers and totals until the user merged
  * them (2026-11-11): the totals already sit in the Net worth legend, and
  * the group shows by colour — white Liquid, amber Other, red Owed.
- * Not tappable: the Accounts tab already drills into each account.
+ * Every row opens Activity; balanceRowFilter decides the filter.
  */
-export function BalanceCards({ sheet }: BalanceCardsProps) {
+export function BalanceCards({ sheet, onSelectRow }: BalanceCardsProps) {
   const segments = netWorthSegments(sheet);
   // One list, Liquid then Other then Owed; the amount colour (matching
   // the legend dots above) is the only thing marking the group.
@@ -66,8 +68,8 @@ export function BalanceCards({ sheet }: BalanceCardsProps) {
         <Card class="balance-list">
           {rows.map(({ row, tone }) => {
             const Icon = ROW_ICONS[row.kind];
-            return (
-              <div class={`balance-list__row balance-list__row--${tone}`} key={`${row.kind}:${row.label}`}>
+            const content = (
+              <>
                 <span class="balance-list__name">
                   <span class="balance-list__icon">
                     <Icon size="1em" />
@@ -75,6 +77,20 @@ export function BalanceCards({ sheet }: BalanceCardsProps) {
                   {row.label}
                 </span>
                 <Money cents={row.amountCents} class="balance-list__amount" />
+              </>
+            );
+            const className = `balance-list__row balance-list__row--${tone}`;
+            const key = `${row.kind}:${row.label}`;
+            if (onSelectRow) {
+              return (
+                <button type="button" class={`${className} balance-list__row--tappable`} key={key} onClick={() => onSelectRow(row)}>
+                  {content}
+                </button>
+              );
+            }
+            return (
+              <div class={className} key={key}>
+                {content}
               </div>
             );
           })}

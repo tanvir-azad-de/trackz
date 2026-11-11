@@ -12,14 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 492 tests passing (-3 from the Home balance cards below: 6
+  Baseline: 494 tests passing (-1 from the Home balance cards below: 8
   added, 9 deleted with the hero's helpers; +4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 56,561 bytes gzipped JS (+480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
+  build 56,686 bytes gzipped JS (+125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
   tweaks, against a 54,437 rebuild of 9d052ec; +34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
@@ -91,7 +91,13 @@ have been wrong about something in every phase so far (see AGENTS.md's
       Landmark, investment TrendingUp, credit card CreditCard, Lent out
       Handshake, Borrowed ArrowDown). Zero-balance rows are dropped
       (dormant ADVZ/REVJ in the snapshot); Other assets / Liabilities
-      hide with no rows; Liquid assets always shows. Not tappable.
+      hide with no rows; Liquid assets always shows.
+    - Every row is tappable (user request, after 49422c2), rules in
+      features/home/balanceRowFilter.ts: an account row (any type) opens
+      Activity filtered to that account, the same filter an Accounts card
+      applies (Playwright: identical view from both taps); Lent out /
+      Borrowed are not account names, so they filter to categoryType
+      receivable / payable (all people). Rows are 44px.
     - Verified (segment widths measured in Playwright equal the totals'
       proportions to 0.01px): synthetic + real-data tests (real figures in
       expected-values.json, cross-checked by an independent python sum

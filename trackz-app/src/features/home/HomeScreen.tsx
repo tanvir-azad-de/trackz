@@ -6,11 +6,13 @@ import {
   getCategoryDeltasForMonth,
   getMonthlyExpenseSeries,
   getMostSurprisingDeltas,
+  type BalanceSheetRow,
 } from "@/insights/engine";
 import { getLocalToday, getMonthEndDate, getMonthStartDate, toMonthKey } from "@/domain/dates";
 import type { ActivityFilter } from "@/features/activity/filter";
 import { emptyFilter } from "@/features/activity/filter";
 import { BalanceCards } from "./BalanceCards";
+import { balanceRowFilter } from "./balanceRowFilter";
 import { SpendChart } from "./SpendChart";
 import { CategorySheet } from "./CategorySheet";
 import { InsightFeed } from "./InsightFeed";
@@ -89,9 +91,13 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
     onDrillDown(filter);
   }
 
+  function handleSelectRow(row: BalanceSheetRow) {
+    onDrillDown?.(balanceRowFilter(row));
+  }
+
   return (
     <main class="home-screen">
-      <BalanceCards sheet={data.balanceSheet} />
+      <BalanceCards sheet={data.balanceSheet} onSelectRow={onDrillDown ? handleSelectRow : undefined} />
       <h2 class="home-screen__section-title">Spending, last 6 months</h2>
       <SpendChart series={data.spendSeries} onOpen={() => setCategorySheetOpen(true)} />
       <h2 class="home-screen__section-title">What changed this month</h2>

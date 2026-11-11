@@ -108,6 +108,24 @@
   align-items: center;
   gap: var(--space-3);
   padding: 10px 0;
+  /* On every row, not just the tappable ones, so rows stay one height. */
+  min-height: var(--touch-target-min);
+}
+
+/* Reset BEFORE the divider rule below: that rule's higher specificity
+   is what puts the border-top back on a tappable row. */
+.balance-list__row--tappable {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* surface-2, one step above the surface-1 card, as on Activity rows. */
+.balance-list__row--tappable:active {
+  background: var(--surface-2);
 }
 
 .balance-list__row + .balance-list__row {
