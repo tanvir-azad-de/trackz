@@ -18,8 +18,9 @@ import { ActivityList, type MonthJump } from "./ActivityList";
 import { MonthPills } from "./MonthPills";
 import { FilterSheet } from "./FilterSheet";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
-import { categoryOrTypeLabel, type Transaction } from "@/domain/transaction";
+import type { Transaction } from "@/domain/transaction";
 import { updatedToast } from "@/features/activity/updatedToast";
+import { deletedToast } from "@/features/activity/deletedToast";
 import type { ToastState } from "@/components/Toast";
 import "@/components/Sheet.css";
 import "@/features/entry/EntryForm.css";
@@ -93,17 +94,12 @@ export function ActivityScreen({ initialFilter, onToast }: ActivityScreenProps) 
   function handleDelete(target: Transaction) {
     deleteTransaction(target.id);
     setOpenTransaction(null);
-    onToast({
-      id: Date.now(),
-      message: `Deleted ${categoryOrTypeLabel(target)}`,
-      actionLabel: "Undo",
-      // Phase 15a: the row never left storage, it was only tombstoned
-      // (see repository.deleteTransaction). Undo clears the tombstone
-      // in place — re-inserting the object via addTransaction() would
-      // create a SECOND row sharing the same id, which sync's per-id
-      // merge (sync/merge.ts) is not designed to handle.
-      onAction: () => undeleteTransaction(target.id),
-    });
+    // Phase 15a: the row never left storage, it was only tombstoned
+    // (see repository.deleteTransaction). Undo clears the tombstone
+    // in place — re-inserting the object via addTransaction() would
+    // create a SECOND row sharing the same id, which sync's per-id
+    // merge (sync/merge.ts) is not designed to handle.
+    onToast(deletedToast(target, Date.now(), () => undeleteTransaction(target.id)));
   }
 
   const noTransactionsAtAll = transactions.length === 0;
