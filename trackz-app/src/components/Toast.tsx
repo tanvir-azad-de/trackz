@@ -6,7 +6,7 @@ export interface ToastState {
   actionLabel?: string;
   onAction?: () => void;
   /** Per-toast override of the default 5s auto-dismiss. Added for the
-   * service-worker update prompt (Phase 16): a 5s save/delete "Undo"
+   * service-worker update prompt (Phase 16): a 5s edit/delete "Undo"
    * toast and a "new version available, reload when convenient" prompt
    * have very different urgency — the SW toast should sit until the
    * user acts on it, not vanish before they've noticed. */
@@ -21,7 +21,8 @@ interface ToastProps {
 
 /**
  * One-at-a-time toast, used by the quick-entry sheet (Phase 8) for the
- * "Saved 12,40 € · Groceries — Undo" confirmation after a chip tap. Sits
+ * "Saved 12,40 € · Groceries" confirmation after a save (1s, no action —
+ * see features/entry/savedToast.ts), and by Activity/Settings for Undo. Sits
  * above the tab bar (see z-index in Toast.css vs TabBar.css's 50).
  */
 export function Toast({ toast, onDismiss, durationMs = 5000 }: ToastProps) {

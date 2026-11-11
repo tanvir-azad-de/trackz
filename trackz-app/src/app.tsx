@@ -4,10 +4,10 @@ import { HomeScreen } from "@/features/home/HomeScreen";
 import { ActivityScreen } from "@/features/activity/ActivityScreen";
 import { AccountsScreen } from "@/features/accounts/AccountsScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
-import { EntrySheet, savedToastMessage } from "@/features/entry/EntrySheet";
+import { EntrySheet } from "@/features/entry/EntrySheet";
+import { savedToast } from "@/features/entry/savedToast";
 import { Toast, type ToastState } from "@/components/Toast";
 import { useTransactions } from "@/storage/useTransactions";
-import { deleteTransaction } from "@/storage/repository";
 import type { Transaction } from "@/domain/transaction";
 import { emptyFilter, type ActivityFilter } from "@/features/activity/filter";
 import { applyServiceWorkerUpdate, registerServiceWorker } from "@/pwa/registerServiceWorker";
@@ -60,12 +60,7 @@ export function App() {
   }
 
   function handleSaved(tx: Transaction) {
-    setToast({
-      id: Date.now(),
-      message: savedToastMessage(tx),
-      actionLabel: "Undo",
-      onAction: () => deleteTransaction(tx.id),
-    });
+    setToast(savedToast(tx, Date.now()));
   }
 
   // Phase 16: a new service-worker version sitting in "waiting" means a

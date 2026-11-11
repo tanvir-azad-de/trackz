@@ -12,13 +12,13 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 488 tests passing (+10 from credit-card account types below;
+  Baseline: 489 tests passing (+1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 55,840 bytes gzipped JS (+63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
+  build 55,857 bytes gzipped JS (+16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
   tweaks, against a 54,437 rebuild of 9d052ec; +34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
@@ -57,6 +57,18 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  SAVE TOAST WITHOUT UNDO — DONE 2026-11-11, NOT YET DEPLOYED. User
+  request: the Undo after adding a transaction is not needed. Their call:
+  keep the "Saved 12,40 € · Groceries" confirmation, no action, shown for
+  1s (was 5s with Undo). A mistaken add is fixed by deleting the row in
+  Activity, whose delete still has Undo; edit/delete/merge/rename Undo
+  toasts are unchanged. Pure builder features/entry/savedToast.ts, tested
+  and mutation-checked (adding the action back, and 5s, each fail it).
+  Driven in Playwright at 390x844@2x: toast reads the message with 0
+  buttons, is gone ~1.4s after Save (1s timer + wait latency), stored
+  cents [500, 1240] as seeded + entered. 200ms fade-in leaves ~0.8s fully
+  visible; whether that reads on a real iPhone is a device check.
 
   CREDIT CARDS + CSV-SOURCED ACCOUNT TYPES — DONE AND DEPLOYED 2026-11-11
   (8d1d4ef; live bundle index-CnLgnUa0.js contains "credit_card", checked

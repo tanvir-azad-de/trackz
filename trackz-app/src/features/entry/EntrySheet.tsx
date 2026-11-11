@@ -8,8 +8,7 @@ import { buildTransaction, newAccountTypes, validateDraft, type EntryDraft } fro
 import { setAccountType } from "@/storage/accountTypes";
 import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
 import { EntryForm } from "./EntryForm";
-import { categoryOrTypeLabel, type Transaction } from "@/domain/transaction";
-import { formatEUR } from "@/domain/money";
+import type { Transaction } from "@/domain/transaction";
 import "@/components/Sheet.css";
 import "./EntryForm.css";
 
@@ -17,7 +16,7 @@ interface EntrySheetProps {
   open: boolean;
   transactions: Transaction[];
   onClose: () => void;
-  /** Fires right after a transaction is saved, so the caller can show an undo toast. */
+  /** Fires right after a transaction is saved, so the caller can show a confirmation toast. */
   onSaved: (tx: Transaction) => void;
 }
 
@@ -80,9 +79,4 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
       />
     </Sheet>
   );
-}
-
-/** Formats the undo toast message shown by App after a save. */
-export function savedToastMessage(tx: Transaction): string {
-  return `Saved ${formatEUR(tx.amountCents)} · ${categoryOrTypeLabel(tx)}`;
 }
