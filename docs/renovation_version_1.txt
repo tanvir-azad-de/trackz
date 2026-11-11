@@ -27,7 +27,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = b414d81, deployed
+  the same number rounded). Production = origin/main = 17570b5, deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -58,7 +58,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  SETTINGS MERCHANTS SHEET — DONE 2026-11-11, NOT YET DEPLOYED. User
+  SETTINGS MERCHANTS SHEET — DONE AND DEPLOYED 2026-11-11 (17570b5; live
+  bundle index-CokaiDXt.js carries the "17570b5" stamp and "Tidy up
+  Merchants", checked by curl). User
   request + grill answers:
     - The old "Merchants" row (MerchantMergeSheet, the guided duplicate
       review) is now "Tidy up Merchants", alone in its own group right
