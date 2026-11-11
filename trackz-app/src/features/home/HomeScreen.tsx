@@ -2,25 +2,19 @@ import { useCallback, useMemo, useState } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
 import { useAccountTypes } from "@/storage/useAccountTypes";
 import {
-  getAccountBalances,
+  getBalanceSheet,
   getCategoryDeltasForMonth,
   getMonthlyExpenseSeries,
-  getDailyExpenseAvgCents,
-  getLiquidCashCents,
-  getLiquidVsSameDayAverage,
   getMostSurprisingDeltas,
-  summarizeMonth,
 } from "@/insights/engine";
 import { getLocalToday, getMonthEndDate, getMonthStartDate, toMonthKey } from "@/domain/dates";
 import type { ActivityFilter } from "@/features/activity/filter";
 import { emptyFilter } from "@/features/activity/filter";
-import { HeroCard } from "./HeroCard";
-import { AccountStrip } from "./AccountStrip";
+import { BalanceCards } from "./BalanceCards";
 import { SpendChart } from "./SpendChart";
 import { CategorySheet } from "./CategorySheet";
 import { InsightFeed } from "./InsightFeed";
-import "./HeroCard.css";
-import "./AccountStrip.css";
+import "./BalanceCards.css";
 import "./SpendChart.css";
 import "@/components/Sheet.css";
 import "@/features/activity/MonthPills.css";
@@ -44,28 +38,20 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
 
   const data = useMemo(() => {
     if (transactions.length === 0) return null;
-    const liquidCashCents = getLiquidCashCents(transactions, accountTypes);
-    const accounts = getAccountBalances(transactions).map((a) => ({
-      ...a,
-      accountType: accountTypes[a.account] ?? "cash",
-    }));
+    const balanceSheet = getBalanceSheet(transactions, accountTypes);
     // The real date, not the latest transaction's (user decision
     // 2026-11-10): "so far this month" means up to today, and the
     // same-days baseline must stop at the same day. Early in a month with
     // nothing logged yet, this gives an empty feed rather than last
     // month's figures under this month's heading.
-    // The hero's Spent and Daily avg follow the same rule, so all three
-    // agree on what "this month" is.
+    // The chart's last point follows the same rule, so both agree on
+    // what "this month" is.
     const today = getLocalToday();
     const insightMonthKey = toMonthKey(today);
     const deltas = getMostSurprisingDeltas(getCategoryDeltasForMonth(transactions, insightMonthKey, 6, today));
-    const summary = summarizeMonth(transactions, insightMonthKey, today);
-    const dailyExpenseAvgCents = getDailyExpenseAvgCents(transactions, today);
-    const liquidComparison = getLiquidVsSameDayAverage(transactions, accountTypes, liquidCashCents, today);
-    const dayOfMonth = Number(today.slice(8, 10));
     const spendSeries = getMonthlyExpenseSeries(transactions, insightMonthKey, 6, today);
 
-    return { today, spendSeries, summary, liquidCashCents, liquidComparison, dayOfMonth, dailyExpenseAvgCents, accounts, deltas, insightMonthKey };
+    return { today, spendSeries, balanceSheet, deltas, insightMonthKey };
   }, [transactions, accountTypes]);
 
   if (!data) {
@@ -105,14 +91,7 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
 
   return (
     <main class="home-screen">
-      <HeroCard
-        liquidCashCents={data.liquidCashCents}
-        liquidComparison={data.liquidComparison}
-        dayOfMonth={data.dayOfMonth}
-        dailyExpenseAvgCents={data.dailyExpenseAvgCents}
-        expenseCents={data.summary.expenseCents}
-      />
-      <AccountStrip accounts={data.accounts} />
+      <BalanceCards sheet={data.balanceSheet} />
       <h2 class="home-screen__section-title">Spending, last 6 months</h2>
       <SpendChart series={data.spendSeries} onOpen={() => setCategorySheetOpen(true)} />
       <h2 class="home-screen__section-title">What changed this month</h2>

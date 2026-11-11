@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDailyExpenseAvgCents, getLiquidCashCents, getLiquidVsSameDayAverage, getMonthlyExpenseSeries, summarizeMonth } from "@/insights/engine";
+import { getBalanceSheet, getLiquidCashCents, getMonthlyExpenseSeries, summarizeMonth } from "@/insights/engine";
 import type { Cashflow, CategoryType, Transaction } from "@/domain/transaction";
 
 /**
@@ -43,68 +43,6 @@ describe("summarizeMonth", () => {
   });
 });
 
-describe("getDailyExpenseAvgCents", () => {
-  it("divides this month's spend up to today by today's day of the month, rounded", () => {
-    // 100,00 € over 3 days = 33,333… → 3333 cents. Last month and a later
-    // row this month are excluded.
-    const txs = [
-      row("2026-11-01", "expense", "out", 4000),
-      row("2026-11-03", "expense", "out", 6000),
-      row("2026-11-03", "non_expense", "out", 9000),
-      row("2026-10-30", "expense", "out", 50000),
-      row("2026-11-04", "expense", "out", 50000),
-    ];
-    expect(getDailyExpenseAvgCents(txs, "2026-11-03")).toBe(3333);
-  });
-
-  it("divides by 1 on the 1st", () => {
-    expect(getDailyExpenseAvgCents([row("2026-11-01", "expense", "out", 1234)], "2026-11-01")).toBe(1234);
-  });
-});
-
-describe("getLiquidVsSameDayAverage", () => {
-  // One cash account. The balance on the 10th of each month is set by a
-  // deposit on the 1st and a withdrawal on the 20th, so the 10th and the
-  // 25th give different answers.
-  function salaryMonths(): Transaction[] {
-    const txs: Transaction[] = [];
-    for (const m of ["05", "06", "07", "08", "09", "10"]) {
-      txs.push(row(`2026-${m}-01`, "income", "in", 100000));
-      txs.push(row(`2026-${m}-20`, "expense", "out", 90000));
-    }
-    return txs;
-  }
-
-  it("averages liquid on the same day of each of the previous 6 months", () => {
-    // Balance on the 10th: May 1000, Jun 1100, Jul 1200, Aug 1300, Sep 1400, Oct 1500 → avg 1250 €.
-    const r = getLiquidVsSameDayAverage(salaryMonths(), {}, 150000, "2026-11-10");
-    expect(r).toEqual({ averageCents: 125000, monthsUsed: 6, deltaPercent: 20 });
-  });
-
-  it("compares the 31st with the end of shorter months, and skips months before the first transaction", () => {
-    // Sep..May compare on their last day, after the 20th's withdrawal:
-    // Sep 500, Aug 400, Jul 300, Jun 200, May 100. April is before the
-    // first row and is skipped, not counted as 0 (which would give 250).
-    const r = getLiquidVsSameDayAverage(salaryMonths(), {}, 60000, "2026-10-31");
-    expect(r).toEqual({ averageCents: 30000, monthsUsed: 5, deltaPercent: 100 });
-  });
-
-  it("excludes investment accounts from the past balances, like the Liquid figure itself", () => {
-    const txs = [...salaryMonths(), row("2026-05-01", "income", "in", 1000000, "SCLB")];
-    expect(getLiquidVsSameDayAverage(txs, { SCLB: "investment" }, 150000, "2026-11-10").averageCents).toBe(125000);
-  });
-
-  it("gives no percentage without history or with a non-positive average", () => {
-    expect(getLiquidVsSameDayAverage([row("2026-11-02", "income", "in", 100)], {}, 100, "2026-11-10")).toEqual({
-      averageCents: 0,
-      monthsUsed: 0,
-      deltaPercent: null,
-    });
-    const overdrawn = [row("2026-09-01", "expense", "out", 5000)];
-    expect(getLiquidVsSameDayAverage(overdrawn, {}, 100, "2026-11-10").deltaPercent).toBeNull();
-  });
-});
-
 describe("getMonthlyExpenseSeries", () => {
   const txs = [
     row("2026-11-01", "expense", "out", 1000),
@@ -132,7 +70,7 @@ describe("getMonthlyExpenseSeries", () => {
     ]);
   });
 
-  it("ends at the hero's Spent figure for the same today", () => {
+  it("ends at summarizeMonth's expense for the same today", () => {
     const series = getMonthlyExpenseSeries(txs, "2026-11", 6, "2026-11-04");
     expect(series[5]!.expenseCents).toBe(summarizeMonth(txs, "2026-11", "2026-11-04").expenseCents);
   });
@@ -160,5 +98,68 @@ describe("getLiquidCashCents with a credit card", () => {
     expect(getLiquidCashCents(withUnpaidSpend, types)).toBe(194250);
     // The bug this replaces: as "cash", ADVZ's -2000 lands in Liquid.
     expect(getLiquidCashCents(withUnpaidSpend, { ...types, ADVZ: "cash" })).toBe(192250);
+  });
+});
+
+describe("getBalanceSheet", () => {
+  const types = { CMRZ: "cash", CASH: "cash", SCLB: "investment", ADVZ: "credit_card" } as const;
+  function sheetTxs(): Transaction[] {
+    return [
+      row("2026-11-01", "income", "in", 300000, "CMRZ"),
+      row("2026-11-01", "income", "in", 5000, "CASH"),
+      { ...row("2026-11-02", "transfer", "none", 100000, "CMRZ"), destinationAccount: "SCLB", category: "" },
+      row("2026-11-03", "expense", "out", 4500, "ADVZ"), // unpaid card spend
+      { ...row("2026-11-04", "receivable", "out", 20000, "CMRZ"), merchant: "Friend A" },
+      { ...row("2026-11-05", "payable", "in", 7000, "CMRZ"), merchant: "Friend B" },
+      // REVJ: in and out again — a dormant 0,00 € account.
+      row("2026-11-06", "income", "in", 1000, "REVJ"),
+      row("2026-11-07", "expense", "out", 1000, "REVJ"),
+    ];
+  }
+
+  it("splits accounts by type, with card debt as a positive liability and net worth as assets minus liabilities", () => {
+    const sheet = getBalanceSheet(sheetTxs(), types);
+    // CMRZ: 300000 - 100000 - 20000 + 7000 = 187000. REVJ is 0 and dropped.
+    expect(sheet.liquid).toEqual({
+      totalCents: 192000,
+      rows: [
+        { label: "CASH", kind: "cash", amountCents: 5000 },
+        { label: "CMRZ", kind: "cash", amountCents: 187000 },
+      ],
+    });
+    expect(sheet.other).toEqual({
+      totalCents: 120000,
+      rows: [
+        { label: "SCLB", kind: "investment", amountCents: 100000 },
+        { label: "Lent out", kind: "lent_out", amountCents: 20000 },
+      ],
+    });
+    expect(sheet.liabilities).toEqual({
+      totalCents: 11500,
+      rows: [
+        { label: "ADVZ", kind: "credit_card", amountCents: 4500 },
+        { label: "Borrowed", kind: "borrowed", amountCents: 7000 },
+      ],
+    });
+    // 192000 + 120000 - 11500. Equals income minus expense (305000 + 1000
+    // - 4500 - 1000): lending and borrowing net to zero.
+    expect(sheet.netWorthCents).toBe(300500);
+  });
+
+  it("drops zero rows, so a settled loan and a paid-off card leave no 0,00 € line", () => {
+    const txs = [
+      ...sheetTxs(),
+      { ...row("2026-11-08", "receivable", "in", 20000, "CMRZ"), merchant: "Friend A" },
+      { ...row("2026-11-09", "payable", "out", 7000, "CMRZ"), merchant: "Friend B" },
+      { ...row("2026-11-10", "transfer", "none", 4500, "CMRZ"), destinationAccount: "ADVZ", category: "" },
+    ];
+    const sheet = getBalanceSheet(txs, types);
+    expect(sheet.other.rows.map((r) => r.label)).toEqual(["SCLB"]);
+    expect(sheet.liabilities).toEqual({ totalCents: 0, rows: [] });
+    expect(sheet.netWorthCents).toBe(300500);
+  });
+
+  it("treats an unclassified account as cash", () => {
+    expect(getBalanceSheet(sheetTxs(), {}).liquid.rows.map((r) => r.label)).toEqual(["ADVZ", "CASH", "CMRZ", "SCLB"]);
   });
 });

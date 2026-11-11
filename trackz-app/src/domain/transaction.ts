@@ -130,7 +130,7 @@ export interface Account {
 }
 
 /**
- * "cash" (spendable, the only type counted in Home's "Liquid" hero),
+ * "cash" (spendable, the only type in Home's "Liquid assets" card),
  * "investment" (a real asset, not spendable — e.g. a brokerage account)
  * and "credit_card" (spending happens here, but the balance is money
  * owed, not money held — e.g. ADVZ). Unlike Account above, this IS

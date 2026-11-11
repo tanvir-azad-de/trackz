@@ -17,8 +17,7 @@ export interface ExpectedValues {
   engine: {
     september: { monthKey: string; incomeCents: number; expenseCents: number };
     october: { monthKey: string; incomeCents: number; expenseCents: number };
-    dailyExpenseAvg: { today: string; cents: number; expenseCents: number };
-    liquidVsSameDay: { today: string; currentCents: number; averageCents: number }[];
+    dailyExpenseAvg: { today: string; expenseCents: number };
     topCategory: { category: string; amountCents: number };
     alsoInTop4: string[];
     deltas: { asOfDate: string; category: string; thisMonthCents: number; baselineAvgCents: number; isNew: boolean }[];
@@ -27,6 +26,14 @@ export interface ExpectedValues {
     balanceSeries: { account: string; points: Record<string, number> }[];
     receivables: { outstandingCents: Record<string, number>; settledToZero: string[]; totalCents: number };
     liquid: { investmentAccount: string; allCashCents: number; withInvestmentExcludedCents: number };
+    balanceSheet: {
+      accountTypes: Record<string, "cash" | "investment" | "credit_card">;
+      netWorthCents: number;
+      liquidTotalCents: number;
+      liquidAccounts: string[];
+      otherTotalCents: number;
+      liabilitiesTotalCents: number;
+    };
   };
   categoryRename: { diningRowAmountCents: number; feesRowAmountCents: number };
 }

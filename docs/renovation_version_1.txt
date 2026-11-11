@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-10, commit a1c7cea + this change)
+5. WHERE THIS STANDS  (last updated 2026-11-11, commit 3c361b1 + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -12,13 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 495 tests passing (+4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
+  Baseline: 492 tests passing (-3 from the Home balance cards below: 6
+  added, 9 deleted with the hero's helpers; +4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 56,081 bytes gzipped JS (+221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
+  build 56,561 bytes gzipped JS (+480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
   tweaks, against a 54,437 rebuild of 9d052ec; +34 from the tab scroll reset; -35 from the Accounts date fix; +243
   from the Phase 14 chart; +292 from
@@ -57,6 +58,47 @@ have been wrong about something in every phase so far (see AGENTS.md's
   categories folded (34 -> 31), drugstores -> Personal Care, echo notes
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
+
+  HOME BALANCE CARDS — DONE, NOT YET COMMITTED OR DEPLOYED (2026-11-11).
+  User request, design approved from a throwaway HTML mockup first:
+    - Removed entirely: the Liquid hero (number, same-day comparison line,
+      Daily avg and Spent tiles) and the horizontal account strip. With
+      them went HeroCard/AccountStrip (.tsx/.css), getLiquidVsSameDayAverage
+      + LiquidComparison, getDailyExpenseAvgCents, formatOrdinalDay,
+      getLiquidCashCents's asOfDate parameter (only the comparison used
+      it), --text-hero, and the fixture's liquidVsSameDay and
+      dailyExpenseAvg.cents entries.
+    - Added: four cards at the top of Home — Net worth, Liquid assets
+      (cash accounts), Other assets (investment accounts + one Lent out
+      total, amber), Liabilities (credit cards + one Borrowed total, red,
+      as positive amounts owed). Pure logic is getBalanceSheet in
+      insights/engine.ts; UI is features/home/BalanceCards.tsx.
+    - SUPERSEDES the 2026-11-11 "nothing adds them together" decision
+      (Total Assets card removal, below): net worth is back on Home, by
+      user decision. Net worth = assets - liabilities.
+    - Net worth card: big 40px figure, a composition bar (Liquid white,
+      Other amber, Owed red, widths proportional to the three totals) and
+      a three-column legend with each total. Picked as "A" of three
+      throwaway mockups (B/C were a this-month change + 6-month line;
+      not built). Bar rules in features/home/netWorthBar.ts: zero and
+      negative totals get no segment; the legend still shows them.
+    - The three asset/liability cards were then MERGED into one card with
+      no headers or totals (user request, same day): rows run Liquid,
+      Other, Owed, and the amount colour (white / amber / red, matching
+      the legend dots) is the only group marker. Totals live in the Net
+      worth legend. The list card hides only when it has no rows at all.
+    - Rules: one lucide icon per account TYPE, not per account (cash
+      Landmark, investment TrendingUp, credit card CreditCard, Lent out
+      Handshake, Borrowed ArrowDown). Zero-balance rows are dropped
+      (dormant ADVZ/REVJ in the snapshot); Other assets / Liabilities
+      hide with no rows; Liquid assets always shows. Not tappable.
+    - Verified (segment widths measured in Playwright equal the totals'
+      proportions to 0.01px): synthetic + real-data tests (real figures in
+      expected-values.json, cross-checked by an independent python sum
+      of the raw CSV), 6 mutations all caught. Playwright on dev at
+      390x844@2x: no horizontal scroll, every card's total equals its
+      rows, net worth equals the python figure with and without account
+      types, Liabilities shown with an injected card expense.
 
   SETTINGS MERCHANTS SHEET — DONE AND DEPLOYED 2026-11-11 (17570b5; live
   bundle index-CokaiDXt.js carries the "17570b5" stamp and "Tidy up
@@ -658,7 +700,11 @@ have been wrong about something in every phase so far (see AGENTS.md's
         House / List / Wallet / Settings  TabBar tabs
         Plus                              TabBar FAB
         SlidersHorizontal                 Activity filter button
-        ArrowUp / ArrowDown               HeroCard delta, InsightFeed icon
+        ArrowUp / ArrowDown               InsightFeed icon; ArrowDown is also
+                                          Home's Borrowed row (the HeroCard
+                                          delta is gone, 2026-11-11)
+        Landmark / TrendingUp / CreditCard
+          / Handshake                     Home balance-card row icons
         X                                 EntrySheet clear-amount
         Delete                            Keypad backspace
         ChevronDown                       every entry-form <select>

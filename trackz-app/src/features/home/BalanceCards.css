@@ -1,0 +1,152 @@
+.balance-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* .card's own padding (space-5) suits the Net worth card; the list card
+   below overrides it to stay dense. */
+.net-worth__label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.net-worth__amount {
+  display: block;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin-top: var(--space-1);
+  color: var(--text-primary);
+}
+
+.net-worth__amount--negative {
+  color: var(--negative);
+}
+
+.net-worth__bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin: var(--space-4) 0 var(--space-3);
+}
+
+/* flex-basis 0 is LOAD-BEARING: with the default auto basis, flex-grow
+   only shares out the leftover space, so widths would stop being
+   proportional to the totals. */
+.net-worth__segment {
+  flex-basis: 0;
+  min-width: 0;
+}
+
+/* Same meaning-colours as the cards below: Liquid neutral white, Other
+   amber, Owed red. */
+.net-worth__segment--liquid {
+  background: var(--text-primary);
+}
+
+.net-worth__segment--other {
+  background: var(--neutral);
+}
+
+.net-worth__segment--liabilities {
+  background: var(--negative);
+}
+
+.net-worth__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* Without a bar (all three totals zero or negative) the legend sits
+   right under the amount, so it needs its own top margin. */
+.net-worth__amount + .net-worth__legend {
+  margin-top: var(--space-4);
+}
+
+.net-worth__legend-item {
+  min-width: 0;
+}
+
+.net-worth__legend-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.net-worth__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.net-worth__legend-amount {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.card.balance-list {
+  padding: var(--space-1) var(--space-5);
+}
+
+.balance-list__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 0;
+}
+
+.balance-list__row + .balance-list__row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.balance-list__name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.balance-list__icon {
+  display: inline-flex;
+  flex: none;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.balance-list__amount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The group's only marker, so these must match the legend dots
+   (.net-worth__segment--*): white Liquid, amber Other, red Owed. */
+.balance-list__row--liquid .balance-list__amount {
+  color: var(--text-primary);
+}
+
+.balance-list__row--other .balance-list__amount {
+  color: var(--neutral);
+}
+
+.balance-list__row--liabilities .balance-list__amount {
+  color: var(--negative);
+}

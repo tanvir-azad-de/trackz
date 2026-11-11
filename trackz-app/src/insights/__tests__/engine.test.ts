@@ -13,8 +13,7 @@ import {
   getPayableBalances,
   getReceivableBalances,
   getTopCategoriesForMonth,
-  getDailyExpenseAvgCents,
-  getLiquidVsSameDayAverage,
+  getBalanceSheet,
   summarizeMonth,
 } from "@/insights/engine";
 import type { Transaction } from "@/domain/transaction";
@@ -68,24 +67,10 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
     expect(summary.expenseCents).toBe(want.october.expenseCents);
   });
 
-  it("averages October's spend per day up to the 15th", () => {
-    expect(getDailyExpenseAvgCents(transactions, want.dailyExpenseAvg.today)).toBe(want.dailyExpenseAvg.cents);
-  });
-
   it("ends the 6-month chart series at the same figure as the daily average's numerator", () => {
     const series = getMonthlyExpenseSeries(transactions, "2026-10", 6, want.dailyExpenseAvg.today);
     expect(series).toHaveLength(6);
     expect(series[5]!.expenseCents).toBe(want.dailyExpenseAvg.expenseCents);
-  });
-
-  it("averages liquid cash on the same day of the previous 6 months", () => {
-    for (const w of want.liquidVsSameDay) {
-      const current = getLiquidCashCents(transactions, { [want.liquid.investmentAccount]: "investment" }, w.today);
-      expect(current).toBe(w.currentCents);
-      const r = getLiquidVsSameDayAverage(transactions, { [want.liquid.investmentAccount]: "investment" }, current, w.today);
-      expect(r.averageCents).toBe(w.averageCents);
-      expect(r.monthsUsed).toBe(6);
-    }
   });
 
   it("caps the category list at today, so October's categories add up to the daily average's numerator", () => {
@@ -208,6 +193,18 @@ describe.skipIf(!hasFixture)("account-type classification: cash vs investment", 
 
     const withInvestmentExcluded = getLiquidCashCents(transactions, { [want.liquid.investmentAccount]: "investment" });
     expect(withInvestmentExcluded).toBe(want.liquid.withInvestmentExcludedCents);
+  });
+
+  it("getBalanceSheet's four cards match the independently computed balances", () => {
+    const w = want.balanceSheet;
+    const sheet = getBalanceSheet(transactions, w.accountTypes);
+    expect(sheet.netWorthCents).toBe(w.netWorthCents);
+    expect(sheet.liquid.totalCents).toBe(w.liquidTotalCents);
+    expect(sheet.liquid.rows.map((r) => r.label)).toEqual(w.liquidAccounts);
+    expect(sheet.other.totalCents).toBe(w.otherTotalCents);
+    expect(sheet.liabilities.totalCents).toBe(w.liabilitiesTotalCents);
+    // Same accounts as the Liquid figure the import dry-run shows.
+    expect(sheet.liquid.totalCents).toBe(getLiquidCashCents(transactions, w.accountTypes));
   });
 
   it("getLiquidCashCents defaults every account to cash when accountTypes is omitted", () => {

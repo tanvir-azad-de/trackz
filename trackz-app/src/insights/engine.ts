@@ -45,66 +45,10 @@ export function summarizeMonth(transactions: Transaction[], monthKey: string, as
 }
 
 /**
- * This month's expense up to `today`, divided by days elapsed (today's
- * day of the month, so the 1st divides by 1, not 0). Rounded to whole
- * cents.
- */
-export function getDailyExpenseAvgCents(transactions: Transaction[], today: string): Cents {
-  const { expenseCents } = summarizeMonth(transactions, toMonthKey(today), today);
-  return Math.round(expenseCents / Number(today.slice(8, 10)));
-}
-
-export interface LiquidComparison {
-  /** Mean liquid cash on the same day of each comparison month. */
-  averageCents: Cents;
-  /** How many of the requested months had data on that day. */
-  monthsUsed: number;
-  /** (current - average) / average * 100; null when there is no usable average. */
-  deltaPercent: number | null;
-}
-
-/**
- * Compares `currentCents` (the Liquid figure on Home) with liquid cash on
- * the same day of the month in each of the previous `months` months (user
- * decision 2026-11-10). Same day, not the month-end or monthly mean,
- * because cash swings within a month: on the 10th, salary has landed and
- * rent has left, so the 10th is only comparable with other 10ths.
- *
- * A month shorter than today's day compares on its last day, with no
- * clamp: the date is only ever an upper bound for string comparison, and
- * "2026-09-31" sorts after every September date and before "2026-10-01",
- * so it selects exactly the same rows as "2026-09-30". A comparison date before the first
- * transaction is skipped rather than counted as 0 €, which would drag the
- * average down to "you have more cash than ever" for a new user.
- * A non-positive average has no meaningful percentage, so deltaPercent
- * is null and the caller shows nothing.
- */
-export function getLiquidVsSameDayAverage(
-  transactions: Transaction[],
-  accountTypes: Record<string, AccountType>,
-  currentCents: Cents,
-  today: string,
-  months = 6,
-): LiquidComparison {
-  const earliest = transactions.reduce<string | null>((min, tx) => (min === null || tx.date < min ? tx.date : min), null);
-  const day = today.slice(8, 10);
-  let total = 0;
-  let monthsUsed = 0;
-  for (let i = 1; i <= months; i++) {
-    const date = `${shiftMonthKey(toMonthKey(today), -i)}-${day}`;
-    if (earliest === null || date < earliest) continue;
-    total = addCents(total, getLiquidCashCents(transactions, accountTypes, date));
-    monthsUsed++;
-  }
-  const averageCents = monthsUsed > 0 ? Math.round(total / monthsUsed) : 0;
-  const deltaPercent = averageCents > 0 ? ((currentCents - averageCents) / averageCents) * 100 : null;
-  return { averageCents, monthsUsed, deltaPercent };
-}
-
-/**
- * Sum of every CASH account's running balance — this is what Home's
- * "Liquid" hero shows (see docs/renovation_version_1.txt's Phase 12
- * write-up for the relabel). Every other type is excluded: investment
+ * Sum of every CASH account's running balance — the
+ * import dry-run's Liquid figure (features/settings/exportImport.ts).
+ * Home's Liquid assets card adds up getBalanceSheet's rows instead, which
+ * is the same set of accounts. Every other type is excluded: investment
  * accounts (e.g. SCLB) are an asset but not spendable, and including them
  * overstated "Liquid" by their full balance (Phase 12 QA). Credit cards
  * (e.g. ADVZ, 2026-11-11) hold money owed, not money held; counted as
@@ -116,16 +60,11 @@ export function getLiquidVsSameDayAverage(
  * `accountTypes` defaults to "every account is cash" so existing callers
  * that don't care about the cash/investment distinction (e.g. a future
  * CSV-import dry-run) don't have to thread a classification map through
- * for a question they're not asking. HomeScreen passes the real map.
+ * for a question they're not asking. exportImport passes the real map.
  */
-export function getLiquidCashCents(
-  transactions: Transaction[],
-  accountTypes: Record<string, AccountType> = {},
-  asOfDate?: string,
-): Cents {
-  const relevant = asOfDate ? transactions.filter((tx) => tx.date <= asOfDate) : transactions;
+export function getLiquidCashCents(transactions: Transaction[], accountTypes: Record<string, AccountType> = {}): Cents {
   const accounts = new Set<string>();
-  for (const tx of relevant) {
+  for (const tx of transactions) {
     for (const acc of [tx.account, tx.destinationAccount].filter(Boolean)) {
       accounts.add(acc);
     }
@@ -135,7 +74,7 @@ export function getLiquidCashCents(
     if ((accountTypes[acc] ?? "cash") !== "cash") continue;
     total = addCents(
       total,
-      addCents(...relevant.map((tx) => getSignedAmountCents(tx, { kind: "account", name: acc }))),
+      addCents(...transactions.map((tx) => getSignedAmountCents(tx, { kind: "account", name: acc }))),
     );
   }
   return total;
@@ -362,6 +301,82 @@ export function getPayableBalances(transactions: Transaction[]): CounterpartyBal
   return getCounterpartyBalances(transactions, "payable");
 }
 
+export type BalanceSheetRowKind = AccountType | "lent_out" | "borrowed";
+
+export interface BalanceSheetRow {
+  label: string;
+  /** Picks the row's icon on Home: one icon per account type, not per account. */
+  kind: BalanceSheetRowKind;
+  amountCents: Cents;
+}
+
+export interface BalanceSheetBucket {
+  totalCents: Cents;
+  rows: BalanceSheetRow[];
+}
+
+export interface BalanceSheet {
+  netWorthCents: Cents;
+  /** Cash accounts. */
+  liquid: BalanceSheetBucket;
+  /** Investment accounts, then one "Lent out" row. */
+  other: BalanceSheetBucket;
+  /** Credit cards, then one "Borrowed" row — as positive amounts owed. */
+  liabilities: BalanceSheetBucket;
+}
+
+/**
+ * Home's four balance cards (user decision 2026-11-11, replacing the
+ * Liquid hero and the account strip).
+ *
+ * Every figure comes from a balance the app already computes —
+ * getAccountBalances, getReceivableBalances, getPayableBalances — so the
+ * sign convention stays getSignedAmountCents'. Net worth is assets minus
+ * liabilities, which is the same as summing every account plus what is
+ * lent out minus what is borrowed: lending moves cash out of an account
+ * and into "Lent out" (nets to 0), borrowing moves cash in and adds the
+ * same to "Borrowed" (nets to 0).
+ *
+ * Credit-card rows are NEGATED: a card's account balance is negative
+ * while spend is unpaid, and this card lists what is owed. An overpaid
+ * card (positive balance) therefore shows as a negative liability, which
+ * still nets correctly into net worth.
+ *
+ * Zero rows are dropped — dormant accounts and settled loans would
+ * otherwise sit as 0,00 € lines. Totals are summed over the same rows, so
+ * a total always equals what its card lists.
+ */
+export function getBalanceSheet(
+  transactions: Transaction[],
+  accountTypes: Record<string, AccountType> = {},
+): BalanceSheet {
+  const liquid: BalanceSheetRow[] = [];
+  const investments: BalanceSheetRow[] = [];
+  const cards: BalanceSheetRow[] = [];
+  for (const { account, balanceCents } of getAccountBalances(transactions)) {
+    const kind = accountTypes[account] ?? "cash";
+    if (kind === "cash") liquid.push({ label: account, kind, amountCents: balanceCents });
+    else if (kind === "investment") investments.push({ label: account, kind, amountCents: balanceCents });
+    else cards.push({ label: account, kind, amountCents: -balanceCents });
+  }
+  const lentOutCents = addCents(...getReceivableBalances(transactions).map((r) => r.balanceCents));
+  const borrowedCents = addCents(...getPayableBalances(transactions).map((p) => p.balanceCents));
+
+  const bucket = (rows: BalanceSheetRow[]): BalanceSheetBucket => {
+    const kept = rows.filter((r) => r.amountCents !== 0);
+    return { totalCents: addCents(...kept.map((r) => r.amountCents)), rows: kept };
+  };
+  const liquidBucket = bucket(liquid);
+  const otherBucket = bucket([...investments, { label: "Lent out", kind: "lent_out", amountCents: lentOutCents }]);
+  const liabilitiesBucket = bucket([...cards, { label: "Borrowed", kind: "borrowed", amountCents: borrowedCents }]);
+  return {
+    netWorthCents: addCents(liquidBucket.totalCents, otherBucket.totalCents, -liabilitiesBucket.totalCents),
+    liquid: liquidBucket,
+    other: otherBucket,
+    liabilities: liabilitiesBucket,
+  };
+}
+
 function getCounterpartyBalances(
   transactions: Transaction[],
   categoryType: "receivable" | "payable",
@@ -388,8 +403,8 @@ function getCounterpartyBalances(
  * previous body summed raw tx.amountCents. For expense rows that is the
  * same number, since net-worth signs an expense as -amountCents, checked
  * by mutation. The reuse buys one definition, not a fix.) `asOfDate` caps the current month at today: without it a later-dated
- * row lands in the last point, and the point stops equalling the hero's
- * Spent tile, which is summarizeMonth(..., today).
+ * row lands in the last point, and the point stops equalling
+ * summarizeMonth(..., today), which CategorySheet's list adds up to.
  */
 export function getMonthlyExpenseSeries(
   transactions: Transaction[],
