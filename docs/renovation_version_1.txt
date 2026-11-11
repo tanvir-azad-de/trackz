@@ -67,8 +67,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
      resize. Pure guard tested (8 tests, each line mutation-tested). In
      Playwright the restore works (scrolled 250 while focused -> 0 after
      blur; HEAD stays at 250), but desktop Chromium never reproduced the
-     shift itself, so the real fix is UNVERIFIED until
-     docs/device-check-keyboard-shift.md is run on the iPhone.
+     shift itself. CONFIRMED on the iPhone (installed PWA, production
+     8e18415): every item in docs/device-check-keyboard-shift.md passed.
   2. Cleared deep-link search came back: ActivityScreen seeded local
      state from App's deep-link filter, and tabs unmount, so every return
      re-applied it. The filter now lives only in App and ActivityScreen
