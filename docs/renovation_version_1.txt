@@ -57,7 +57,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   cleared. Non-transfer rows with no merchant went 135 -> 14. Per-type and
   per-account cent sums are unchanged. The skill gained checks 12-17.
 
-  6-MONTH CHART + ACTIVITY TWEAKS — DONE 2026-11-11, NOT YET DEPLOYED.
+  6-MONTH CHART + ACTIVITY TWEAKS — DONE AND DEPLOYED 2026-11-11 (d63f0ae;
+  the live bundle index-DNB92xpq.js contains "category-sheet", checked by curl).
   User requests, decisions are theirs:
     - Home's chart is now total expense for each of the last 6 months,
       this month so far as the last point, amount above each point and
