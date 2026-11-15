@@ -10,67 +10,88 @@
   width: 100%;
 }
 
+/* Option A of docs/mockups/tab-bar.html: a floating capsule of icon-only
+   tabs, with Add as its own circle beside it (the iOS 26 tab bar shape).
+   The <nav> itself is transparent and only positions the two pieces. */
 .tab-bar {
   position: fixed;
-  bottom: 0;
   left: 0;
   right: 0;
-  height: calc(64px + var(--safe-bottom));
-  padding-bottom: var(--safe-bottom);
-  padding-left: var(--safe-left);
-  padding-right: var(--safe-right);
-  background: rgba(20, 21, 27, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border-subtle);
+  /* safe-bottom minus 12px, not plus: the home indicator is ~5px tall at
+     the very bottom of the 34px inset, so adding the whole inset floats
+     the bar visibly high. The 12px floor covers phones with no inset. */
+  bottom: max(12px, calc(var(--safe-bottom) - 12px));
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 calc(var(--space-4) + var(--safe-right)) 0 calc(var(--space-4) + var(--safe-left));
   display: flex;
   align-items: center;
-  justify-content: space-around;
+  gap: 10px;
+  /* The gap between and around the pieces is not a tap target; let
+     those taps reach the content behind. */
+  pointer-events: none;
   z-index: 50;
 }
 
-.tab-bar__tab {
+.tab-bar__capsule {
   flex: 1;
-  background: none;
-  border: none;
+  min-width: 0;
+  height: 52px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: rgba(29, 31, 40, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-strong);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  min-height: var(--touch-target-min);
-  padding: var(--space-1) 0;
+  pointer-events: auto;
 }
 
-.tab-bar__tab--active {
-  color: var(--accent-strong);
+.tab-bar__tab {
+  /* The whole quarter of the capsule is the tap target; the visible
+     pill is the icon span inside it. */
+  flex: 1;
+  height: var(--touch-target-min);
+  background: none;
+  border: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
 }
 
 .tab-bar__icon {
-  font-size: var(--text-lg);
+  width: 52px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  transition: background-color var(--duration-base) var(--ease-standard), color var(--duration-base) var(--ease-standard);
 }
 
-.tab-bar__label {
-  font-size: 10px;
+/* Grey, not accent: purple is kept for Add, the one action on the bar. */
+.tab-bar__tab--active {
+  color: var(--text-primary);
+}
+
+.tab-bar__tab--active .tab-bar__icon {
+  background: var(--surface-3);
 }
 
 .tab-bar__fab {
   width: 52px;
   height: 52px;
+  flex: 0 0 auto;
   border-radius: var(--radius-full);
   background: var(--accent);
   border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-xl);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
   color: var(--text-on-accent);
-  margin-top: -24px;
-  box-shadow: 0 8px 20px rgba(110, 86, 248, 0.4);
-  flex: 0 0 auto;
+  pointer-events: auto;
 }
 
 .tab-bar__fab:active {

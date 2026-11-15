@@ -23,25 +23,23 @@ const TABS: TabDef[] = [
 ];
 
 /**
- * 4 tabs + center FAB, per the locked navigation decision
- * (docs/renovation_version_1.txt). The FAB sits physically between
- * Activity and Debts in the DOM/visual order but is NOT one of the 4
- * tabs — it always opens the quick-entry sheet (Phase 8), it never
- * becomes "active".
+ * 4 tabs + the Add button, per the locked navigation decision
+ * (docs/renovation_version_1.txt). Add is NOT one of the 4 tabs — it
+ * always opens the entry screen and never becomes "active" — so it sits
+ * outside the tab capsule, as its own circle on the right
+ * (docs/mockups/tab-bar.html, option A).
  */
 export function TabBar({ active, onNavigate, onFabPress }: TabBarProps) {
-  const [left, right] = [TABS.slice(0, 2), TABS.slice(2)];
   return (
     <nav class="tab-bar" aria-label="Primary">
-      {left.map((tab) => (
-        <TabButton key={tab.name} tab={tab} active={active === tab.name} onNavigate={onNavigate} />
-      ))}
+      <div class="tab-bar__capsule">
+        {TABS.map((tab) => (
+          <TabButton key={tab.name} tab={tab} active={active === tab.name} onNavigate={onNavigate} />
+        ))}
+      </div>
       <button type="button" class="tab-bar__fab" onClick={onFabPress} aria-label="Add transaction">
         <Plus size="1em" />
       </button>
-      {right.map((tab) => (
-        <TabButton key={tab.name} tab={tab} active={active === tab.name} onNavigate={onNavigate} />
-      ))}
     </nav>
   );
 }
@@ -61,9 +59,10 @@ function TabButton({
       class={`tab-bar__tab ${active ? "tab-bar__tab--active" : ""}`}
       onClick={() => onNavigate(tab.name)}
       aria-current={active ? "page" : undefined}
+      // Icon-only: the label is the accessible name, not visible text.
+      aria-label={tab.label}
     >
       <span class="tab-bar__icon">{tab.icon}</span>
-      <span class="tab-bar__label">{tab.label}</span>
     </button>
   );
 }

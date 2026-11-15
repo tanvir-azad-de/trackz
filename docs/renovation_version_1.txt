@@ -47,6 +47,20 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
+  TAB BAR REDESIGN — 2026-11-15, NOT PUSHED. User asked for a cleaner,
+  more modern bottom nav; four mockups in docs/mockups/tab-bar.html, the
+  user chose A. A floating capsule holds the 4 tabs, icon-only (the label
+  is each button's aria-label), with a grey pill on the selected tab. Add
+  is its own 52px accent circle to the right of it, without the glow or
+  the lift. The bar floats at max(12px, safe-bottom - 12px). The nav
+  passes taps through the gaps around the pieces (pointer-events). Toast
+  (80px + safe-bottom) and the screens' 100px bottom padding still clear
+  it. Playwright (390x844 @2x, real clicks): capsule 16,780 296x52, Add
+  322,780; each tab click set aria-current; a tap in the gap hit the page
+  content; Home's last content ends at y 730, above the bar at 780; Add
+  opened the entry screen. 457 tests pass, JS bundle 32650 B gzipped
+  (32673 before). DEVICE CHECK: docs/device-check-tab-bar.md.
+
   ENTRY SCREEN (NO LAYOUT SHIFT) — 2026-11-15, PUSHED in eb496ca. SOLVED:
   the user confirmed all 11 checks in docs/device-check-entry-screen.md
   on the iPhone.
