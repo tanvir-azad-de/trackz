@@ -1,9 +1,10 @@
 import { useState } from "preact/hooks";
 import { ACCOUNT_TYPES, CATEGORY_TYPES, accountTypeLabel, categoryTypeLabel, usesCategory } from "@/domain/transaction";
-import type { Account, AccountType, Category, Merchant } from "@/domain/transaction";
+import type { Account, AccountType, Category } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { amountInputFromCents, parseAmountInput } from "@/features/entry/amountInput";
-import { sortedByLabel } from "@/features/entry/pickerOptions";
+import { merchantsFor, sortedByLabel } from "@/features/entry/pickerOptions";
+import type { MerchantOptions } from "@/features/entry/pickerOptions";
 import { NamePicker } from "./NamePicker";
 import { SelectInput } from "./SelectInput";
 
@@ -14,10 +15,10 @@ const ACCOUNT_TYPE_OPTIONS = sortedByLabel(ACCOUNT_TYPES, accountTypeLabel);
 interface EntryFormProps {
   draft: EntryDraft;
   onChange: (next: EntryDraft) => void;
-  /** These three must arrive sorted alphabetically (features/entry/pickerOptions.ts) — the pickers show them in the order given. */
+  /** All of these come from features/entry/pickerOptions.ts, already sorted alphabetically. The pickers show them in the order given. */
   accounts: readonly Account[];
   categories: readonly Category[];
-  merchants: readonly Merchant[];
+  merchants: MerchantOptions;
 }
 
 /**
@@ -48,7 +49,8 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
   }
 
   const categoryNames = categories.map((c) => c.name);
-  const merchantNames = merchants.map((m) => m.name);
+  // Scoped to the chosen category, so Shopping offers only shops (merchantsFor).
+  const merchantNames = merchantsFor(merchants, draft.category, draft.categoryType);
   const accountNames = accounts.map((a) => a.name);
 
   const isTransfer = draft.categoryType === "transfer";

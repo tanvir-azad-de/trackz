@@ -10,13 +10,14 @@ import {
 } from "@/features/entry/draft";
 import { setAccountType } from "@/storage/accountTypes";
 import { EntryForm } from "@/features/entry/EntryForm";
-import type { Account, Category, Merchant } from "@/domain/transaction";
+import type { Account, Category } from "@/domain/transaction";
+import type { MerchantOptions } from "@/features/entry/pickerOptions";
 
 interface TransactionDetailSheetProps {
   transaction: Transaction | null;
   accounts: readonly Account[];
   categories: readonly Category[];
-  merchants: readonly Merchant[];
+  merchants: MerchantOptions;
   onClose: () => void;
   onSave: (updated: Transaction) => void;
   onDelete: (transaction: Transaction) => void;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickerAccounts, pickerCategories, pickerMerchants, pickerNames, sortedByLabel } from "@/features/entry/pickerOptions";
+import { merchantsFor, pickerAccounts, pickerCategories, pickerMerchants, pickerNames, sortedByLabel } from "@/features/entry/pickerOptions";
 import { ACCOUNT_TYPES, CATEGORY_TYPES, accountTypeLabel, categoryTypeLabel } from "@/domain/transaction";
 import type { Transaction } from "@/domain/transaction";
 
@@ -43,7 +43,7 @@ describe("pickerCategories / pickerMerchants / pickerAccounts", () => {
   it("sorts case-insensitively, not uppercase-first", () => {
     // Default .sort() would give ["Zara", "edeka"].
     const list = [tx(TODAY, { merchant: "Zara" }), tx(TODAY, { merchant: "edeka" })];
-    expect(names(pickerMerchants(list))).toEqual(["edeka", "Zara"]);
+    expect(pickerMerchants(list).all).toEqual(["edeka", "Zara"]);
   });
 
   it("counts transfer destinations as accounts", () => {
@@ -57,7 +57,44 @@ describe("pickerCategories / pickerMerchants / pickerAccounts", () => {
   it("trims category names and skips blank merchants", () => {
     const list = [tx(TODAY, { category: " Groceries ", merchant: "" }), tx(TODAY, { category: "Groceries", merchant: " " })];
     expect(names(pickerCategories(list))).toEqual(["Groceries"]);
-    expect(names(pickerMerchants(list))).toEqual([]);
+    expect(pickerMerchants(list).all).toEqual([]);
+  });
+});
+
+describe("merchantsFor", () => {
+  const list = [
+    tx(TODAY, { category: "Shopping", merchant: "Tedi" }),
+    tx(TODAY, { category: "Shopping", categoryType: "non_income", cashflow: "in", merchant: "Amazon" }),
+    tx(TODAY, { category: " Shopping ", merchant: "Zara" }),
+    tx(TODAY, { category: "Groceries", merchant: "Alice" }),
+    tx(TODAY, { category: "", categoryType: "receivable", merchant: "Bob" }),
+    tx(TODAY, { category: "", categoryType: "payable", cashflow: "in", merchant: "Carol" }),
+    tx(TODAY, { category: "", categoryType: "transfer", cashflow: "none", destinationAccount: "REVO", merchant: "" }),
+  ];
+  const options = pickerMerchants(list);
+
+  it("lists only the chosen category's merchants, across every type on it", () => {
+    // Amazon is a non_income row: matching on type as well would drop it.
+    expect(merchantsFor(options, "Shopping", "expense")).toEqual(["Amazon", "Tedi", "Zara"]);
+    expect(merchantsFor(options, "Groceries", "expense")).toEqual(["Alice"]);
+  });
+
+  it("matches a padded category to its trimmed name", () => {
+    expect(merchantsFor(options, " Shopping", "expense")).toEqual(["Amazon", "Tedi", "Zara"]);
+  });
+
+  it("shows everything until a category is chosen, and nothing for a brand-new one", () => {
+    expect(merchantsFor(options, "", "expense")).toEqual(["Alice", "Amazon", "Bob", "Carol", "Tedi", "Zara"]);
+    expect(merchantsFor(options, "Brand New", "expense")).toEqual([]);
+  });
+
+  it("gives Lent out / I owe the people from both of those types, whatever category the draft still holds", () => {
+    expect(merchantsFor(options, "", "receivable")).toEqual(["Bob", "Carol"]);
+    expect(merchantsFor(options, "Shopping", "payable")).toEqual(["Bob", "Carol"]);
+  });
+
+  it("gives a transfer nothing", () => {
+    expect(merchantsFor(options, "", "transfer")).toEqual([]);
   });
 });
 
