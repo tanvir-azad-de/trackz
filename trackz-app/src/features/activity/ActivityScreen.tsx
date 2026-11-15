@@ -3,7 +3,7 @@ import { useTransactions } from "@/storage/useTransactions";
 import { FunnelX, SlidersHorizontal, X } from "@/components/icons";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
 import { getLocalToday } from "@/domain/dates";
-import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
+import { pickerAccounts, pickerCategories, pickerMerchants } from "@/features/entry/pickerOptions";
 import { deleteTransaction, updateTransaction, undeleteTransaction } from "@/storage/repository";
 import {
   activeFacetCount,
@@ -59,12 +59,12 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
 
   const accounts = useMemo(() => deriveAccounts(transactions), [transactions]);
   const categories = useMemo(() => deriveCategories(transactions), [transactions]);
-  // The edit form's pickers want most-used-first; FilterSheet keeps the
-  // alphabetical lists above, where scanning for a known name is the task.
+  // The edit form's pickers: alphabetical like FilterSheet's lists above,
+  // but trimmed and blank-free (features/entry/pickerOptions.ts).
   const today = getLocalToday();
-  const rankedAccounts = useMemo(() => rankAccounts(transactions, today), [transactions, today]);
-  const rankedCategories = useMemo(() => rankCategories(transactions, today), [transactions, today]);
-  const rankedMerchants = useMemo(() => rankMerchants(transactions, today), [transactions, today]);
+  const pickerAccountList = useMemo(() => pickerAccounts(transactions), [transactions]);
+  const pickerCategoryList = useMemo(() => pickerCategories(transactions), [transactions]);
+  const pickerMerchantList = useMemo(() => pickerMerchants(transactions), [transactions]);
 
   const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter]);
   const months = useMemo(() => groupByMonthAndDay(filtered), [filtered]);
@@ -202,9 +202,9 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
 
       <TransactionDetailSheet
         transaction={openTransaction}
-        accounts={rankedAccounts}
-        categories={rankedCategories}
-        merchants={rankedMerchants}
+        accounts={pickerAccountList}
+        categories={pickerCategoryList}
+        merchants={pickerMerchantList}
         onClose={() => setOpenTransaction(null)}
         onSave={handleSaveEdit}
         onDelete={handleDelete}

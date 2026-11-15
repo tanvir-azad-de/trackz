@@ -3,13 +3,18 @@ import { ACCOUNT_TYPES, CATEGORY_TYPES, accountTypeLabel, categoryTypeLabel, use
 import type { Account, AccountType, Category, Merchant } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { amountInputFromCents, parseAmountInput } from "@/features/entry/amountInput";
+import { sortedByLabel } from "@/features/entry/pickerOptions";
 import { NamePicker } from "./NamePicker";
 import { SelectInput } from "./SelectInput";
+
+// Alphabetical by visible label, like every other dropdown in the form.
+const TYPE_OPTIONS = sortedByLabel(CATEGORY_TYPES, categoryTypeLabel);
+const ACCOUNT_TYPE_OPTIONS = sortedByLabel(ACCOUNT_TYPES, accountTypeLabel);
 
 interface EntryFormProps {
   draft: EntryDraft;
   onChange: (next: EntryDraft) => void;
-  /** These three must arrive RANKED most-used first (features/entry/rank.ts) — the pickers show them in the order given. */
+  /** These three must arrive sorted alphabetically (features/entry/pickerOptions.ts) — the pickers show them in the order given. */
   accounts: readonly Account[];
   categories: readonly Category[];
   merchants: readonly Merchant[];
@@ -98,7 +103,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
           value={draft.categoryType}
           onChange={(e) => set("categoryType", e.currentTarget.value as EntryDraft["categoryType"])}
         >
-          {CATEGORY_TYPES.map((t) => (
+          {TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>
               {categoryTypeLabel(t)}
             </option>
@@ -109,7 +114,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
       <NamePicker
         label={isTransfer ? "From account" : "Account"}
         value={draft.account}
-        ranked={accountNames}
+        names={accountNames}
         onChange={(v) => set("account", v)}
         placeholder="e.g. ADVZ"
       />
@@ -126,7 +131,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
         <NamePicker
           label="Category"
           value={draft.category}
-          ranked={categoryNames}
+          names={categoryNames}
           onChange={(v) => set("category", v)}
           placeholder="e.g. Groceries"
         />
@@ -138,7 +143,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
           <NamePicker
             label="To account"
             value={draft.destinationAccount}
-            ranked={accountNames}
+            names={accountNames}
             onChange={(v) => set("destinationAccount", v)}
             placeholder="e.g. REVO"
           />
@@ -146,7 +151,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
           <NamePicker
             label="Merchant"
             value={draft.merchant}
-            ranked={merchantNames}
+            names={merchantNames}
             onChange={(v) => set("merchant", v)}
             placeholder="e.g. Edeka"
             allowBlank
@@ -203,7 +208,7 @@ function AccountTypeField({ label, value, onChange }: { label: string; value: Ac
     <label class="entry-form__field entry-form__full">
       <span class="entry-form__label">{label}</span>
       <SelectInput value={value} onChange={(e) => onChange(e.currentTarget.value as AccountType)}>
-        {ACCOUNT_TYPES.map((t) => (
+        {ACCOUNT_TYPE_OPTIONS.map((t) => (
           <option key={t} value={t}>
             {accountTypeLabel(t)}
           </option>

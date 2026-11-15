@@ -3,7 +3,7 @@ import { Sheet } from "@/components/Sheet";
 import { getLocalToday } from "@/domain/dates";
 import { addTransaction } from "@/storage/repository";
 import { loadRememberedEntry, saveRememberedEntry } from "@/storage/entryMemory";
-import { rankAccounts, rankCategories, rankMerchants } from "@/features/entry/rank";
+import { pickerAccounts, pickerCategories, pickerMerchants } from "@/features/entry/pickerOptions";
 import { buildTransaction, newAccountTypes, validateDraft, type EntryDraft } from "@/features/entry/draft";
 import { setAccountType } from "@/storage/accountTypes";
 import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
@@ -30,11 +30,9 @@ interface EntrySheetProps {
 export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetProps) {
   const [draft, setDraft] = useState<EntryDraft>(() => draftFromRemembered(loadRememberedEntry(), getLocalToday()));
 
-  const today = getLocalToday();
-
-  const accounts = useMemo(() => rankAccounts(transactions, today), [transactions, today]);
-  const categories = useMemo(() => rankCategories(transactions, today), [transactions, today]);
-  const merchants = useMemo(() => rankMerchants(transactions, today), [transactions, today]);
+  const accounts = useMemo(() => pickerAccounts(transactions), [transactions]);
+  const categories = useMemo(() => pickerCategories(transactions), [transactions]);
+  const merchants = useMemo(() => pickerMerchants(transactions), [transactions]);
 
   function handleClose() {
     // Re-read rather than keep the closed draft: closing without saving

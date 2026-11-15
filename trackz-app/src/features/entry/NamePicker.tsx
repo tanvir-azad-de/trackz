@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { pickerNames } from "@/features/entry/rank";
+import { pickerNames } from "@/features/entry/pickerOptions";
 import { SelectInput } from "./SelectInput";
 
 /**
@@ -13,8 +13,8 @@ const NEW_VALUE = "\u0000new";
 interface NamePickerProps {
   label: string;
   value: string;
-  /** Already ranked most-used first (features/entry/rank.ts). */
-  ranked: readonly string[];
+  /** Already sorted alphabetically (features/entry/pickerOptions.ts). */
+  names: readonly string[];
   onChange: (value: string) => void;
   placeholder: string;
   /** Merchant may be blank ("no counterparty"); category and account may not. */
@@ -27,7 +27,7 @@ interface NamePickerProps {
  * silently create a near-duplicate name. Creating a new one is still
  * possible, but has to be chosen on purpose.
  */
-export function NamePicker({ label, value, ranked, onChange, placeholder, allowBlank = false }: NamePickerProps) {
+export function NamePicker({ label, value, names: options, onChange, placeholder, allowBlank = false }: NamePickerProps) {
   const [adding, setAdding] = useState(false);
   const [valueBeforeAdding, setValueBeforeAdding] = useState("");
 
@@ -59,7 +59,7 @@ export function NamePicker({ label, value, ranked, onChange, placeholder, allowB
     );
   }
 
-  const names = pickerNames(value, ranked);
+  const names = pickerNames(value, options);
   return (
     <label class="entry-form__field">
       <span class="entry-form__label">{label}</span>
