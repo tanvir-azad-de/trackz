@@ -30,7 +30,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = 8e18415, deployed
+  the same number rounded). Production = origin/main = 9b5fc55, deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -47,7 +47,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
-  ALPHABETICAL DROPDOWNS — 2026-11-15, NOT YET DEPLOYED. User decision:
+  ALPHABETICAL DROPDOWNS — 2026-11-15, DEPLOYED in 9b5fc55 (live bundle
+  index-C8Xp9mlG.js has no recency-decay code; Vercel dashboard not
+  checked). User decision:
   every dropdown in the entry form (shared with Activity's edit sheet) is
   alphabetical. SUPERSEDES ENTRY FORM REWORK decision f's recency-weighted
   ordering. features/entry/rank.ts became pickerOptions.ts: Account,
