@@ -60,6 +60,13 @@ have been wrong about something in every phase so far (see AGENTS.md's
   content; Home's last content ends at y 730, above the bar at 780; Add
   opened the entry screen. 457 tests pass, JS bundle 32650 B gzipped
   (32673 before). DEVICE CHECK: docs/device-check-tab-bar.md.
+  FOLLOW-UP same day, user: "does not match the mockup". Cause: the
+  mockup's phone frame is 300px wide for a 390px screen, and its px
+  values were copied verbatim, so the bar came out at 1/1.3 scale. Now
+  x1.3: capsule and Add 64px, selected pill 60x50, icons 26px, 18px side
+  inset, bottom max(20px, safe-bottom - 10px). Toast moved to 100px +
+  safe-bottom to stay above it. Playwright: capsule 18,760 278x64, Add
+  308,760 64x64; Home's last content ends at 730; clicks as before.
 
   ENTRY SCREEN (NO LAYOUT SHIFT) — 2026-11-15, PUSHED in eb496ca. SOLVED:
   the user confirmed all 11 checks in docs/device-check-entry-screen.md

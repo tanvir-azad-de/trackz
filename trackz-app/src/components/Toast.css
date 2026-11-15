@@ -2,7 +2,9 @@
   position: fixed;
   left: var(--space-5);
   right: var(--space-5);
-  bottom: calc(80px + var(--safe-bottom));
+  /* Clears the floating tab bar's top edge (TabBar.css: 64px tall at
+     >= 20px up) with a gap. */
+  bottom: calc(100px + var(--safe-bottom));
   max-width: 440px;
   margin: 0 auto;
   background: var(--surface-2);
