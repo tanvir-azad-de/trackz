@@ -67,6 +67,11 @@ have been wrong about something in every phase so far (see AGENTS.md's
   inset, bottom max(20px, safe-bottom - 10px). Toast moved to 100px +
   safe-bottom to stay above it. Playwright: capsule 18,760 278x64, Add
   308,760 64x64; Home's last content ends at 730; clicks as before.
+  Then, user: the capsule's side padding didn't match the gap around the
+  selected pill. Tabs are now fixed 60x50 (were flex: 1, which centred
+  the pill in a 65px slot) with 6px capsule padding and space-between.
+  Playwright: selected pill 6/6/6px from the capsule's inner edge on
+  top, bottom and the outer side, for Home and for Settings.
 
   ENTRY SCREEN (NO LAYOUT SHIFT) — 2026-11-15, PUSHED in eb496ca. SOLVED:
   the user confirmed all 11 checks in docs/device-check-entry-screen.md
