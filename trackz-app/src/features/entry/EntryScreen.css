@@ -7,7 +7,12 @@
   max-height: 100dvh;
   border: none;
   border-radius: 0;
-  padding: calc(var(--space-2) + var(--safe-top)) var(--space-4) calc(var(--space-3) + var(--safe-bottom));
+  /* space-6 above the safe area, not the space-2 the other screens'
+     rhythm would suggest: on iOS 26 (Liquid Glass) the status bar's
+     blur edge reaches below env(safe-area-inset-top), so a header placed
+     right at the inset is visibly blurred on a real iPhone while looking
+     fine in desktop Chrome, where the inset is 0. */
+  padding: calc(var(--space-6) + var(--safe-top)) var(--space-4) calc(var(--space-3) + var(--safe-bottom));
   /* Not the shared slide-in: a full-screen slide past the top edge reads
      as the page itself moving. */
   animation: none;
@@ -19,7 +24,7 @@
    tapping the amount only returns to the keypad. */
 body:has(.entry-sheet) .toast {
   bottom: auto;
-  top: calc(var(--safe-top) + 64px);
+  top: calc(var(--safe-top) + 80px);
 }
 
 .entry-sheet .sheet__grabber,

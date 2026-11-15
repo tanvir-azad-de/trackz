@@ -97,6 +97,13 @@ have been wrong about something in every phase so far (see AGENTS.md's
     y 67 over the amount. The iOS-only questions (keyboard raised for
     Note/+ New, no pan, native date popover) were settled by the device
     check above.
+    FOLLOW-UP 2026-11-15: user report, on an iPhone with iOS 26 (Liquid
+    Glass) the header sat under the status bar's blur edge, which reaches
+    below env(safe-area-inset-top); desktop Chrome was fine (inset 0).
+    Sheet top padding space-2 -> space-6 above --safe-top, toast offset
+    64 -> 80px to stay over the amount. Playwright 390x844 @2x: header
+    top 24, dock 444px tall, sheet content does not overflow. Whether
+    16px clears the blur is a device check (open Add on the iPhone PWA).
 
   REPLACE DRIVE COPY REMOVED — 2026-11-15, PUSHED. User decision: the
   Sync settings button "Replace Drive copy with this device" is gone.
