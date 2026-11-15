@@ -140,6 +140,43 @@ async function driveFetch(url: string, init: RequestInit = {}): Promise<Response
 }
 
 /**
+ * Send a request about the sync file, recovering once from a stale cached id.
+ *
+ * WHY THIS EXISTS. "Replace Drive copy with this device" (and every CSV
+ * import, via commitImport) DELETES the sync file and creates a new one with
+ * a NEW file id. Every other device still holds the old id in
+ * `cachedFileId`, and an installed iOS PWA can stay resident for days
+ * without reloading, so it kept asking Drive for a file that no longer
+ * existed: every sync 404'd, five retries, then "error" — and the imported
+ * data never reached it. Clearing the cache only on THIS device's own
+ * delete (deleteRemoteSyncFile) cannot help, because the other device
+ * never ran that delete.
+ *
+ * A 404 on a cached id therefore means "the file was replaced", not "the
+ * request failed": drop the id, search again, and retry once against
+ * whatever is there now. A 404 on an id we JUST searched for is a real
+ * failure and is returned as-is.
+ *
+ * @returns null when no sync file exists (any more)
+ */
+async function requestSyncFile(
+  url: (fileId: string) => string,
+  init?: RequestInit,
+): Promise<Response | null> {
+  const wasCached = cachedFileId !== null;
+  const fileId = await findSyncFile();
+  if (!fileId) return null;
+
+  const response = await driveFetch(url(fileId), init);
+  if (response.status !== 404 || !wasCached) return response;
+
+  cachedFileId = null;
+  const freshId = await findSyncFile();
+  if (!freshId) return null;
+  return driveFetch(url(freshId), init);
+}
+
+/**
  * Fetch the current synced document from Google Drive.
  *
  * @returns SyncDocument from Drive, or null if there is nothing usable yet
@@ -148,13 +185,9 @@ async function driveFetch(url: string, init: RequestInit = {}): Promise<Response
 export async function fetchFromDrive(_deviceId: string): Promise<SyncDocument | null> {
   requireAccessToken();
 
-  const fileId = await findSyncFile();
-  if (!fileId) {
-    // Nothing has ever been uploaded from any device.
-    return null;
-  }
-
-  const response = await driveFetch(`${DRIVE_API}/files/${fileId}?alt=media`);
+  const response = await requestSyncFile((fileId) => `${DRIVE_API}/files/${fileId}?alt=media`);
+  // Nothing has ever been uploaded from any device.
+  if (!response) return null;
 
   if (!response.ok) {
     throw driveError(`Failed to fetch from Drive: ${response.status}`, response.status);
@@ -191,10 +224,8 @@ export async function fetchFromDrive(_deviceId: string): Promise<SyncDocument | 
  * @returns the version, or null if the file does not exist yet
  */
 export async function readVersion(): Promise<string | null> {
-  const fileId = await findSyncFile();
-  if (!fileId) return null;
-
-  const response = await driveFetch(`${DRIVE_API}/files/${fileId}?fields=version`);
+  const response = await requestSyncFile((fileId) => `${DRIVE_API}/files/${fileId}?fields=version`);
+  if (!response) return null;
   if (!response.ok) {
     throw driveError(`Failed to read Drive file version: ${response.status}`, response.status);
   }
@@ -213,10 +244,8 @@ export async function readVersion(): Promise<string | null> {
 export async function readRemoteMetadata(): Promise<
   (DriveFileMetadata & { version: string | null; size: number | null }) | null
 > {
-  const fileId = await findSyncFile();
-  if (!fileId) return null;
-
-  const response = await driveFetch(`${DRIVE_API}/files/${fileId}?fields=${METADATA_FIELDS}`);
+  const response = await requestSyncFile((fileId) => `${DRIVE_API}/files/${fileId}?fields=${METADATA_FIELDS}`);
+  if (!response) return null;
   if (!response.ok) {
     throw driveError(`Failed to read Drive metadata: ${response.status}`, response.status);
   }
@@ -231,7 +260,7 @@ export async function readRemoteMetadata(): Promise<
   };
 
   return {
-    id: metadata.id ?? fileId,
+    id: metadata.id ?? cachedFileId ?? "",
     name: metadata.name ?? SYNC_FILENAME,
     mimeType: metadata.mimeType ?? MIME_TYPE,
     modifiedTime: metadata.modifiedTime ?? "",
@@ -257,21 +286,22 @@ export async function uploadToDrive(
   requireAccessToken();
 
   const body = JSON.stringify(doc);
-  const existingFileId = await findSyncFile();
-
-  const response = existingFileId
-    ? await driveFetch(
-        // The /upload/ host with uploadType=media: the body IS the file's
-        // bytes. A PATCH to the metadata host would be accepted and
-        // silently store nothing.
-        `${DRIVE_UPLOAD_API}/files/${existingFileId}?uploadType=media&fields=${METADATA_FIELDS}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": MIME_TYPE },
-          body,
-        },
-      )
-    : await createSyncFile(body);
+  // Through requestSyncFile, so a file replaced by another device is
+  // updated at its new id rather than 404ing at the old one; null means
+  // there is no file at all and this upload creates it.
+  const patched = await requestSyncFile(
+    // The /upload/ host with uploadType=media: the body IS the file's
+    // bytes. A PATCH to the metadata host would be accepted and
+    // silently store nothing.
+    (fileId) => `${DRIVE_UPLOAD_API}/files/${fileId}?uploadType=media&fields=${METADATA_FIELDS}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": MIME_TYPE },
+      body,
+    },
+  );
+  const created = patched === null;
+  const response = patched ?? (await createSyncFile(body));
 
   if (!response.ok) {
     throw driveError(`Failed to upload to Drive: ${response.status}`, response.status);
@@ -284,7 +314,7 @@ export async function uploadToDrive(
   };
 
   // Creation returns the id we now need for every later call.
-  if (!existingFileId && metadata.id) cachedFileId = metadata.id;
+  if (created && metadata.id) cachedFileId = metadata.id;
 
   return {
     version: metadata.version ?? null,

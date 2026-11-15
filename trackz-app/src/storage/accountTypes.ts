@@ -183,3 +183,15 @@ export function replaceAccountTypes(types: Record<string, AccountType>, now: str
   writeRaw(next);
   notify();
 }
+
+/**
+ * Take another device's map wholesale, timestamps included, when that
+ * device replaced the Drive copy (see coordinator.ts's "generation").
+ * Unlike mergeAccountTypes, accounts absent from `types` are dropped.
+ * Timestamps are kept rather than restamped so the next sync compares
+ * equal to Drive and uploads nothing.
+ */
+export function adoptAccountTypes(types: AccountTypeMap): void {
+  writeRaw({ ...types });
+  notify();
+}

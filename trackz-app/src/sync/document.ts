@@ -38,6 +38,22 @@ export interface SyncDocument {
    * cash (see storage/accountTypes.ts).
    */
   accountTypes?: AccountTypeMap;
+  /**
+   * Which HISTORY this document belongs to. A fresh value is minted only by
+   * coordinator.ts's overwriteRemoteWithLocal (Replace Drive copy, CSV
+   * import) and carried forward unchanged by every ordinary sync.
+   *
+   * It exists because a replace is otherwise invisible to other devices:
+   * merge.ts is a union by id, so a device holding rows the replacing
+   * device dropped would merge them straight back in and re-upload them.
+   * A device that last synced with a different generation knows Drive was
+   * replaced and adopts it instead of merging (see performSync).
+   *
+   * OPTIONAL: documents written before it existed, or by a device still on
+   * an older build, carry none, and absent must mean "no replace to
+   * announce" — never "adopt me".
+   */
+  generation?: string;
 }
 
 /**
@@ -49,6 +65,7 @@ export function localToSync(
   revision: number,
   deviceId: string,
   accountTypes?: AccountTypeMap,
+  generation?: string,
 ): SyncDocument {
   return {
     revision,
@@ -58,6 +75,7 @@ export function localToSync(
     // writing an empty object — see the field's comment for why absent and
     // empty must stay distinguishable.
     ...(accountTypes && Object.keys(accountTypes).length > 0 ? { accountTypes } : {}),
+    ...(generation ? { generation } : {}),
   };
 }
 

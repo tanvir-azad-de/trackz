@@ -420,3 +420,61 @@ describe("deleteRemoteSyncFile", () => {
     await expect(deleteRemoteSyncFile()).rejects.toThrow(/Failed to delete/);
   });
 });
+
+describe("a sync file replaced by another device", () => {
+  // Another device's Replace Drive copy / CSV import deletes the file and
+  // creates a new one with a new id. This device still has the old id
+  // cached; a resident iOS PWA can hold it for days.
+
+  it("re-finds the file when the cached id 404s, and reads the new one", async () => {
+    const replaced: SyncDocument = { ...doc, revision: 0, device: "device-b" };
+    fetchMock
+      .mockResolvedValueOnce(searchHit("old-file"))
+      .mockResolvedValueOnce(textResponse(JSON.stringify(doc)))
+      .mockResolvedValueOnce(jsonResponse({ error: "notFound" }, 404))
+      .mockResolvedValueOnce(searchHit("new-file"))
+      .mockResolvedValueOnce(textResponse(JSON.stringify(replaced)));
+
+    await fetchFromDrive("device-a");
+    const result = await fetchFromDrive("device-a");
+
+    expect(calledUrls().at(-1)).toBe(`${METADATA_HOST}/files/new-file?alt=media`);
+    expect(result).toEqual(replaced);
+  });
+
+  it("reads the version at the new id too", async () => {
+    fetchMock
+      .mockResolvedValueOnce(searchHit("old-file"))
+      .mockResolvedValueOnce(jsonResponse({ version: "7" }))
+      .mockResolvedValueOnce(jsonResponse({ error: "notFound" }, 404))
+      .mockResolvedValueOnce(searchHit("new-file"))
+      .mockResolvedValueOnce(jsonResponse({ version: "1" }));
+
+    await readVersion();
+    expect(await readVersion()).toBe("1");
+  });
+
+  it("creates the file when the cached id 404s and nothing replaced it", async () => {
+    fetchMock
+      .mockResolvedValueOnce(searchHit("old-file"))
+      .mockResolvedValueOnce(jsonResponse({ version: "7" }))
+      .mockResolvedValueOnce(jsonResponse({ error: "notFound" }, 404))
+      .mockResolvedValueOnce(searchMiss())
+      .mockResolvedValueOnce(jsonResponse({ id: "created", version: "1" }));
+
+    await readVersion();
+    await uploadToDrive(doc);
+
+    expect(calledUrls().at(-1)).toContain("uploadType=multipart");
+  });
+
+  it("does not re-search when an id it JUST found 404s", async () => {
+    fetchMock
+      .mockResolvedValueOnce(searchHit("file-123"))
+      .mockResolvedValueOnce(jsonResponse({ error: "notFound" }, 404));
+
+    await expect(fetchFromDrive("device-a")).rejects.toThrow("404");
+    const searches = calledUrls().filter((url) => url.includes("spaces=appDataFolder"));
+    expect(searches).toHaveLength(1);
+  });
+});

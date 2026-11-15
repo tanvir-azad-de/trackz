@@ -664,3 +664,133 @@ describe("committing a CSV import", () => {
     expect(driveMock.deleteRemoteSyncFile).not.toHaveBeenCalled();
   });
 });
+
+describe("another device replacing the Drive copy", () => {
+  // The reported bug: a CSV imported on the Mac reached Drive, but the
+  // iPhone's next sync unioned its own copy back in — and re-uploaded it.
+
+  function replacedDoc(transactions: Transaction[], generation = "gen-mac"): SyncDocument {
+    return { revision: 0, device: "device-mac", transactions, generation };
+  }
+
+  it("adopts the replacement instead of merging the dropped rows back", async () => {
+    const { syncNow } = await import("@/sync/coordinator");
+    const { replaceAllTransactions, getTransactions } = await import("@/storage/repository");
+
+    const old = [
+      tx("row-1", "2026-01-02T00:00:00Z"),
+      tx("row-2", "2026-01-02T00:00:00Z"),
+      tx("row-3", "2026-01-02T00:00:00Z"),
+    ];
+    replaceAllTransactions(old);
+    // The iPhone's startup sync, against the pre-import document.
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc(old));
+    await startSignedIn();
+
+    // The Mac imports a file without row-3.
+    driveMock.fetchFromDrive.mockResolvedValue(replacedDoc([old[0]!, old[1]!]));
+    await syncNow();
+
+    expect(getTransactions().map((t) => t.id)).toEqual(["row-1", "row-2"]);
+    // Uploading here is how the union reached the Mac too.
+    expect(driveMock.uploadToDrive).not.toHaveBeenCalled();
+  });
+
+  it("adopts the replacement's account types, dropping ones it lacks", async () => {
+    const { syncNow } = await import("@/sync/coordinator");
+    const { replaceAllTransactions } = await import("@/storage/repository");
+    const { setAccountType, getAccountTypes } = await import("@/storage/accountTypes");
+
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z")]);
+    setAccountType("Stale", "investment");
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc([tx("row-1", "2026-01-02T00:00:00Z")]));
+    await startSignedIn();
+
+    driveMock.fetchFromDrive.mockResolvedValue({
+      ...replacedDoc([tx("row-1", "2026-01-02T00:00:00Z")]),
+      accountTypes: { ADVZ: { type: "credit_card", updatedAt: "2026-01-01T00:00:00Z" } },
+    });
+    await syncNow();
+
+    expect(getAccountTypes()).toEqual({ ADVZ: "credit_card" });
+  });
+
+  it("merges, not adopts, on a device that has never synced", async () => {
+    const { syncNow } = await import("@/sync/coordinator");
+    const { replaceAllTransactions, getTransactions } = await import("@/storage/repository");
+
+    // Local-only data, Drive never connected on this build. Adopting here
+    // would wipe it.
+    replaceAllTransactions([tx("local-1", "2026-01-02T00:00:00Z")]);
+    const { setAccessToken } = await import("@/sync/auth");
+    setAccessToken("test-token", 3600, "person@example.com");
+    driveMock.fetchFromDrive.mockResolvedValue(replacedDoc([tx("remote-1", "2026-01-02T00:00:00Z")]));
+    await syncNow();
+
+    expect(getTransactions().map((t) => t.id).sort()).toEqual(["local-1", "remote-1"]);
+  });
+
+  it("merges again once it is on the new history", async () => {
+    const { syncNow } = await import("@/sync/coordinator");
+    const { replaceAllTransactions, addTransaction, getTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z")]);
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc([tx("row-1", "2026-01-02T00:00:00Z")]));
+    await startSignedIn();
+    driveMock.fetchFromDrive.mockResolvedValue(replacedDoc([tx("row-1", "2026-01-02T00:00:00Z")]));
+    await syncNow();
+
+    // An ordinary edit on this device after adopting must upload, not be
+    // thrown away by a second adoption of the same generation.
+    addTransaction(tx("row-new", "2026-01-03T00:00:00Z"));
+    await syncNow();
+
+    expect(getTransactions().map((t) => t.id)).toContain("row-new");
+    const uploaded = driveMock.uploadToDrive.mock.calls.at(-1)?.[0] as SyncDocument;
+    expect(uploaded.transactions.map((t) => t.id)).toContain("row-new");
+    // Carried forward, so the next device still sees the same history.
+    expect(uploaded.generation).toBe("gen-mac");
+  });
+
+  it("never adopts a document that carries no generation", async () => {
+    const { syncNow } = await import("@/sync/coordinator");
+    const { replaceAllTransactions, getTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z")]);
+    driveMock.fetchFromDrive.mockResolvedValue(replacedDoc([tx("row-1", "2026-01-02T00:00:00Z")], "gen-a"));
+    await startSignedIn();
+
+    // A device on an older build uploaded, stripping the field.
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc([tx("other", "2026-01-02T00:00:00Z")]));
+    await syncNow();
+
+    expect(getTransactions().map((t) => t.id).sort()).toEqual(["other", "row-1"]);
+    // And puts it back, so the history survives the older device.
+    const uploaded = driveMock.uploadToDrive.mock.calls.at(-1)?.[0] as SyncDocument;
+    expect(uploaded.generation).toBe("gen-a");
+  });
+
+  it("does not adopt Drive's copy right after replacing it itself", async () => {
+    const { syncNow, overwriteRemoteWithLocal } = await import("@/sync/coordinator");
+    const { replaceAllTransactions, getTransactions } = await import("@/storage/repository");
+
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z")]);
+    driveMock.fetchFromDrive.mockResolvedValue(remoteDoc([tx("row-1", "2026-01-02T00:00:00Z")]));
+    await startSignedIn();
+
+    await overwriteRemoteWithLocal();
+    const written = driveMock.uploadToDrive.mock.calls.at(-1)?.[0] as SyncDocument;
+    expect(written.generation).toBeTruthy();
+    // A different device then adds a row on the same history.
+    driveMock.fetchFromDrive.mockResolvedValue({
+      ...written,
+      transactions: [...written.transactions, tx("other", "2026-01-02T00:00:00Z")],
+    });
+    replaceAllTransactions([tx("row-1", "2026-01-02T00:00:00Z"), tx("mine", "2026-01-03T00:00:00Z")], {
+      silent: true,
+    });
+    await syncNow();
+
+    expect(getTransactions().map((t) => t.id).sort()).toEqual(["mine", "other", "row-1"]);
+  });
+});

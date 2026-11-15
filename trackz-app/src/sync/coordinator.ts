@@ -4,6 +4,7 @@ import { merge } from "./merge";
 import { localToSync } from "./document";
 import { getTransactionsIncludingDeleted, replaceAllTransactions, setSyncNotifier } from "@/storage/repository";
 import {
+  adoptAccountTypes,
   getAccountTypeEntries,
   mergeAccountTypes,
   type AccountTypeMap,
@@ -114,6 +115,42 @@ function getDeviceId(): string {
 }
 
 let deviceId = getDeviceId();
+
+/**
+ * The Drive history (SyncDocument.generation) this device last synced
+ * with, persisted so it survives a reload.
+ *
+ * Three states, and the distinction between the first two is the point:
+ * - null: this device has never completed a sync on this build. It MERGES,
+ *   so connecting a device that already holds local data can never wipe
+ *   it — the same safety union-by-id gives a new device.
+ * - LEGACY_GENERATION: it has synced, but only with documents that carry
+ *   no generation. A later replace is therefore news to it, and it adopts.
+ * - an id: the history it is on. A different id on Drive means another
+ *   device replaced the copy since, and this one adopts.
+ */
+const GENERATION_KEY = "trackz.sync.generation";
+const LEGACY_GENERATION = "legacy";
+
+function readSyncedGeneration(): string | null {
+  try {
+    return localStorage.getItem(GENERATION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSyncedGeneration(generation: string): void {
+  try {
+    localStorage.setItem(GENERATION_KEY, generation);
+  } catch (error) {
+    console.warn("Could not persist sync generation:", error);
+  }
+}
+
+function newGeneration(): string {
+  return `gen-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 // No cached remote version is kept between syncs, deliberately. The
 // version only means anything relative to the content fetched alongside
@@ -274,7 +311,9 @@ export async function syncNow(): Promise<void> {
  * document at all. It cancels pending work, then uploads local state as
  * revision 0 — the only sequence whose outcome does not depend on timing.
  *
- * Destructive by design: other devices are overwritten on their next sync.
+ * Destructive by design: other devices are overwritten on their next sync —
+ * via the new generation below, which is what makes them adopt rather than
+ * merge (before it existed, they unioned their copy straight back in).
  * Callers must confirm with the user, and CSV export is the only undo.
  */
 export async function overwriteRemoteWithLocal(): Promise<void> {
@@ -313,7 +352,14 @@ export async function overwriteRemoteWithLocal(): Promise<void> {
     // being discarded. Claiming a higher revision would imply the old
     // document was an ancestor of this one, which is the opposite of what
     // happened.
-    await uploadToDrive(localToSync(local, 0, deviceId, getAccountTypeEntries()));
+    // A NEW generation is what makes this a replace for the other
+    // devices too, rather than only for Drive: without it they union their
+    // copies back in on their next sync (see SyncDocument.generation).
+    const generation = newGeneration();
+    await uploadToDrive(localToSync(local, 0, deviceId, getAccountTypeEntries(), generation));
+    // Only after the upload landed. Recording it first and then failing
+    // would make this device adopt the very Drive copy it failed to replace.
+    writeSyncedGeneration(generation);
 
     syncState.status = "synced";
     syncState.lastSyncTime = Date.now();
@@ -385,6 +431,27 @@ async function performSync(): Promise<void> {
 
       // 2. Get local state
       const local = getTransactionsIncludingDeleted();
+      const syncedGeneration = readSyncedGeneration();
+
+      // 2b. Another device replaced Drive's copy since this one last
+      //     synced (CSV import, or Replace Drive copy). Adopt it whole.
+      //     Merging here is the bug this branch fixes: union-by-id would
+      //     keep every row the replace dropped, then upload them back,
+      //     undoing the replace on every device. Unsynced edits made here
+      //     since the last sync are lost — the documented cost of a
+      //     replace, which the replacing device confirmed with the user.
+      //     Gated on a non-null syncedGeneration so a device that has
+      //     never synced on this build merges instead (see GENERATION_KEY).
+      const remoteGeneration = remoteDoc?.generation;
+      if (remoteDoc && remoteGeneration && syncedGeneration !== null && syncedGeneration !== remoteGeneration) {
+        replaceAllTransactions(remoteDoc.transactions, { silent: true });
+        adoptAccountTypes(remoteDoc.accountTypes ?? {});
+        writeSyncedGeneration(remoteGeneration);
+        syncState.hasConflicts = false;
+        syncState.conflictCount = 0;
+        settled = true;
+        break;
+      }
 
       // 3. Merge
       const mergeResult = remoteDoc
@@ -418,7 +485,14 @@ async function performSync(): Promise<void> {
       const needsUpload =
         mergeResult.shouldUpload || !sameAccountTypes(localAccountTypes, remoteDoc?.accountTypes);
 
+      // Carried forward, never minted here: only a replace starts a new
+      // history. Falls back to this device's own when Drive's document
+      // lacks one (written by a device on an older build, which strips it).
+      const generation =
+        remoteGeneration ?? (syncedGeneration !== LEGACY_GENERATION ? syncedGeneration ?? undefined : undefined);
+
       if (!needsUpload) {
+        writeSyncedGeneration(generation ?? LEGACY_GENERATION);
         settled = true;
         break;
       }
@@ -437,6 +511,7 @@ async function performSync(): Promise<void> {
         localRevision,
         deviceId,
         localAccountTypes,
+        generation,
       );
 
       // The returned version is deliberately discarded. Nothing reads it:
@@ -444,6 +519,7 @@ async function performSync(): Promise<void> {
       // readout asks Drive directly via readRemoteMetadata. Storing it here
       // would be write-only state that looks like a guarantee.
       await uploadToDrive(docToUpload);
+      writeSyncedGeneration(generation ?? LEGACY_GENERATION);
       settled = true;
       break;
     }
