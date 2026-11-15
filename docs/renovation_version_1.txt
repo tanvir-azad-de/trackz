@@ -104,6 +104,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
     64 -> 80px to stay over the amount. Playwright 390x844 @2x: header
     top 24, dock 444px tall, sheet content does not overflow. Whether
     16px clears the blur is a device check (open Add on the iPhone PWA).
+    Title left-aligned next to the close button (user request, same
+    day); Playwright: text starts at x 72, 12px right of the button.
 
   REPLACE DRIVE COPY REMOVED — 2026-11-15, PUSHED. User decision: the
   Sync settings button "Replace Drive copy with this device" is gone.

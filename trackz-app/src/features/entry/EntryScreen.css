@@ -71,7 +71,7 @@ body:has(.entry-sheet) .toast {
 
 .entry__title {
   margin: 0;
-  text-align: center;
+  text-align: left;
   font-size: var(--text-base);
   font-weight: 700;
 }
