@@ -47,10 +47,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
-  ENTRY SCREEN (NO LAYOUT SHIFT) — 2026-11-15, PUSHED. The user reported
-  it working on the iPhone via the dev server before the push; the
-  per-item checks in docs/device-check-entry-screen.md were not
-  reported one by one, and the installed production PWA is still to do.
+  ENTRY SCREEN (NO LAYOUT SHIFT) — 2026-11-15, PUSHED in eb496ca. SOLVED:
+  the user confirmed all 11 checks in docs/device-check-entry-screen.md
+  on the iPhone.
   User report: typing in the entry form shifted the layout every time
   the iOS keyboard opened or closed. Measured cause, from the code: the
   bottom-anchored Sheet sat where the keyboard lands, and every native
@@ -95,9 +94,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
     the same 44px row; Transfer tiles From/To/Note; new account N26 kept
     input focus through the Investment chip; Lent out -> Getting repaid
     -> Bob saved receivable/in; Note Cancel kept the old note; toast at
-    y 67 over the amount. NOT settled without a real iPhone: that iOS
-    raises the keyboard for Note/+ New, that it does not pan, and the
-    native date popover. See docs/device-check-entry-screen.md.
+    y 67 over the amount. The iOS-only questions (keyboard raised for
+    Note/+ New, no pan, native date popover) were settled by the device
+    check above.
 
   REPLACE DRIVE COPY REMOVED — 2026-11-15, PUSHED. User decision: the
   Sync settings button "Replace Drive copy with this device" is gone.
