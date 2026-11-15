@@ -112,6 +112,17 @@ export function daysBetween(earlier: ISODate, later: ISODate): number {
 }
 
 /**
+ * The ISODate `count` days after `date` (negative goes back). The entry
+ * screen's ‹ › day stepper. UTC-anchored, so a DST change between the two
+ * days can't land the result on the same day or skip one.
+ */
+export function shiftDays(date: ISODate, count: number): ISODate {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const shifted = new Date(Date.UTC(y, m - 1, d + count));
+  return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}`;
+}
+
+/**
  * Both ISODate -> Date conversions below go through Date.UTC and format
  * with `timeZone: "UTC"` explicitly. This is deliberate: an ISODate like
  * "2026-10-17" has no time-of-day component, so parsing it with the

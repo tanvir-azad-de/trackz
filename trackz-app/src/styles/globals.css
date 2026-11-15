@@ -98,8 +98,8 @@ textarea {
      chrome (a white dropdown arrow area, light date-picker wheel trim)
      that fights this app's dark-only palette — appearance:none strips
      that and lets our own background/border/color rules through on
-     .entry-form__input (EntryForm.tsx's Type select) and the date
-     inputs in FilterSheet.tsx. */
+     the date inputs in FilterSheet.tsx and the entry screen's text
+     panel. */
   -webkit-appearance: none;
   appearance: none;
 }

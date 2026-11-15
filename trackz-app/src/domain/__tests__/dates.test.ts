@@ -3,6 +3,7 @@ import {
   daysBetween,
   formatShortDay,
   formatDayLabel,
+  shiftDays,
   formatDayHeading,
   getLastNMonthsRange,
   getMonthEndDate,
@@ -140,5 +141,23 @@ describe("formatDayLabel (Accounts last-activity, detail sheet 'Logged')", () =>
 describe("formatShortDay", () => {
   it("formats day and short month without shifting the day", () => {
     expect([formatShortDay("2026-11-01"), formatShortDay("2026-11-30")]).toEqual(["1 Nov", "30 Nov"]);
+  });
+});
+
+describe("shiftDays (entry screen day stepper)", () => {
+  it("steps back and forward one day", () => {
+    expect(shiftDays("2026-11-15", -1)).toBe("2026-11-14");
+    expect(shiftDays("2026-11-15", 1)).toBe("2026-11-16");
+  });
+
+  it("crosses month, year and leap-day boundaries", () => {
+    expect(shiftDays("2026-03-01", -1)).toBe("2026-02-28");
+    expect(shiftDays("2028-03-01", -1)).toBe("2028-02-29");
+    expect(shiftDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+
+  it("is exact across the European DST changes", () => {
+    expect(shiftDays("2026-03-29", -1)).toBe("2026-03-28");
+    expect(shiftDays("2026-10-25", 1)).toBe("2026-10-26");
   });
 });

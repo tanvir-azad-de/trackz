@@ -1,5 +1,4 @@
 import { useEffect, useState } from "preact/hooks";
-import { Sheet } from "@/components/Sheet";
 import type { Transaction } from "@/domain/transaction";
 import {
   applyDraftToTransaction,
@@ -9,7 +8,7 @@ import {
   type EntryDraft,
 } from "@/features/entry/draft";
 import { setAccountType } from "@/storage/accountTypes";
-import { EntryForm } from "@/features/entry/EntryForm";
+import { EntryScreen } from "@/features/entry/EntryScreen";
 import type { Account, Category } from "@/domain/transaction";
 import type { MerchantOptions } from "@/features/entry/pickerOptions";
 
@@ -24,10 +23,9 @@ interface TransactionDetailSheetProps {
 }
 
 /**
- * Tap-through edit/delete for a single row (Phase 11). Reuses Sheet and
- * EntryForm rather than building a second form — the same form Add
- * transaction uses (2026-11-10); the only UI of its own is the footer's
- * Delete with its inline confirm. Everything else is
+ * Tap-through edit/delete for a single row (Phase 11). Reuses EntryScreen
+ * rather than building a second form — the same screen Add transaction
+ * uses; the only UI of its own is the Delete row with its inline confirm. Everything else is
  * the exact same validity rules a quick-entry transaction is held to
  * (features/entry/draft.ts), so an edited transaction can't drift from
  * what CSV import/export (Phase 13) considers valid.
@@ -81,43 +79,41 @@ export function TransactionDetailSheet({
     onDelete(transactionBeingEdited);
   }
 
-  // The confirm REPLACES the footer's two buttons rather than stacking
-  // under them, so Save can't be tapped while a delete is pending.
-  const footer = confirmingDelete ? (
+  // The confirm REPLACES the Delete button in the same fixed-height row,
+  // so the keypad under it doesn't move and Delete can't be double-tapped
+  // through to the real delete.
+  const actions = confirmingDelete ? (
     <div class="transaction-detail__confirm">
       <span>Delete this transaction?</span>
-      <div class="transaction-detail__confirm-actions">
-        <button type="button" class="transaction-detail__confirm-cancel" onClick={() => setConfirmingDelete(false)}>
-          Cancel
-        </button>
-        <button type="button" class="transaction-detail__confirm-delete" onClick={handleDeleteConfirmed}>
-          Delete
-        </button>
-      </div>
-    </div>
-  ) : (
-    <>
-      <button type="button" class="transaction-detail__delete" onClick={() => setConfirmingDelete(true)}>
+      <button type="button" class="transaction-detail__confirm-cancel" onClick={() => setConfirmingDelete(false)}>
+        Cancel
+      </button>
+      <button type="button" class="transaction-detail__confirm-delete" onClick={handleDeleteConfirmed}>
         Delete
       </button>
-      <button type="button" class="entry-form__save" onClick={handleSave} disabled={errors.length > 0}>
-        Save changes
-      </button>
-    </>
+    </div>
+  ) : (
+    <button type="button" class="transaction-detail__delete" onClick={() => setConfirmingDelete(true)}>
+      Delete transaction
+    </button>
   );
 
   return (
-    <Sheet open={transaction !== null} onClose={onClose} title="Edit transaction" footer={footer}>
-      {/* Keyed on id: EntryForm holds the amount's raw text in local state,
-          seeded once from the draft, so a different row must remount it. */}
-      <EntryForm
-        key={transactionBeingEdited.id}
-        draft={draftInProgress}
-        onChange={setDraft}
-        accounts={accounts}
-        categories={categories}
-        merchants={merchants}
-      />
-    </Sheet>
+    <EntryScreen
+      open={transaction !== null}
+      title="Edit transaction"
+      // The body holds the amount digits, seeded once, so a different row must remount it.
+      bodyKey={transactionBeingEdited.id}
+      draft={draftInProgress}
+      onChange={setDraft}
+      accounts={accounts}
+      categories={categories}
+      merchants={merchants}
+      saveLabel="Save"
+      canSave={errors.length === 0}
+      onSave={handleSave}
+      onClose={onClose}
+      actions={actions}
+    />
   );
 }

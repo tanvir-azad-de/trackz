@@ -1,0 +1,411 @@
+/* EntryScreen.tsx. Every block is a fixed height except .entry__dock,
+   which takes the rest, so nothing on this screen changes size while it
+   is open (renovation doc section 5 "ENTRY SCREEN"). */
+
+.sheet.entry-sheet {
+  height: 100dvh;
+  max-height: 100dvh;
+  border: none;
+  border-radius: 0;
+  padding: calc(var(--space-2) + var(--safe-top)) var(--space-4) calc(var(--space-3) + var(--safe-bottom));
+  /* Not the shared slide-in: a full-screen slide past the top edge reads
+     as the page itself moving. */
+  animation: none;
+}
+
+/* A toast's usual spot (above the tab bar) lands on the keypad's bottom
+   row here, and Toast out-ranks Sheet on purpose (Toast.css), so it would
+   block C, 0 and delete for its whole duration. Over the amount instead:
+   tapping the amount only returns to the keypad. */
+body:has(.entry-sheet) .toast {
+  bottom: auto;
+  top: calc(var(--safe-top) + 64px);
+}
+
+.entry-sheet .sheet__grabber,
+.entry-sheet .sheet__title {
+  display: none;
+}
+
+.entry-sheet .sheet__content {
+  flex: 1;
+  display: flex;
+  /* hidden, not auto: nothing here scrolls but the picker list. */
+  overflow: hidden;
+}
+
+.entry {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.entry__header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  height: 48px;
+}
+
+.entry__close {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+  display: grid;
+  place-items: center;
+}
+
+.entry__title {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.entry__save {
+  padding: 0 var(--space-5);
+  min-width: 96px;
+}
+
+.entry__amount {
+  flex: 0 0 auto;
+  height: 72px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  border-bottom: 2px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: var(--space-2) 0;
+}
+
+.entry__amount--active {
+  border-bottom-color: var(--accent);
+}
+
+.entry__amount-currency {
+  font-size: var(--text-xl);
+  color: var(--text-tertiary);
+}
+
+.entry__amount-value {
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.entry__amount-value--empty {
+  color: var(--text-tertiary);
+}
+
+.entry__tiles {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-rows: 64px;
+  gap: var(--space-2);
+}
+
+/* Transfer's 5 tiles: Note takes all of row 3 (entryLayout.ts). */
+.entry__tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.entry__tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.entry__tile--active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.entry__tile-label {
+  max-width: 100%;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry__tile-sub {
+  font-weight: 500;
+}
+
+.entry__tile-value {
+  max-width: 100%;
+  font-size: var(--text-base);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entry__tile-value--empty {
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.entry__actions {
+  flex: 0 0 auto;
+  height: var(--touch-target-min);
+  display: flex;
+  gap: var(--space-2);
+}
+
+.entry__dock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.entry__keypad {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+
+.entry__key {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  font-feature-settings: var(--font-feature-numeric);
+  display: grid;
+  place-items: center;
+}
+
+.entry__key:active {
+  background: var(--surface-3);
+}
+
+.entry__key--fn {
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: var(--text-xl);
+}
+
+.entry__panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.entry__panel-head {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.entry__panel-done {
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-3);
+  background: none;
+  border: none;
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.entry__options {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 56px;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+/* Merchant names run to ~28 characters; 3 columns would cut most of them. */
+.entry__options--wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.entry__option {
+  min-width: 0;
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  display: grid;
+  place-items: center;
+}
+
+/* Two lines, then an ellipsis: a span, because line-clamp needs
+   display:-webkit-box, which can't also centre vertically. */
+.entry__option-text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+.entry__option--selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-strong);
+}
+
+.entry__option--new {
+  border-style: dashed;
+  color: var(--text-secondary);
+}
+
+.entry__date {
+  display: grid;
+  grid-auto-rows: 56px;
+  gap: var(--space-2);
+}
+
+.entry__date-step {
+  display: grid;
+  grid-template-columns: 72px 1fr 72px;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.entry__date-step .entry__option {
+  height: 100%;
+  font-size: var(--text-xl);
+}
+
+.entry__date-current {
+  text-align: center;
+  font-weight: 700;
+  font-size: var(--text-lg);
+}
+
+.entry__date-quick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.entry__date-pick {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+/* Transparent and stretched over its label, so a tap anywhere on "Pick a
+   date" lands on the input and opens the native picker. */
+.entry__date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+/* Note and "+ New". Always mounted, transparent while closed: see
+   openText in EntryScreen.tsx for why it can't render on demand. Covers
+   the whole screen, content at the TOP, so the keyboard lands on empty
+   space. */
+.entry__text {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  background: var(--surface-1);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entry__text--open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.entry__text-label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.entry__text-input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.entry__text-types,
+.entry__text-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  grid-auto-rows: 52px;
+  gap: var(--space-2);
+}
+
+/* The primary CTA: this screen's Save and Done, and CategorySheet's OK
+   (HomeScreen imports this file for it). */
+.entry-form__save {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
+  font-weight: 700;
+  font-size: var(--text-base);
+}
+
+.entry-form__save:disabled {
+  opacity: 0.5;
+}
+
+.entry-form__save:active:not(:disabled) {
+  background: var(--accent-strong);
+}

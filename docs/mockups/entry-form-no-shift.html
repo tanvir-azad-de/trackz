@@ -1,0 +1,348 @@
+<title>Entry Form Without Shift</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: three option bands, each a row of 390x844-proportioned phone frames beside its notes. Single dark look, matching trackz (dark-only). */
+:root {
+  color-scheme: dark;
+  --surface-0: #0a0b0f;
+  --surface-1: #14151b;
+  --surface-2: #1d1f28;
+  --surface-3: #282a35;
+  --border: #2a2c38;
+  --text-1: #f2f2f7;
+  --text-2: #a5a7b8;
+  --text-3: #6d7083;
+  --accent: #6e56f8;
+  --accent-strong: #8b76ff;
+  --accent-bg: rgba(110, 86, 248, 0.16);
+  --kb: #2b2c33;
+  --kb-key: #4a4b55;
+  --warn: #f0b354;
+  --good: #4fd18b;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--surface-0); color: var(--text-1); font-family: var(--font);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+h1 { font-size: 28px; margin: 0 0 8px; text-wrap: balance; }
+h2 { font-size: 20px; margin: 0; text-wrap: balance; }
+p { line-height: 1.55; color: var(--text-2); margin: 0; max-width: 68ch; }
+.lede { display: flex; flex-direction: column; gap: 12px; }
+.cause { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.cause ul { margin: 0; padding-left: 18px; color: var(--text-2); line-height: 1.6; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-strong); font-weight: 700; }
+.option { display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--border); padding-top: 28px; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.frames { display: flex; flex-wrap: wrap; gap: 20px; }
+.notes { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.notes ul { margin: 0; padding-left: 18px; color: var(--text-2); line-height: 1.6; }
+.notes b { color: var(--text-1); }
+.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); margin-right: 6px; }
+.tag.good { color: var(--good); }
+.tag.warn { color: var(--warn); }
+
+/* Phone frame: 296 x 640 = 390 x 844 at 0.76 */
+.cap { font-size: 12px; color: var(--text-3); text-align: center; margin-top: 8px; max-width: 296px; }
+.phone {
+  width: 296px; height: 640px; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 34px; overflow: hidden; position: relative; display: flex; flex-direction: column;
+  font-size: 12px;
+}
+.status { height: 34px; flex: 0 0 auto; }
+.hdr { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; height: 40px; flex: 0 0 auto; }
+.hdr .x { width: 34px; height: 34px; border-radius: 999px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); font-size: 15px; }
+.hdr .t { font-weight: 700; font-size: 14px; }
+.hdr .save { background: var(--accent); color: #fff; font-weight: 700; border-radius: 10px; padding: 0 16px; height: 34px; display: grid; place-items: center; }
+.amount { padding: 6px 16px 10px; display: flex; align-items: baseline; gap: 6px; }
+.amount .cur { color: var(--text-3); font-size: 22px; }
+.amount .val { font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.caret { display: inline-block; width: 2px; height: 32px; background: var(--accent-strong); margin-left: 2px; vertical-align: -4px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+.amount.small .val { font-size: 32px; }
+
+/* chips */
+.chiprow { display: flex; gap: 6px; padding: 0 12px; overflow: hidden; align-items: center; height: 40px; flex: 0 0 auto; }
+.chiprow .lbl { flex: 0 0 52px; font-size: 10px; color: var(--text-3); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.chip { flex: 0 0 auto; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; color: var(--text-2); font-weight: 600; white-space: nowrap; }
+.chip.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-strong); }
+.chip.new { border-style: dashed; color: var(--text-3); }
+
+/* tiles */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 12px; }
+.tile { height: 50px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); padding: 7px 10px; display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.tile .k { font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.tile .v { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.on { border-color: var(--accent); background: var(--accent-bg); }
+.tile.dim .v { color: var(--text-3); font-weight: 600; }
+
+/* in-app keypad + picker panel, same footprint */
+.dock { margin-top: auto; height: 236px; flex: 0 0 auto; background: var(--surface-0); border-top: 1px solid var(--border); padding: 8px 8px 22px; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; height: 100%; }
+.key { background: var(--surface-2); border-radius: 10px; display: grid; place-items: center; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.key.fn { background: var(--surface-1); color: var(--text-2); font-size: 16px; }
+.panel { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+.panel .ph { display: flex; justify-content: space-between; align-items: center; color: var(--text-2); font-weight: 700; padding: 0 4px; height: 22px; }
+.panel .ph span:last-child { color: var(--accent-strong); }
+.pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: 1; align-content: start; }
+.pgrid .chip { height: 40px; border-radius: 10px; font-size: 11px; }
+
+/* system keyboard */
+.syskb { margin-top: auto; flex: 0 0 auto; background: var(--kb); padding: 6px 4px 22px; display: flex; flex-direction: column; gap: 5px; }
+.syskb .pred { height: 26px; display: flex; justify-content: space-around; align-items: center; color: var(--text-2); font-size: 11px; }
+.syskb .r { display: flex; gap: 4px; justify-content: center; }
+.syskb .r i { flex: 1; max-width: 26px; height: 32px; background: var(--kb-key); border-radius: 5px; }
+.syskb .r i.w { max-width: none; flex: 5; }
+.syskb.dec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 6px 6px 22px; }
+.syskb.dec i { height: 38px; background: var(--kb-key); border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 16px; color: var(--text-1); }
+.syskb.dec i.blank { background: transparent; }
+.kblabel { position: absolute; right: 10px; font-size: 9px; color: var(--text-3); background: var(--surface-0); padding: 2px 6px; border-radius: 6px; }
+
+/* list rows (option C) */
+.list { margin: 0 12px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.li { height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-top: 1px solid var(--border); }
+.li:first-child { border-top: none; }
+.li .k { color: var(--text-2); }
+.li .v { font-weight: 700; }
+.li .v.ph { color: var(--text-3); font-weight: 500; }
+.li.focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.gap8 { height: 8px; flex: 0 0 auto; }
+.note-in { margin: 0 12px; height: 46px; border-radius: 12px; border: 1.5px solid var(--accent); background: var(--surface-2); display: flex; align-items: center; padding: 0 12px; }
+.datebar { display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 40px; }
+.datebar .chip { flex: 1; }
+.datebar .arrow { flex: 0 0 40px; }
+.hint { padding: 4px 16px; color: var(--text-3); font-size: 10px; }
+
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-3); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+td { color: var(--text-2); }
+td:first-child { color: var(--text-1); font-weight: 600; }
+.scroll { overflow-x: auto; background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; }
+</style>
+
+<div class="wrap">
+  <header class="lede">
+    <span class="eyebrow">trackz · Add / Edit transaction</span>
+    <h1>Entry form without layout shift</h1>
+    <p>Three directions for the one form shared by Add and Edit. All three drop the bottom sheet that grows and slides with the keyboard. Frames are 390×844 scaled to 76%. The names and amounts are examples.</p>
+    <div class="cause">
+      <strong>Why the form shifts today</strong>
+      <ul>
+        <li>The sheet sits on the bottom edge, which is exactly where the iOS keyboard lands, so iOS pans the page to keep the focused field visible.</li>
+        <li>Amount, Notes and every "+ New…" field raise the keyboard. Each tap on Type, Account, Category, Merchant or Date dismisses it again, because native selects and the date picker take focus.</li>
+        <li>The decimal pad and the text keyboard are different heights, so Amount → Notes moves things a second time.</li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- ============ A ============ -->
+  <section class="option">
+    <span class="eyebrow">Option A · your idea</span>
+    <h2>Keyboard stays up</h2>
+    <div class="row">
+      <div class="frames">
+        <div>
+          <div class="phone">
+            <div class="status"></div>
+            <div class="hdr"><span class="x">✕</span><span class="t">Add</span><span class="save">Save</span></div>
+            <div class="amount small"><span class="cur">€</span><span class="val">12,40<span class="caret"></span></span></div>
+            <div class="chiprow"><span class="lbl">Type</span><span class="chip on">Expense</span><span class="chip">Income</span><span class="chip">Transfer</span><span class="chip">Lent</span></div>
+            <div class="chiprow"><span class="lbl">Account</span><span class="chip on">ADVZ</span><span class="chip">REVO</span><span class="chip">Cash</span></div>
+            <div class="chiprow"><span class="lbl">Category</span><span class="chip on">Groceries</span><span class="chip">Eating out</span><span class="chip">Transp…</span></div>
+            <div class="chiprow"><span class="lbl">Merchant</span><span class="chip on">Edeka</span><span class="chip">Rewe</span><span class="chip">Lidl</span><span class="chip new">+ New</span></div>
+            <div class="datebar"><span class="chip arrow">‹</span><span class="chip on">Today · 15 Nov</span><span class="chip arrow">›</span></div>
+            <div class="chiprow"><span class="lbl">Note</span><span class="chip new">Add note</span></div>
+            <div class="syskb dec">
+              <i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i>,</i><i>0</i><i>⌫</i>
+            </div>
+          </div>
+          <div class="cap">The amount field keeps focus. Every chip ignores focus, so tapping one never dismisses the keyboard.</div>
+        </div>
+        <div>
+          <div class="phone">
+            <div class="status"></div>
+            <div class="hdr"><span class="x">✕</span><span class="t">Add</span><span class="save">Save</span></div>
+            <div class="amount small"><span class="cur">€</span><span class="val">12,40</span></div>
+            <div class="chiprow"><span class="lbl">Type</span><span class="chip on">Expense</span><span class="chip">Income</span><span class="chip">Transfer</span></div>
+            <div class="chiprow"><span class="lbl">Category</span><span class="chip on">Groceries</span><span class="chip">Eating out</span></div>
+            <div class="gap8"></div>
+            <div class="note-in">Split with flatmate<span class="caret" style="height:16px"></span></div>
+            <div class="hint">Taller keyboard: the chip rows scroll under the header, the header and amount stay put.</div>
+            <div class="syskb">
+              <div class="pred"><span>with</span><span>for</span><span>and</span></div>
+              <div class="r"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="r"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="r"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="r"><i></i><i class="w"></i><i></i></div>
+            </div>
+          </div>
+          <div class="cap">Add note swaps focus to the note field. The text keyboard is about 80px taller than the decimal pad.</div>
+        </div>
+      </div>
+      <div class="notes">
+        <div><span class="tag warn">Zero shift: likely, not guaranteed</span><span class="tag">Taps: 32–40px chips</span></div>
+        <ul>
+          <li><b>How:</b> a full-screen page sized to <code>visualViewport.height</code>. Chips call <code>preventDefault</code> on pointerdown, so the amount field never loses focus.</li>
+          <li><b>Native selects and the date picker have to go.</b> Each one closes the keyboard when tapped. They become chip rows plus a ‹ Today › stepper for the date.</li>
+          <li><b>Opening the keyboard is the hard part on iOS.</b> Focus only raises it inside the tap that triggered it, and the form renders after that tap. The usual workaround is to focus a hidden input during the FAB tap and then hand focus over. This needs a check on the iPhone.</li>
+          <li>The space above the keyboard is about 470px. Long category or merchant lists turn into sideways-scrolling rows, which are harder to scan than a grid.</li>
+          <li>Even if the layout is perfect, the keyboard height still changes between Amount and Notes.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ B ============ -->
+  <section class="option">
+    <span class="eyebrow">Option B · strongest guarantee</span>
+    <h2>Own keypad, no system keyboard</h2>
+    <div class="row">
+      <div class="frames">
+        <div>
+          <div class="phone">
+            <div class="status"></div>
+            <div class="hdr"><span class="x">✕</span><span class="t">Add</span><span class="save">Save</span></div>
+            <div class="amount"><span class="cur">€</span><span class="val">12,40<span class="caret"></span></span></div>
+            <div class="tiles">
+              <div class="tile"><span class="k">Type</span><span class="v">Expense</span></div>
+              <div class="tile"><span class="k">Date</span><span class="v">Today</span></div>
+              <div class="tile"><span class="k">Account</span><span class="v">ADVZ</span></div>
+              <div class="tile"><span class="k">Category</span><span class="v">Groceries</span></div>
+              <div class="tile"><span class="k">Merchant</span><span class="v">Edeka</span></div>
+              <div class="tile dim"><span class="k">Note</span><span class="v">+ Add</span></div>
+            </div>
+            <div class="dock">
+              <div class="keypad">
+                <span class="key">1</span><span class="key">2</span><span class="key">3</span>
+                <span class="key">4</span><span class="key">5</span><span class="key">6</span>
+                <span class="key">7</span><span class="key">8</span><span class="key">9</span>
+                <span class="key fn">,</span><span class="key">0</span><span class="key fn">⌫</span>
+              </div>
+            </div>
+          </div>
+          <div class="cap">The keypad is part of the form, so there is no separate step. Six 66px tiles (50px at this scale) sit above it.</div>
+        </div>
+        <div>
+          <div class="phone">
+            <div class="status"></div>
+            <div class="hdr"><span class="x">✕</span><span class="t">Add</span><span class="save">Save</span></div>
+            <div class="amount"><span class="cur">€</span><span class="val">12,40</span></div>
+            <div class="tiles">
+              <div class="tile"><span class="k">Type</span><span class="v">Expense</span></div>
+              <div class="tile"><span class="k">Date</span><span class="v">Today</span></div>
+              <div class="tile"><span class="k">Account</span><span class="v">ADVZ</span></div>
+              <div class="tile on"><span class="k">Category</span><span class="v">Groceries</span></div>
+              <div class="tile"><span class="k">Merchant</span><span class="v">Edeka</span></div>
+              <div class="tile dim"><span class="k">Note</span><span class="v">+ Add</span></div>
+            </div>
+            <div class="dock">
+              <div class="panel">
+                <div class="ph"><span>Category</span><span>Keypad</span></div>
+                <div class="pgrid">
+                  <span class="chip on">Groceries</span><span class="chip">Eating out</span><span class="chip">Transport</span>
+                  <span class="chip">Rent</span><span class="chip">Utilities</span><span class="chip">Health</span>
+                  <span class="chip">Shopping</span><span class="chip">Travel</span><span class="chip new">+ New</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cap">Tapping a tile swaps a picker into the keypad's slot, at the same height. Picking a value brings the keypad back.</div>
+        </div>
+      </div>
+      <div class="notes">
+        <div><span class="tag good">Zero shift: guaranteed for amount and pickers</span><span class="tag">Taps: 52–66px</span></div>
+        <ul>
+          <li><b>How:</b> the amount is a display, so nothing is focusable and iOS never pans. Pickers, date (Today / Yesterday / a calendar grid) and the keypad all share one fixed 310px slot.</li>
+          <li><b>Note and "+ New" are the only places the system keyboard opens.</b> They open a small panel at the top of the screen, so the keyboard covers only empty space.</li>
+          <li>Most entries become: tap FAB, type the amount, Save. The last-used values are already filled in.</li>
+          <li><b>This reverses part of the 2026-11-10 decision that deleted the keypad.</b> The difference is that this keypad is in the same screen as the fields, not a step before them. The git history still has the old keypad logic (cents accumulator, 15 tests) to bring back.</li>
+          <li>About 1–2KB gzipped, no new dependency.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ C ============ -->
+  <section class="option">
+    <span class="eyebrow">Option C · smallest change</span>
+    <h2>Full-screen page anchored to the top</h2>
+    <div class="row">
+      <div class="frames">
+        <div>
+          <div class="phone">
+            <div class="status"></div>
+            <div class="hdr"><span class="x">✕</span><span class="t">Add</span><span class="save">Save</span></div>
+            <div class="list">
+              <div class="li focus"><span class="k">Amount</span><span class="v" style="font-size:18px">€ 12,40<span class="caret" style="height:16px"></span></span></div>
+              <div class="li"><span class="k">Note</span><span class="v ph">Optional</span></div>
+            </div>
+            <div class="gap8"></div>
+            <div class="list">
+              <div class="li"><span class="k">Type</span><span class="v">Expense ›</span></div>
+              <div class="li"><span class="k">Account</span><span class="v">ADVZ ›</span></div>
+              <div class="li"><span class="k">Category</span><span class="v">Groceries ›</span></div>
+              <div class="li"><span class="k">Merchant</span><span class="v">Edeka ›</span></div>
+            </div>
+            <div class="syskb dec" style="position:relative">
+              <i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i>,</i><i>0</i><i>⌫</i>
+            </div>
+          </div>
+          <div class="cap">The text fields are at the top, Save is in the header. The keyboard covers the bottom rows without moving anything.</div>
+        </div>
+        <div>
+          <div class="phone">
+            <div class="status"></div>
+            <div class="hdr"><span class="x">✕</span><span class="t">Add</span><span class="save">Save</span></div>
+            <div class="list">
+              <div class="li"><span class="k">Amount</span><span class="v" style="font-size:18px">€ 12,40</span></div>
+              <div class="li"><span class="k">Note</span><span class="v ph">Optional</span></div>
+            </div>
+            <div class="gap8"></div>
+            <div class="list">
+              <div class="li"><span class="k">Type</span><span class="v">Expense ›</span></div>
+              <div class="li"><span class="k">Account</span><span class="v">ADVZ ›</span></div>
+              <div class="li"><span class="k">Category</span><span class="v">Groceries ›</span></div>
+              <div class="li"><span class="k">Merchant</span><span class="v">Edeka ›</span></div>
+              <div class="li"><span class="k">Date</span><span class="v">Today ›</span></div>
+            </div>
+          </div>
+          <div class="cap">With the keyboard closed every row is visible. Each row is a 60px tap target that opens the native picker.</div>
+        </div>
+      </div>
+      <div class="notes">
+        <div><span class="tag warn">Zero shift: mostly</span><span class="tag">Taps: 60px rows</span></div>
+        <ul>
+          <li><b>How:</b> a fixed full-screen view with nothing anchored to the bottom, and the body locked so it can't scroll. iOS only pans when the focused field would sit under the keyboard, and here both text fields are in the top third.</li>
+          <li>The native selects stay, so the "dropdowns are okay" part doesn't change.</li>
+          <li><b>The keyboard still opens and closes</b> every time you move between Amount and a picker. Nothing shifts, but the bottom rows flicker in and out of view.</li>
+          <li>The cheapest option: mostly CSS and a new container in place of the Sheet. Bytes are about the same.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="option">
+    <span class="eyebrow">Side by side</span>
+    <h2>Comparison</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>A · Keyboard stays up</th><th>B · Own keypad</th><th>C · Top-anchored page</th></tr></thead>
+        <tbody>
+          <tr><td>Layout shift</td><td>None while it holds; keyboard height still changes for Note</td><td>None for amount and pickers; Note opens in a top panel</td><td>None in theory; keyboard still comes and goes</td></tr>
+          <tr><td>Tap targets</td><td>32–40px chips</td><td>52–66px tiles and keys</td><td>60px rows</td></tr>
+          <tr><td>Taps for a repeat entry</td><td>FAB → digits → Save</td><td>FAB → digits → Save</td><td>FAB → Amount → digits → Save</td></tr>
+          <tr><td>Native selects</td><td>Replaced by chip rows</td><td>Replaced by in-slot grids</td><td>Kept</td></tr>
+          <tr><td>Main risk</td><td>iOS refusing to open the keyboard on mount</td><td>Brings back a keypad that was removed</td><td>iOS panning anyway</td></tr>
+          <tr><td>Effort</td><td>High</td><td>Medium</td><td>Low</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

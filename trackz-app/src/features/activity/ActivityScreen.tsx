@@ -23,7 +23,7 @@ import { updatedToast } from "@/features/activity/updatedToast";
 import { deletedToast } from "@/features/activity/deletedToast";
 import type { ToastState } from "@/components/Toast";
 import "@/components/Sheet.css";
-import "@/features/entry/EntryForm.css";
+import "@/features/entry/EntryScreen.css";
 import "./TransactionRow.css";
 import "./ActivityList.css";
 import "./MonthPills.css";

@@ -1,5 +1,4 @@
 import { useMemo, useState } from "preact/hooks";
-import { Sheet } from "@/components/Sheet";
 import { getLocalToday } from "@/domain/dates";
 import { addTransaction } from "@/storage/repository";
 import { loadRememberedEntry, saveRememberedEntry } from "@/storage/entryMemory";
@@ -7,10 +6,8 @@ import { pickerAccounts, pickerCategories, pickerMerchants } from "@/features/en
 import { buildTransaction, newAccountTypes, validateDraft, type EntryDraft } from "@/features/entry/draft";
 import { setAccountType } from "@/storage/accountTypes";
 import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
-import { EntryForm } from "./EntryForm";
+import { EntryScreen } from "./EntryScreen";
 import type { Transaction } from "@/domain/transaction";
-import "@/components/Sheet.css";
-import "./EntryForm.css";
 
 interface EntrySheetProps {
   open: boolean;
@@ -21,11 +18,9 @@ interface EntrySheetProps {
 }
 
 /**
- * Add transaction: the shared EntryForm, one step (user decision
- * 2026-11-10, renovation doc section 5 "FORM + SETTINGS REWORK",
- * superseding the keypad -> Next -> form flow). The draft is seeded from
- * the last saved transaction (every field but the amount, date included),
- * so a repeat entry is amount -> Save.
+ * Add transaction: the shared EntryScreen. The draft is seeded from the
+ * last saved transaction (every field but the amount, date included), so a
+ * repeat entry is FAB -> digits -> Save.
  */
 export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetProps) {
   const [draft, setDraft] = useState<EntryDraft>(() => draftFromRemembered(loadRememberedEntry(), getLocalToday()));
@@ -57,23 +52,18 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
   }
 
   return (
-    <Sheet
+    <EntryScreen
       open={open}
-      onClose={handleClose}
       title="Add transaction"
-      footer={
-        <button type="button" class="entry-form__save" onClick={handleSave} disabled={errors.length > 0}>
-          Save
-        </button>
-      }
-    >
-      <EntryForm
-        draft={draft}
-        onChange={setDraft}
-        accounts={accounts}
-        categories={categories}
-        merchants={merchants}
-      />
-    </Sheet>
+      draft={draft}
+      onChange={setDraft}
+      accounts={accounts}
+      categories={categories}
+      merchants={merchants}
+      saveLabel="Save"
+      canSave={errors.length === 0}
+      onSave={handleSave}
+      onClose={handleClose}
+    />
   );
 }

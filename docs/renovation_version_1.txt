@@ -12,14 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 443 tests passing (+10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
+  Baseline: 457 tests passing (+14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
   added, 9 deleted with the hero's helpers; +4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 31,092 bytes gzipped JS (-219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 32,653 bytes gzipped JS (+1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -30,7 +30,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = the Replace-Drive-copy removal below (pushed 2026-11-15; Vercel dashboard not checked), deployed
+  the same number rounded). Production = origin/main = the entry screen below (pushed 2026-11-15; Vercel dashboard not checked), deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -46,6 +46,58 @@ have been wrong about something in every phase so far (see AGENTS.md's
   entry, CSV import/export, merchant merge, categories, Drive sync
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
+
+  ENTRY SCREEN (NO LAYOUT SHIFT) — 2026-11-15, PUSHED. The user reported
+  it working on the iPhone via the dev server before the push; the
+  per-item checks in docs/device-check-entry-screen.md were not
+  reported one by one, and the installed production PWA is still to do.
+  User report: typing in the entry form shifted the layout every time
+  the iOS keyboard opened or closed. Measured cause, from the code: the
+  bottom-anchored Sheet sat where the keyboard lands, and every native
+  select/date tap dismissed the keyboard, so it kept toggling. Three
+  mockups in docs/mockups/entry-form-no-shift.html; the user chose B
+  (own keypad, no system keyboard) and an ATM-style keypad over a comma
+  key. This REVERSES the 2026-11-10 "keypad DELETED" decision of FORM +
+  SETTINGS REWORK item 1 — by user decision, not relitigated: the keypad
+  is now on the SAME screen as the fields, not a step before them.
+    - EntryScreen.tsx/.css replace EntryForm, NamePicker, SelectInput
+      and amountInput.ts (all deleted). Add and Edit still share it.
+      Full-height Sheet (.entry-sheet): header (close, title, Save),
+      amount display, 6 tiles in 3 fixed rows, Edit's Delete row, and a
+      dock that fills the rest. The dock holds the keypad, or a picker
+      grid / date panel IN THE SAME BOX. Nothing changes size while open.
+    - amount.ts restored from git (2ccafb3^) with its tests: ATM cent
+      accumulator. New bottom-left key "C" clears, for retyping a wrong
+      amount in Edit. A hardware keyboard types into it too.
+    - entryLayout.ts (pure, tested): tiles per type, always 3 rows so a
+      type change can't resize the keypad. Transfer: From/To, Note spans
+      row 3. Lent out / I owe: Direction takes Category's slot.
+    - Note and "+ New" are the only typed text: one always-mounted input
+      in a panel at the TOP, focused synchronously in the tap (iOS only
+      raises the keyboard for a gesture-time focus). A new account picks
+      its type in that panel. Date: ‹ › stepper, Yesterday/Today, and
+      the native picker as a transparent input (shiftDays in dates.ts).
+      Its click calls showPicker(): desktop Chrome otherwise only
+      focuses the date segments (user report, same day). Playwright:
+      showPicker called once on a real click; the picker UI itself is
+      not visible headless.
+    - Toasts move over the amount while this screen is open: their usual
+      spot covered the keypad's bottom row (C, 0, delete).
+    Mutation-tested: 10 mutations of entryLayout.ts, shiftDays and
+    amount.ts, all caught (shiftDays' local-Date mutation only under
+    TZ=Asia/Dhaka, which the suite runs under). Playwright (live dev,
+    390x844 @2x, real taps, Drive never connected), exact values: the
+    header/amount/tiles/dock boxes identical (8,48 / 68,72 / 152,208 /
+    372,460) through open, digits, category/merchant/date/account
+    pickers, "+ New" and Note; 1,2,4,0 -> 12,40 saved as amountCents 1240
+    with Shopping/Kik/REVO/"socks"/2026-11-13; Edit C,9,9,5,del,8 -> 998;
+    Edit layout constant at dock 428,404 with the Delete row, confirm in
+    the same 44px row; Transfer tiles From/To/Note; new account N26 kept
+    input focus through the Investment chip; Lent out -> Getting repaid
+    -> Bob saved receivable/in; Note Cancel kept the old note; toast at
+    y 67 over the amount. NOT settled without a real iPhone: that iOS
+    raises the keyboard for Note/+ New, that it does not pan, and the
+    native date popover. See docs/device-check-entry-screen.md.
 
   REPLACE DRIVE COPY REMOVED — 2026-11-15, PUSHED. User decision: the
   Sync settings button "Replace Drive copy with this device" is gone.
@@ -558,7 +610,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   reported 5 issues. Decisions were locked through the question tool,
   do not relitigate. SUPERSEDES ENTRY FORM REWORK decisions b and c
   below (the keypad step and Next). d, e and f still hold.
-    1. Add and Edit share ONE form (EntryForm), and the keypad is
+    1. [SUPERSEDED 2026-11-15 by section 5 "ENTRY SCREEN": the keypad
+       is back, on the same screen as the fields.] Add and Edit share ONE form (EntryForm), and the keypad is
        DELETED (Keypad.tsx/.css, keypadKeys.ts, amount.ts and their
        tests). A 2-column grid: Amount|Date, Type|Account,
        Category|Merchant, Notes. Transfer puts "To account" in

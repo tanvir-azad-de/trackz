@@ -20,7 +20,7 @@ import "./BalanceCards.css";
 import "./SpendChart.css";
 import "@/components/Sheet.css";
 import "@/features/activity/MonthPills.css";
-import "@/features/entry/EntryForm.css";
+import "@/features/entry/EntryScreen.css";
 import "./CategorySheet.css";
 import "./InsightFeed.css";
 import "./HomeScreen.css";
