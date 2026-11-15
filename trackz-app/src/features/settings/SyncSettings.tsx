@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { useAuthState } from "@/storage/useAuthState";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import { isGoogleScriptReady, isSyncConfigured, signIn, signOut } from "@/sync/auth";
-import { overwriteRemoteWithLocal, syncNow } from "@/sync/coordinator";
+import { syncNow } from "@/sync/coordinator";
 import { fetchFromDrive, readRemoteMetadata } from "@/sync/drive";
 import type { ToastState } from "@/components/Toast";
 import "./SyncSettings.css";
@@ -100,50 +100,6 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
     }
   }
 
-  /**
-   * Replace the Drive copy with this device's data.
-   *
-   * The recovery path for a remote file that has gone wrong — notably one
-   * holding duplicates that cannot be reconciled, because nothing links
-   * their ids to anything local. Normal sync cannot fix that: it is a
-   * union by id, so the remote document only ever grows, and merely
-   * reconnecting pulls the junk straight back in.
-   *
-   * Delegates to overwriteRemoteWithLocal() rather than deleting and
-   * calling syncNow(), because that sequence was a race: the debounced
-   * merge could re-upload the union before the clean upload landed, so
-   * whether it worked depended on how fast the user clicked.
-   *
-   * Irreversible — appDataFolder files cannot be trashed, so there is
-   * nothing to undo from.
-   */
-  async function handleResetRemote() {
-    const confirmed = window.confirm(
-      "Replace the copy of your data on Google Drive with this device's data?\n\n" +
-        "This cannot be undone. Other devices will be overwritten the next time they sync, " +
-        "so make sure THIS device holds the data you want to keep.\n\n" +
-        "Export a CSV backup first if you have not already.",
-    );
-    if (!confirmed) return;
-
-    setBusy(true);
-    setRemote({ kind: "idle" });
-    try {
-      await overwriteRemoteWithLocal();
-      onToast?.({
-        id: Date.now(),
-        message: "Drive now holds this device's data. Check what's on Drive to confirm.",
-      });
-    } catch (error) {
-      onToast?.({
-        id: Date.now(),
-        message: error instanceof Error ? error.message : "Could not replace the Drive copy.",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleSignOut() {
     setBusy(true);
     try {
@@ -224,14 +180,6 @@ export function SyncSettings({ onToast }: SyncSettingsProps) {
               disabled={busy || remote.kind === "loading"}
             >
               Check what's on Drive
-            </button>
-            <button
-              type="button"
-              class="settings-data-button settings-data-button--danger"
-              onClick={handleResetRemote}
-              disabled={busy}
-            >
-              Replace Drive copy with this device
             </button>
             <button
               type="button"

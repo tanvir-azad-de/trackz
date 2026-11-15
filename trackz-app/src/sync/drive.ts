@@ -142,8 +142,8 @@ async function driveFetch(url: string, init: RequestInit = {}): Promise<Response
 /**
  * Send a request about the sync file, recovering once from a stale cached id.
  *
- * WHY THIS EXISTS. "Replace Drive copy with this device" (and every CSV
- * import, via commitImport) DELETES the sync file and creates a new one with
+ * WHY THIS EXISTS. Every CSV import (commitImport ->
+ * overwriteRemoteWithLocal) DELETES the sync file and creates a new one with
  * a NEW file id. Every other device still holds the old id in
  * `cachedFileId`, and an installed iOS PWA can stay resident for days
  * without reloading, so it kept asking Drive for a file that no longer

@@ -19,7 +19,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 31,311 bytes gzipped JS (+244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 31,092 bytes gzipped JS (-219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -30,7 +30,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   lucide-preact; +627 from the month pills before that; the
   Activity redesign was 0, the entry form +10 — measured with
   `gzip -c dist/assets/*.js | wc -c`; the "51.98KB" figure Vite prints is
-  the same number rounded). Production = origin/main = 9b5fc55, deployed
+  the same number rounded). Production = origin/main = the Replace-Drive-copy removal below (pushed 2026-11-15; Vercel dashboard not checked), deployed
   at https://trackz-sable.vercel.app. CORRECTED 2026-11-10: this line
   said eca7922 while four commits since (entry rework, filter CTA,
   Activity cards + month pills, icons) were already pushed and live.
@@ -47,7 +47,17 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
-  IMPORT REACHES OTHER DEVICES — 2026-11-15, NOT YET DEPLOYED. User
+  REPLACE DRIVE COPY REMOVED — 2026-11-15, PUSHED. User decision: the
+  Sync settings button "Replace Drive copy with this device" is gone.
+  Importing a CSV does the same overwrite (commitImport ->
+  overwriteRemoteWithLocal, now its only caller), so a backup import is
+  the recovery path for a bad Drive copy. The import's Drive-failed toast
+  now says "Import the file again" instead of naming the button. Not
+  driven in Playwright: the button only rendered while signed in, and
+  Drive is never connected from dev. 443 tests unchanged.
+
+  IMPORT REACHES OTHER DEVICES — 2026-11-15, PUSHED in 49e87e2.
+  Device check pending. User
   report: a CSV imported on the Mac showed there but not on the iPhone
   (same Google account). Two causes, both in sync, neither in import:
   1. Stale file id. Every import (commitImport -> overwriteRemoteWithLocal)
@@ -75,7 +85,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
   caught. Not driven in Playwright (Drive is never connected from dev);
   device check: docs/device-check-import-sync.md.
 
-  CATEGORY-SCOPED MERCHANTS — 2026-11-15, NOT YET DEPLOYED. User
+  CATEGORY-SCOPED MERCHANTS — 2026-11-15, PUSHED in 08d1ed4/2629f6d
+  (CORRECTED: was already on origin/main when 49e87e2 was pushed). User
   decision: the entry form's Merchant dropdown lists only names used on
   earlier rows of the chosen category (Shopping -> Tedi, Zara...).
   Derived from the rows; nothing stored. A "Shopping>Tedi" prefix in the

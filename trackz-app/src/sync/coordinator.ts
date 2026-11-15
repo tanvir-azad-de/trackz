@@ -434,7 +434,7 @@ async function performSync(): Promise<void> {
       const syncedGeneration = readSyncedGeneration();
 
       // 2b. Another device replaced Drive's copy since this one last
-      //     synced (CSV import, or Replace Drive copy). Adopt it whole.
+      //     synced (a CSV import). Adopt it whole.
       //     Merging here is the bug this branch fixes: union-by-id would
       //     keep every row the replace dropped, then upload them back,
       //     undoing the replace on every device. Unsynced edits made here

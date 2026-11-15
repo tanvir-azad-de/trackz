@@ -422,7 +422,7 @@ describe("deleteRemoteSyncFile", () => {
 });
 
 describe("a sync file replaced by another device", () => {
-  // Another device's Replace Drive copy / CSV import deletes the file and
+  // Another device's CSV import deletes the file and
   // creates a new one with a new id. This device still has the old id
   // cached; a resident iOS PWA can hold it for days.
 

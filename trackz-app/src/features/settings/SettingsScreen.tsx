@@ -162,7 +162,7 @@ export function SettingsScreen({ onToast, onDrillDown }: SettingsScreenProps) {
         result.kind === "local-but-drive-failed"
           ? // Name the recovery rather than just reporting failure: Drive
             // still holds the old copy and nothing will retry on its own.
-            `${summary} on this device, but Google Drive still holds the old copy. Use "Replace Drive copy with this device" in Sync settings.`
+            `${summary} on this device, but Google Drive still holds the old copy. Import the file again to update Drive.`
           : summary,
     });
   }

@@ -40,8 +40,8 @@ export interface SyncDocument {
   accountTypes?: AccountTypeMap;
   /**
    * Which HISTORY this document belongs to. A fresh value is minted only by
-   * coordinator.ts's overwriteRemoteWithLocal (Replace Drive copy, CSV
-   * import) and carried forward unchanged by every ordinary sync.
+   * coordinator.ts's overwriteRemoteWithLocal (CSV import, its only
+   * caller) and carried forward unchanged by every ordinary sync.
    *
    * It exists because a replace is otherwise invisible to other devices:
    * merge.ts is a union by id, so a device holding rows the replacing

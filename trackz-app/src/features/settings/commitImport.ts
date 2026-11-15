@@ -58,8 +58,8 @@ export type CommitImportResult =
    * latent: the next ordinary edit arms a debounce, that sync merges
    * against a Drive copy still holding the dropped rows, and the union
    * brings them back — the very bug this module exists to fix, delayed by
-   * however long until the user's next edit. The caller names the fix
-   * ("Replace Drive copy with this device" in Sync settings).
+   * however long until the user's next edit. The caller names the fix:
+   * import the file again, which retries the overwrite.
    */
   | { kind: "local-but-drive-failed"; message: string };
 
