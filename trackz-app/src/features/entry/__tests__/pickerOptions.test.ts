@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { merchantsFor, pickerAccounts, pickerCategories, pickerMerchants, pickerNames, sortedByLabel } from "@/features/entry/pickerOptions";
+import { merchantInScope, merchantsFor, pickerAccounts, pickerCategories, pickerMerchants, pickerNames, sortedByLabel } from "@/features/entry/pickerOptions";
 import { ACCOUNT_TYPES, CATEGORY_TYPES, accountTypeLabel, categoryTypeLabel } from "@/domain/transaction";
 import type { Transaction } from "@/domain/transaction";
 
@@ -95,6 +95,33 @@ describe("merchantsFor", () => {
 
   it("gives a transfer nothing", () => {
     expect(merchantsFor(options, "", "transfer")).toEqual([]);
+  });
+});
+
+describe("merchantInScope", () => {
+  const options = pickerMerchants([
+    tx(TODAY, { category: "Shopping", merchant: "Tedi" }),
+    tx(TODAY, { category: "Subscriptions", merchant: "Netflix" }),
+    tx(TODAY, { category: "Shopping", merchant: "Alice" }),
+    tx(TODAY, { category: "Gifts", merchant: "Alice" }),
+    tx(TODAY, { category: "", categoryType: "receivable", merchant: "Bob" }),
+  ]);
+
+  it("clears a merchant the new category doesn't list", () => {
+    expect(merchantInScope("Tedi", options, "Subscriptions", "expense")).toBe("");
+  });
+
+  it("keeps a merchant the new category also lists", () => {
+    expect(merchantInScope("Alice", options, "Gifts", "expense")).toBe("Alice");
+  });
+
+  it("clears a shop when the type switches to Lent out, and keeps a person", () => {
+    expect(merchantInScope("Tedi", options, "Shopping", "receivable")).toBe("");
+    expect(merchantInScope("Bob", options, "", "payable")).toBe("Bob");
+  });
+
+  it("matches a padded merchant by its trimmed name", () => {
+    expect(merchantInScope(" Tedi ", options, "Shopping", "expense")).toBe(" Tedi ");
   });
 });
 

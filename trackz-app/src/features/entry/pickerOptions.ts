@@ -95,6 +95,25 @@ export function merchantsFor(options: MerchantOptions, category: string, categor
 }
 
 /**
+ * The merchant to keep when the draft's category or type changes: the
+ * same one if the new list offers it, else blank (user decision
+ * 2026-11-15). Keeping it whatever happened let a Tedi chosen under
+ * Shopping be saved under Subscriptions. Clearing it every time would
+ * drop a name that is valid in both, such as a person under two
+ * categories. Only the form's category/type handlers call this, never on
+ * open, so an edited row keeps its merchant until the user changes one of
+ * those two fields.
+ */
+export function merchantInScope(
+  merchant: string,
+  options: MerchantOptions,
+  category: string,
+  categoryType: CategoryType,
+): string {
+  return merchantsFor(options, category, categoryType).includes(merchant.trim()) ? merchant : "";
+}
+
+/**
  * The names a picker <select> shows. A current value that is NOT in the
  * list (a remembered merchant whose rows were deleted, an account only on
  * deleted rows) is inserted in its alphabetical place, so the select

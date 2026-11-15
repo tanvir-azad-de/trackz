@@ -3,7 +3,7 @@ import { ACCOUNT_TYPES, CATEGORY_TYPES, accountTypeLabel, categoryTypeLabel, use
 import type { Account, AccountType, Category } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { amountInputFromCents, parseAmountInput } from "@/features/entry/amountInput";
-import { merchantsFor, sortedByLabel } from "@/features/entry/pickerOptions";
+import { merchantInScope, merchantsFor, sortedByLabel } from "@/features/entry/pickerOptions";
 import type { MerchantOptions } from "@/features/entry/pickerOptions";
 import { NamePicker } from "./NamePicker";
 import { SelectInput } from "./SelectInput";
@@ -46,6 +46,13 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
 
   function set<K extends keyof EntryDraft>(key: K, value: EntryDraft[K]) {
     onChange({ ...draft, [key]: value });
+  }
+
+  // Category and Type decide the Merchant list, so changing either drops a
+  // merchant the new list doesn't offer (merchantInScope).
+  function setScope(patch: Pick<Partial<EntryDraft>, "category" | "categoryType">) {
+    const next = { ...draft, ...patch };
+    onChange({ ...next, merchant: merchantInScope(next.merchant, merchants, next.category, next.categoryType) });
   }
 
   const categoryNames = categories.map((c) => c.name);
@@ -103,7 +110,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
         <span class="entry-form__label">Type</span>
         <SelectInput
           value={draft.categoryType}
-          onChange={(e) => set("categoryType", e.currentTarget.value as EntryDraft["categoryType"])}
+          onChange={(e) => setScope({ categoryType: e.currentTarget.value as EntryDraft["categoryType"] })}
         >
           {TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>
@@ -134,7 +141,7 @@ export function EntryForm({ draft, onChange, accounts, categories, merchants }: 
           label="Category"
           value={draft.category}
           names={categoryNames}
-          onChange={(v) => set("category", v)}
+          onChange={(v) => setScope({ category: v })}
           placeholder="e.g. Groceries"
         />
       )}
