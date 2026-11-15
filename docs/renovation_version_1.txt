@@ -47,7 +47,9 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
-  TAB BAR REDESIGN — 2026-11-15, NOT PUSHED. User asked for a cleaner,
+  TAB BAR REDESIGN — 2026-11-15, PUSHED in f3fed35. DEVICE-VERIFIED
+  2026-11-15: the user confirmed all 7 checks in
+  docs/device-check-tab-bar.md on the iPhone. User asked for a cleaner,
   more modern bottom nav; four mockups in docs/mockups/tab-bar.html, the
   user chose A. A floating capsule holds the 4 tabs, icon-only (the label
   is each button's aria-label), with a grey pill on the selected tab. Add
@@ -59,7 +61,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   322,780; each tab click set aria-current; a tap in the gap hit the page
   content; Home's last content ends at y 730, above the bar at 780; Add
   opened the entry screen. 457 tests pass, JS bundle 32650 B gzipped
-  (32673 before). DEVICE CHECK: docs/device-check-tab-bar.md.
+  (32673 before).
   FOLLOW-UP same day, user: "does not match the mockup". Cause: the
   mockup's phone frame is 300px wide for a 390px screen, and its px
   values were copied verbatim, so the bar came out at 1/1.3 scale. Now

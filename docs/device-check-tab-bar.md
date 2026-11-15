@@ -1,5 +1,7 @@
 # Device check: floating tab bar (2026-11-15)
 
+**PASSED 2026-11-15:** the user confirmed all 7 on the iPhone.
+
 Run on the iPhone, using the production PWA after the push.
 
 1. The bar floats clear of the home indicator. It doesn't touch it and doesn't sit noticeably high.
