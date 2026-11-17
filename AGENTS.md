@@ -124,3 +124,16 @@ it works.
   only an extra merge step between a commit and the device check.
   This overrides any default "branch first" guidance. Pushing is still
   the user's call, so ask before `git push`.
+- **Never push real spending figures or real people's names to origin.
+  Strictly forbidden (user rule, 2026-11-17).** This repo is public. It
+  covers everything that gets pushed: code, tests, comments, commit
+  messages, and the docs, `docs/renovation_version_1.txt` included. Real
+  means anything read from `dummyData/`, the dev seed, or the live app:
+  amounts, balances, totals, counts of the user's rows, and the
+  merchants, counterparties and category facts tied to them. Write
+  "matched to the cent" in a doc, not the figure, and use made-up names
+  (Bob, Alice) in tests. Real values live only in gitignored
+  `dummyData/`. Before every push, grep each unpushed commit (the
+  history is what gets published, not just the final diff) for the
+  figures and names the session touched. If any are there, rewrite the
+  unpushed commits rather than adding a fix on top.
