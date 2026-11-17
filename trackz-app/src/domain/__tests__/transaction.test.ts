@@ -84,8 +84,8 @@ describe("categoryTypeLabel", () => {
       "Transfer",
       "Non income",
       "Non expense",
-      "Lent out",
-      "I owe",
+      "Lent",
+      "Borrowed",
     ]);
   });
 });
@@ -96,7 +96,7 @@ describe("usesCategory / categoryOrTypeLabel", () => {
   });
 
   it("falls back to the type label only when the category is blank", () => {
-    expect(categoryOrTypeLabel({ category: "", categoryType: "receivable" })).toBe("Lent out");
+    expect(categoryOrTypeLabel({ category: "", categoryType: "receivable" })).toBe("Lent");
     expect(categoryOrTypeLabel({ category: "Groceries", categoryType: "expense" })).toBe("Groceries");
   });
 });

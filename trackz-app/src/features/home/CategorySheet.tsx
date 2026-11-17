@@ -15,6 +15,8 @@ interface CategorySheetProps {
   /** The chart's series (getMonthlyExpenseSeries capped at today), oldest first. */
   series: Array<{ monthKey: string; expenseCents: Cents }>;
   today: string;
+  /** A row tap: Home turns it into an Activity filter for that category and month. */
+  onSelectCategory?: (category: string, monthKey: string) => void;
 }
 
 /**
@@ -25,7 +27,7 @@ interface CategorySheetProps {
  * colour carries meaning here and every bar means the same thing. Always
  * opens on the current month.
  */
-export function CategorySheet({ open, onClose, transactions, series, today }: CategorySheetProps) {
+export function CategorySheet({ open, onClose, transactions, series, today, onSelectCategory }: CategorySheetProps) {
   const currentMonth = toMonthKey(today);
   const [selected, setSelected] = useState(currentMonth);
 
@@ -76,7 +78,13 @@ export function CategorySheet({ open, onClose, transactions, series, today }: Ca
         ) : (
           <ul class="category-sheet__list">
             {shares.map((s) => (
-              <li key={s.category} class="category-sheet__item">
+              <li key={s.category}>
+                <button
+                  type="button"
+                  class="category-sheet__item"
+                  disabled={!onSelectCategory}
+                  onClick={() => onSelectCategory?.(s.category, selected)}
+                >
                 <div class="category-sheet__head">
                   <span class="category-sheet__name">{s.category}</span>
                   <span class="category-sheet__stats">
@@ -87,6 +95,7 @@ export function CategorySheet({ open, onClose, transactions, series, today }: Ca
                 <div class="category-sheet__track">
                   <div class="category-sheet__fill" style={{ width: `${s.barPercent}%` }} />
                 </div>
+                </button>
               </li>
             ))}
           </ul>

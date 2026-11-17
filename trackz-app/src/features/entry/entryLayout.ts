@@ -15,7 +15,7 @@ export type TileKey = "type" | "date" | "account" | "destination" | "category" |
 
 export function entryTiles(categoryType: CategoryType): TileKey[] {
   if (categoryType === "transfer") return ["type", "date", "account", "destination", "notes"];
-  // Lent out / I owe carry no category (domain usesCategory); Direction takes its slot.
+  // Lent / Borrowed carry no category (domain usesCategory); Direction takes its slot.
   if (categoryType === "receivable" || categoryType === "payable") {
     return ["type", "date", "account", "direction", "merchant", "notes"];
   }
@@ -35,7 +35,8 @@ export function tileLabel(tile: TileKey, categoryType: CategoryType): string {
     case "category":
       return "Category";
     case "merchant":
-      return "Merchant";
+      // On Lent / Borrowed the merchant field names a person (domain/transaction.ts).
+      return categoryType === "receivable" || categoryType === "payable" ? "Person" : "Merchant";
     case "direction":
       return "Direction";
     case "notes":
@@ -43,8 +44,15 @@ export function tileLabel(tile: TileKey, categoryType: CategoryType): string {
   }
 }
 
-/** The two Direction choices, worded per type; "out" first, matching the draft default. */
-export function directionLabel(categoryType: CategoryType, direction: "out" | "in"): string {
-  if (categoryType === "receivable") return direction === "out" ? "Lending out" : "Getting repaid";
-  return direction === "out" ? "Borrowing" : "Repaying";
+/**
+ * The Direction choices, worded by what happens to MY account (user
+ * decision 2026-11-17), the same for Lent and Borrowed: on Lent, Cash out
+ * is lending and Cash in is being repaid; on Borrowed, Cash in is
+ * borrowing and Cash out is repaying. The cashflow stored is the same
+ * word, so the label cannot disagree with the sign.
+ */
+export const DIRECTIONS = ["in", "out"] as const;
+
+export function directionLabel(direction: "out" | "in"): string {
+  return direction === "in" ? "Cash in" : "Cash out";
 }

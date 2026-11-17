@@ -7,6 +7,8 @@ import { buildTransaction, newAccountTypes, validateDraft, type EntryDraft } fro
 import { setAccountType } from "@/storage/accountTypes";
 import { draftFromRemembered, rememberFromTransaction } from "@/features/entry/lastUsed";
 import { EntryScreen } from "./EntryScreen";
+import { debtBalanceProblem } from "./debtBalance";
+import { recordHistory } from "@/storage/history";
 import type { Transaction } from "@/domain/transaction";
 
 interface EntrySheetProps {
@@ -15,6 +17,8 @@ interface EntrySheetProps {
   onClose: () => void;
   /** Fires right after a transaction is saved, so the caller can show a confirmation toast. */
   onSaved: (tx: Transaction) => void;
+  /** A save refused by a rule the disabled Save button can't explain (debtBalance.ts). */
+  onRejected: (message: string) => void;
 }
 
 /**
@@ -22,7 +26,7 @@ interface EntrySheetProps {
  * last saved transaction (every field but the amount, date included), so a
  * repeat entry is FAB -> digits -> Save.
  */
-export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetProps) {
+export function EntrySheet({ open, transactions, onClose, onSaved, onRejected }: EntrySheetProps) {
   const [draft, setDraft] = useState<EntryDraft>(() => draftFromRemembered(loadRememberedEntry(), getLocalToday()));
 
   const accounts = useMemo(() => pickerAccounts(transactions), [transactions]);
@@ -41,10 +45,16 @@ export function EntrySheet({ open, transactions, onClose, onSaved }: EntrySheetP
   function handleSave() {
     if (errors.length > 0) return;
     const tx = buildTransaction(draft);
+    // Refused on tap with a toast, not by disabling Save: a disabled
+    // button can't say "Bob only owes you 10,00 €", and the limit is the
+    // whole point of the message.
+    const problem = debtBalanceProblem(transactions, null, tx);
+    if (problem) return onRejected(problem);
     // Before addTransaction: its write arms the sync debounce, and that
     // sync reads the account-type map, so the new type rides along.
     for (const [name, type] of Object.entries(newAccountTypes(draft, accounts))) setAccountType(name, type);
     addTransaction(tx);
+    recordHistory("added", tx);
     // Before handleClose, which reads this back as the next draft.
     saveRememberedEntry(rememberFromTransaction(tx));
     handleClose();

@@ -17,9 +17,9 @@ interface TransactionRowProps {
  */
 export function TransactionRow({ transaction, onOpen }: TransactionRowProps) {
   const tx = transaction;
-  // categoryOrTypeLabel, not tx.category: transfers and Lent out / I owe
+  // categoryOrTypeLabel, not tx.category: transfers and Lent / Borrowed
   // rows have no category (domain usesCategory), so a transfer with no
-  // merchant would otherwise render a blank title, and a Lent out row a
+  // merchant would otherwise render a blank title, and a Lent row a
   // secondary line starting " · ".
   const primaryLabel = tx.merchant || categoryOrTypeLabel(tx);
   const isTransfer = tx.cashflow === "none";

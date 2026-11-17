@@ -23,7 +23,7 @@ interface BalanceCardsProps {
 /**
  * Home's top section (user decision 2026-11-11, replacing the Liquid hero
  * and the account strip): a Net worth card, then ONE card listing every
- * account, Lent out and Borrowed. The figures and their rules live in
+ * account, Lent and Borrowed. The figures and their rules live in
  * getBalanceSheet (insights/engine.ts).
  *
  * The Net worth card's bar shows how the three totals compare (user

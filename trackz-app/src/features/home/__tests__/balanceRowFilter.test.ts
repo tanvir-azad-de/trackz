@@ -9,8 +9,8 @@ describe("balanceRowFilter", () => {
     }
   });
 
-  it("filters Lent out and Borrowed by category type, never as an account name", () => {
-    expect(balanceRowFilter({ label: "Lent out", kind: "lent_out", amountCents: 100 })).toEqual({
+  it("filters Lent and Borrowed by category type, never as an account name", () => {
+    expect(balanceRowFilter({ label: "Lent", kind: "lent_out", amountCents: 100 })).toEqual({
       ...emptyFilter(),
       categoryTypes: ["receivable"],
     });

@@ -141,7 +141,7 @@ describe.skipIf(!hasFixture)("Phase 12: account activity, receivables/payables, 
     expect(byAccount["REVJ"]!.lastActivityDate).toBe("2026-08-17");
   });
 
-  it("computes outstanding receivable ('Lent out') balances per counterparty, excluding settled-to-zero ones", () => {
+  it("computes outstanding receivable ('Lent') balances per counterparty, excluding settled-to-zero ones", () => {
     const receivables = getReceivableBalances(transactions);
     const byCounterparty = Object.fromEntries(receivables.map((r) => [r.counterparty, r.balanceCents]));
     expect(byCounterparty).toMatchObject(want.receivables.outstandingCents);
@@ -155,7 +155,7 @@ describe.skipIf(!hasFixture)("Phase 12: account activity, receivables/payables, 
     expect(total).toBe(want.receivables.totalCents);
   });
 
-  it("returns an empty list for payables ('I owe') — zero payable rows exist in the real dataset", () => {
+  it("returns an empty list for payables ('Borrowed') — zero payable rows exist in the real dataset", () => {
     expect(getPayableBalances(transactions)).toEqual([]);
   });
 });

@@ -88,7 +88,7 @@ describe("merchantsFor", () => {
     expect(merchantsFor(options, "Brand New", "expense")).toEqual([]);
   });
 
-  it("gives Lent out / I owe the people from both of those types, whatever category the draft still holds", () => {
+  it("gives Lent / Borrowed the people from both of those types, whatever category the draft still holds", () => {
     expect(merchantsFor(options, "", "receivable")).toEqual(["Bob", "Carol"]);
     expect(merchantsFor(options, "Shopping", "payable")).toEqual(["Bob", "Carol"]);
   });
@@ -115,7 +115,7 @@ describe("merchantInScope", () => {
     expect(merchantInScope("Alice", options, "Gifts", "expense")).toBe("Alice");
   });
 
-  it("clears a shop when the type switches to Lent out, and keeps a person", () => {
+  it("clears a shop when the type switches to Lent, and keeps a person", () => {
     expect(merchantInScope("Tedi", options, "Shopping", "receivable")).toBe("");
     expect(merchantInScope("Bob", options, "", "payable")).toBe("Bob");
   });
@@ -142,10 +142,10 @@ describe("pickerNames", () => {
 describe("sortedByLabel", () => {
   it("orders category types by their visible label, not their key", () => {
     expect(sortedByLabel(CATEGORY_TYPES, categoryTypeLabel).map(categoryTypeLabel)).toEqual([
+      "Borrowed",
       "Expense",
-      "I owe",
       "Income",
-      "Lent out",
+      "Lent",
       "Non expense",
       "Non income",
       "Transfer",

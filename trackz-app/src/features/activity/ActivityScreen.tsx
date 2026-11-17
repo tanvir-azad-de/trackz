@@ -4,10 +4,10 @@ import { FunnelX, SlidersHorizontal, X } from "@/components/icons";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
 import { getLocalToday } from "@/domain/dates";
 import { pickerAccounts, pickerCategories, pickerMerchants } from "@/features/entry/pickerOptions";
-import { deleteTransaction, updateTransaction, undeleteTransaction } from "@/storage/repository";
+import { deleteTransaction, getTransactions, updateTransaction, undeleteTransaction } from "@/storage/repository";
+import { recordHistory } from "@/storage/history";
+import { debtBalanceProblem } from "@/features/entry/debtBalance";
 import {
-  activeFacetCount,
-  clearFacets,
   emptyFilter,
   filterTransactions,
   isFilterActive,
@@ -94,6 +94,7 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
 
   function handleSaveEdit(updated: Transaction) {
     updateTransaction(updated);
+    recordHistory("updated", updated);
     setOpenTransaction(null);
     onToast(updatedToast(updated, Date.now()));
   }
@@ -106,12 +107,20 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
     // in place — re-inserting the object via addTransaction() would
     // create a SECOND row sharing the same id, which sync's per-id
     // merge (sync/merge.ts) is not designed to handle.
-    onToast(deletedToast(target, Date.now(), () => undeleteTransaction(target.id)));
+    onToast(
+      deletedToast(target, Date.now(), () => {
+        // A repayment's Undo can arrive after its loan was deleted, which
+        // the balance rule allows once the repayment is gone. Read fresh
+        // rows: `transactions` is this render's, from before the delete.
+        const problem = debtBalanceProblem(getTransactions(), null, target);
+        if (problem) return onToast({ id: Date.now(), message: problem });
+        undeleteTransaction(target.id);
+      }),
+    );
   }
 
   const noTransactionsAtAll = transactions.length === 0;
   const filterIsActive = isFilterActive(filter);
-  const hasFacets = activeFacetCount(filter) > 0;
 
   function handleClearSearch() {
     setFilter((f) => ({ ...f, query: "" }));
@@ -154,11 +163,13 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
             <SlidersHorizontal size="1em" />
             {filterIsActive && <span class="activity-screen__filter-badge" />}
           </button>
-          {hasFacets && (
+          {/* Resets everything, search text included (user request
+              2026-11-17, reversing 2026-11-11's keep-the-search). */}
+          {filterIsActive && (
             <button
               type="button"
               class="activity-screen__filter-button"
-              onClick={() => setFilter(clearFacets)}
+              onClick={() => setFilter(emptyFilter())}
               aria-label="Reset filters"
             >
               <FunnelX size="1em" />
@@ -208,6 +219,8 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
         onClose={() => setOpenTransaction(null)}
         onSave={handleSaveEdit}
         onDelete={handleDelete}
+        transactions={transactions}
+        onRejected={(message) => onToast({ id: Date.now(), message })}
       />
     </main>
   );

@@ -75,6 +75,13 @@ describe("validateDraft", () => {
     expect(validateDraft(draft, accounts)).toContain("Destination account must differ from the source account.");
   });
 
+  it("requires a person on Lent / Borrowed, and only there", () => {
+    const base = { ...emptyDraft("2026-10-17", 1000), account: "ADVZ", category: "Groceries", merchant: "  " };
+    expect(validateDraft({ ...base, categoryType: "receivable" }, accounts)).toEqual(["Pick or type a person."]);
+    expect(validateDraft({ ...base, categoryType: "payable" }, accounts)).toEqual(["Pick or type a person."]);
+    expect(validateDraft({ ...base, categoryType: "expense" }, accounts)).toEqual([]);
+  });
+
   it("accepts a well-formed transfer", () => {
     const draft = {
       ...emptyDraft("2026-10-17", 1000),
@@ -208,7 +215,7 @@ describe("draftFromTransaction + applyDraftToTransaction (Phase 11 edit flow)", 
   });
 });
 
-describe("category is blank for transfer and Lent out / I owe (usesCategory)", () => {
+describe("category is blank for transfer and Lent / Borrowed (usesCategory)", () => {
   const accounts = [{ name: "CMRZ" }, { name: "REVO" }];
 
   it("does not require a category for those types, and still does for the rest", () => {

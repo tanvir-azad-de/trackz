@@ -47,12 +47,12 @@ export function pickerCategories(transactions: readonly Transaction[]): Category
  * Shopping rows. Derived from the rows each time, never stored. A
  * "Shopping>Tedi" prefix in the data was rejected, because one name
  * legitimately spans categories and a prefix would split one person into
- * several on the Lent out / I owe screens. See merchantsFor.
+ * several on the Lent / Borrowed screens. See merchantsFor.
  */
 export interface MerchantOptions {
   /** Trimmed category name → its merchants, alphabetical. */
   byCategory: ReadonlyMap<string, readonly string[]>;
-  /** Merchants on receivable/payable rows: the people, for Lent out / I owe. */
+  /** Merchants on receivable/payable rows: the people, for Lent / Borrowed. */
   counterparties: readonly string[];
   all: readonly string[];
 }
@@ -82,7 +82,7 @@ export function pickerMerchants(transactions: readonly Transaction[]): MerchantO
 /**
  * The names the Merchant picker shows for this draft. Matches on category
  * alone, not category + type: a Shopping refund (non_income) is still a
- * Shopping merchant. Lent out / I owe rows carry a blank category
+ * Shopping merchant. Lent / Borrowed rows carry a blank category
  * (usesCategory), so they get the people from earlier rows of those two
  * types instead. No category chosen yet means no filter. A new category has no history, so it gets an empty
  * list and the name is typed via "+ New".
@@ -128,7 +128,7 @@ export function pickerNames(current: string, names: readonly string[]): string[]
 
 /**
  * A fixed enum (category type, account type) ordered by its VISIBLE label,
- * not its key — "I owe" is `payable`, so sorting keys would misplace it.
+ * not its key — "Borrowed" is `payable`, so sorting keys would misplace it.
  * Sorts a copy: CATEGORY_TYPES' own order is relied on elsewhere.
  */
 export function sortedByLabel<T>(values: readonly T[], label: (value: T) => string): T[] {

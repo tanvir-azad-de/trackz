@@ -79,14 +79,14 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
    * disagrees with its own destination is worse than one that scopes
    * the destination, so the type constraint now travels with the name.
    */
-  function handleDrillDown(category: string) {
-    if (!onDrillDown || !data) return;
+  function handleDrillDown(category: string, monthKey: string) {
+    if (!onDrillDown) return;
     const filter: ActivityFilter = {
       ...emptyFilter(),
       categories: [category],
       categoryTypes: ["expense"],
-      from: getMonthStartDate(data.insightMonthKey),
-      to: getMonthEndDate(data.insightMonthKey),
+      from: getMonthStartDate(monthKey),
+      to: getMonthEndDate(monthKey),
     };
     onDrillDown(filter);
   }
@@ -101,13 +101,20 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
       <h2 class="home-screen__section-title">Spending, last 6 months</h2>
       <SpendChart series={data.spendSeries} onOpen={() => setCategorySheetOpen(true)} />
       <h2 class="home-screen__section-title">What changed this month</h2>
-      <InsightFeed deltas={data.deltas} onSelectCategory={onDrillDown ? handleDrillDown : undefined} />
+      <InsightFeed
+        deltas={data.deltas}
+        onSelectCategory={onDrillDown ? (category) => handleDrillDown(category, data.insightMonthKey) : undefined}
+      />
       <CategorySheet
         open={categorySheetOpen}
         onClose={closeCategorySheet}
         transactions={transactions}
         series={data.spendSeries}
         today={data.today}
+        // The sheet's bars are expense-only (getTopCategoriesForMonth), so
+        // the drill-down carries categoryTypes: ["expense"] for the same
+        // reason the insight cards do (handleDrillDown above).
+        onSelectCategory={onDrillDown ? handleDrillDown : undefined}
       />
     </main>
   );

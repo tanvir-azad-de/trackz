@@ -29,7 +29,7 @@ import type { ISODate } from "./dates";
  * 2. On these rows the `merchant` field names a COUNTERPARTY — a
  *    PERSON (a friend or flatmate), not a shop. Same for
  *    receivable/payable, which is where insights/engine.ts gets the
- *    names for Lent out / I owe. Anything that rewrites merchant in
+ *    names for Lent / Borrowed. Anything that rewrites merchant in
  *    bulk is therefore touching people and partly-not-mine amounts, not
  *    just tidying shop spellings.
  */
@@ -39,8 +39,8 @@ export type CategoryType =
   | "transfer"
   | "non_income" // UI: "Non income"
   | "non_expense" // UI: "Non expense"
-  | "receivable" // UI: "Lent out"
-  | "payable"; // UI: "I owe"
+  | "receivable" // UI: "Lent"
+  | "payable"; // UI: "Borrowed"
 
 /**
  * Row counts per category type for a set of rows (a category, a
@@ -72,16 +72,16 @@ export function categoryTypeLabel(type: CategoryType): string {
     case "non_expense":
       return "Non expense";
     case "receivable":
-      return "Lent out";
+      return "Lent";
     case "payable":
-      return "I owe";
+      return "Borrowed";
   }
 }
 
 /**
  * Whether rows of this type carry a category at all (user decision
  * 2026-11-10). A transfer between my own accounts has nothing to
- * categorise, and on Lent out / I owe the counterparty in `merchant` says
+ * categorise, and on Lent / Borrowed the counterparty in `merchant` says
  * everything: the old "Transfer" / "Lent" categories only repeated the
  * type. These rows store category "". The form hides the field, the draft
  * blanks it, and CSV import accepts it blank for these types alone.

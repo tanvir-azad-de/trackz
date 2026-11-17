@@ -26,7 +26,7 @@ describe("rememberFromTransaction -> draftFromRemembered", () => {
       date: "2026-11-03",
       categoryType: "receivable",
       direction: "in",
-      // Blank, not "Loans": Lent out rows carry no category (usesCategory),
+      // Blank, not "Loans": Lent rows carry no category (usesCategory),
       // so buildTransaction dropped it before it was ever remembered.
       category: "",
       merchant: "Rafi",

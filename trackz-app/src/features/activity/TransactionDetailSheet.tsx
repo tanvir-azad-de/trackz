@@ -9,6 +9,7 @@ import {
 } from "@/features/entry/draft";
 import { setAccountType } from "@/storage/accountTypes";
 import { EntryScreen } from "@/features/entry/EntryScreen";
+import { debtBalanceProblem } from "@/features/entry/debtBalance";
 import type { Account, Category } from "@/domain/transaction";
 import type { MerchantOptions } from "@/features/entry/pickerOptions";
 
@@ -20,6 +21,9 @@ interface TransactionDetailSheetProps {
   onClose: () => void;
   onSave: (updated: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
+  /** Every live row, for the Lent / Borrowed balance check (debtBalance.ts). */
+  transactions: readonly Transaction[];
+  onRejected: (message: string) => void;
 }
 
 /**
@@ -43,6 +47,8 @@ export function TransactionDetailSheet({
   onClose,
   onSave,
   onDelete,
+  transactions,
+  onRejected,
 }: TransactionDetailSheetProps) {
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -70,12 +76,22 @@ export function TransactionDetailSheet({
 
   function handleSave() {
     if (errors.length > 0) return;
+    const updated = applyDraftToTransaction(transactionBeingEdited, draftInProgress);
+    // A toast on tap rather than a disabled Save, as in EntrySheet.
+    const problem = debtBalanceProblem(transactions, transactionBeingEdited, updated);
+    if (problem) return onRejected(problem);
     // Before onSave, for the same sync-ordering reason as EntrySheet.
     for (const [name, type] of Object.entries(newAccountTypes(draftInProgress, accounts))) setAccountType(name, type);
-    onSave(applyDraftToTransaction(transactionBeingEdited, draftInProgress));
+    onSave(updated);
   }
 
   function handleDeleteConfirmed() {
+    // Deleting the loan under its repayments would leave the person below zero (user decision 2026-11-17).
+    const problem = debtBalanceProblem(transactions, transactionBeingEdited, null);
+    if (problem) {
+      setConfirmingDelete(false);
+      return onRejected(problem);
+    }
     onDelete(transactionBeingEdited);
   }
 

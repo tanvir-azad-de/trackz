@@ -8,7 +8,7 @@ import type { Account, AccountType, Category } from "@/domain/transaction";
 import type { EntryDraft } from "@/features/entry/draft";
 import { amountFromCents, appendDigit, deleteDigit, emptyAmount, entryToCents, entryToDisplay } from "@/features/entry/amount";
 import type { AmountEntry } from "@/features/entry/amount";
-import { directionLabel, entryTiles, tileLabel, type TileKey } from "@/features/entry/entryLayout";
+import { DIRECTIONS, directionLabel, entryTiles, tileLabel, type TileKey } from "@/features/entry/entryLayout";
 import { merchantInScope, merchantsFor, pickerNames, sortedByLabel } from "@/features/entry/pickerOptions";
 import type { MerchantOptions } from "@/features/entry/pickerOptions";
 import "@/components/Sheet.css";
@@ -213,9 +213,9 @@ function EntryBody({
       case "category":
         return named(draft.category, "Choose");
       case "merchant":
-        return named(draft.merchant, "None");
+        return named(draft.merchant, namesPerson(draft.categoryType) ? "Choose" : "None");
       case "direction":
-        return { value: directionLabel(draft.categoryType, draft.direction), empty: false };
+        return { value: directionLabel(draft.direction), empty: false };
       case "notes":
         return named(draft.notes, "Add");
     }
@@ -352,7 +352,8 @@ function EntryBody({
     if (target === "notes") return "Note";
     // Not tileLabel: Transfer's "From" / "To" would read "New to".
     if (target === "account" || target === "destination") return "New account";
-    return target === "category" ? "New category" : "New merchant";
+    if (target === "category") return "New category";
+    return namesPerson(draft.categoryType) ? "New person" : "New merchant";
   }
 
   function pickerOptions(tile: Exclude<DockMode, "keypad" | "date">): PickerOption[] {
@@ -385,9 +386,9 @@ function EntryBody({
           onPick: pick(() => setScope({ categoryType: t })),
         }));
       case "direction":
-        return (["out", "in"] as const).map((d) => ({
+        return DIRECTIONS.map((d) => ({
           key: d,
-          label: directionLabel(draft.categoryType, d),
+          label: directionLabel(d),
           selected: d === draft.direction,
           onPick: pick(() => set("direction", d)),
         }));
@@ -399,17 +400,28 @@ function EntryBody({
         return [...names(draft.category, categories.map((c) => c.name), (n) => setScope({ category: n })), addNew("category")];
       case "merchant":
         return [
-          {
-            key: "\u0000none",
-            label: "None",
-            selected: draft.merchant.trim() === "",
-            onPick: pick(() => set("merchant", "")),
-          },
+          // No "None" on Lent / Borrowed: the person is required there
+          // (draft.ts validateDraft), it is what the balance is kept by.
+          ...(namesPerson(draft.categoryType)
+            ? []
+            : [
+                {
+                  key: "\u0000none",
+                  label: "None",
+                  selected: draft.merchant.trim() === "",
+                  onPick: pick(() => set("merchant", "")),
+                },
+              ]),
           ...names(draft.merchant, merchantsFor(merchants, draft.category, draft.categoryType), (n) => set("merchant", n)),
           addNew("merchant"),
         ];
     }
   }
+}
+
+/** Lent / Borrowed, whose merchant field names a person (domain/transaction.ts). */
+function namesPerson(type: EntryDraft["categoryType"]): boolean {
+  return type === "receivable" || type === "payable";
 }
 
 function named(value: string, placeholder: string): { value: string; empty: boolean } {

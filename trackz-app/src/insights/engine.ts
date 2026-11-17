@@ -256,7 +256,7 @@ export interface CounterpartyBalance {
 }
 
 /**
- * Outstanding "Lent out" balances per counterparty (UI label for
+ * Outstanding "Lent" balances per counterparty (UI label for
  * categoryType "receivable" — see docs/renovation_version_1.txt
  * decisions). Counterparty name lives in tx.merchant for these rows
  * (confirmed against the real CSV: receivable rows carry the person's
@@ -267,7 +267,7 @@ export function getReceivableBalances(transactions: Transaction[]): Counterparty
   return getCounterpartyBalances(transactions, "receivable");
 }
 
-/** "I owe" balances per counterparty (UI label for categoryType "payable"). Empty on the real dataset — zero payable rows exist — so callers must handle an empty-state, not assume this is always populated. */
+/** "Borrowed" balances per counterparty (UI label for categoryType "payable"). Empty on the real dataset — zero payable rows exist — so callers must handle an empty-state, not assume this is always populated. */
 export function getPayableBalances(transactions: Transaction[]): CounterpartyBalance[] {
   return getCounterpartyBalances(transactions, "payable");
 }
@@ -290,7 +290,7 @@ export interface BalanceSheet {
   netWorthCents: Cents;
   /** Cash accounts. */
   liquid: BalanceSheetBucket;
-  /** Investment accounts, then one "Lent out" row. */
+  /** Investment accounts, then one "Lent" row. */
   other: BalanceSheetBucket;
   /** Credit cards, then one "Borrowed" row — as positive amounts owed. */
   liabilities: BalanceSheetBucket;
@@ -305,7 +305,7 @@ export interface BalanceSheet {
  * sign convention stays getSignedAmountCents'. Net worth is assets minus
  * liabilities, which is the same as summing every account plus what is
  * lent out minus what is borrowed: lending moves cash out of an account
- * and into "Lent out" (nets to 0), borrowing moves cash in and adds the
+ * and into "Lent" (nets to 0), borrowing moves cash in and adds the
  * same to "Borrowed" (nets to 0).
  *
  * Credit-card rows are NEGATED: a card's account balance is negative
@@ -338,7 +338,7 @@ export function getBalanceSheet(
     return { totalCents: addCents(...kept.map((r) => r.amountCents)), rows: kept };
   };
   const liquidBucket = bucket(liquid);
-  const otherBucket = bucket([...investments, { label: "Lent out", kind: "lent_out", amountCents: lentOutCents }]);
+  const otherBucket = bucket([...investments, { label: "Lent", kind: "lent_out", amountCents: lentOutCents }]);
   const liabilitiesBucket = bucket([...cards, { label: "Borrowed", kind: "borrowed", amountCents: borrowedCents }]);
   return {
     netWorthCents: addCents(liquidBucket.totalCents, otherBucket.totalCents, -liabilitiesBucket.totalCents),
@@ -348,6 +348,16 @@ export function getBalanceSheet(
   };
 }
 
+/**
+ * Who a Lent / Borrowed row is with. The category fallback is for old
+ * rows that named the person there; new rows must name one in merchant
+ * (features/entry/draft.ts). Shared with features/entry/debtBalance.ts so
+ * the entry check and the balances shown can never key people differently.
+ */
+export function counterpartyOf(tx: Pick<Transaction, "merchant" | "category">): string {
+  return tx.merchant || tx.category;
+}
+
 function getCounterpartyBalances(
   transactions: Transaction[],
   categoryType: "receivable" | "payable",
@@ -355,7 +365,7 @@ function getCounterpartyBalances(
   const totals = new Map<string, Cents>();
   for (const tx of transactions) {
     if (tx.categoryType !== categoryType) continue;
-    const key = tx.merchant || tx.category;
+    const key = counterpartyOf(tx);
     totals.set(key, addCents(totals.get(key) ?? 0, getSignedAmountCents(tx, { kind: categoryType })));
   }
   return [...totals.entries()]

@@ -13,7 +13,7 @@ interface AccountsScreenProps {
 }
 
 /**
- * Phase 12: receivables/payables surfaced as "Lent out"/"I owe" per the
+ * Phase 12: receivables/payables surfaced as "Lent"/"Borrowed" per the
  * locked relabel decisions.
  *
  * The Cash / Investments / Credit cards balance sections were removed on
@@ -50,7 +50,7 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
 
   return (
     <main class="accounts-screen">
-      <h2 class="accounts-screen__section-title">Lent out</h2>
+      <h2 class="accounts-screen__section-title">Lent</h2>
       {data.receivables.length === 0 ? (
         <p class="accounts-screen__empty">Nothing currently lent out.</p>
       ) : (
@@ -68,7 +68,7 @@ export function AccountsScreen({ onDrillDown }: AccountsScreenProps) {
         </div>
       )}
 
-      <h2 class="accounts-screen__section-title">I owe</h2>
+      <h2 class="accounts-screen__section-title">Borrowed</h2>
       {data.payables.length === 0 ? (
         <p class="accounts-screen__empty">You don't owe anyone right now.</p>
       ) : (

@@ -93,7 +93,7 @@ describe("serializeTransactionsCsv", () => {
     expect(transactions[0]).toEqual(original);
   });
 
-  it("round-trips the blank category that transfer and Lent out / I owe rows carry", () => {
+  it("round-trips the blank category that transfer and Lent / Borrowed rows carry", () => {
     const rows = [
       makeTransaction({ id: "txn_t", cashflow: "none", categoryType: "transfer", category: "", destinationAccount: "REVO", merchant: "" }),
       makeTransaction({ id: "txn_r", categoryType: "receivable", category: "", merchant: "Friend" }),

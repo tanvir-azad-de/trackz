@@ -131,7 +131,7 @@ describe("getBalanceSheet", () => {
       totalCents: 120000,
       rows: [
         { label: "SCLB", kind: "investment", amountCents: 100000 },
-        { label: "Lent out", kind: "lent_out", amountCents: 20000 },
+        { label: "Lent", kind: "lent_out", amountCents: 20000 },
       ],
     });
     expect(sheet.liabilities).toEqual({

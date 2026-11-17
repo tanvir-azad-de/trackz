@@ -144,6 +144,7 @@ export function App() {
         transactions={transactions}
         onClose={() => setEntryOpen(false)}
         onSaved={handleSaved}
+        onRejected={(message) => setToast({ id: Date.now(), message })}
       />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

@@ -80,3 +80,11 @@
   background: var(--surface-2);
   color: var(--text-secondary);
 }
+
+/* History holds at most 10 rows and its OK sits in Sheet's pinned footer,
+   so the sheet's own scroll is enough; a second inner scroller is not. */
+.names-sheet__list--unbounded {
+  max-height: none;
+  overflow-y: visible;
+  margin-bottom: 0;
+}

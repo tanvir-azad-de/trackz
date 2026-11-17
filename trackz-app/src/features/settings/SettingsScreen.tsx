@@ -15,6 +15,10 @@ import { SyncSettings, describeStatus } from "@/features/settings/SyncSettings";
 import { useSyncStatus } from "@/storage/useSyncStatus";
 import { isSyncConfigured } from "@/sync/auth";
 import { ChevronRight } from "@/components/icons";
+import { HistorySheet } from "@/features/settings/HistorySheet";
+import { historyFilter, type HistoryEvent } from "@/features/settings/history";
+import { loadHistory } from "@/storage/history";
+import "@/features/entry/EntryScreen.css";
 import "./SettingsScreen.css";
 import "@/components/Sheet.css";
 
@@ -71,7 +75,10 @@ export function SettingsScreen({ onToast, onDrillDown }: SettingsScreenProps) {
   // animates out still showing what it showed, not flipping to Categories.
   const [namesField, setNamesField] = useState<NameField>("category");
   const [namesOpen, setNamesOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<"sync" | "data" | null>(null);
+  const [openSection, setOpenSection] = useState<"sync" | "data" | "history" | null>(null);
+  // Read on each render rather than once: Settings remounts per tab visit,
+  // and the list is 10 short entries, so there is nothing to cache.
+  const history = loadHistory();
   const syncState = useSyncStatus();
 
   const categoryCount = useMemo(() => countNames(transactions, "category"), [transactions]);
@@ -187,6 +194,11 @@ export function SettingsScreen({ onToast, onDrillDown }: SettingsScreenProps) {
     onDrillDown?.(field === "category" ? { ...emptyFilter(), categories: [name] } : { ...emptyFilter(), query: name });
   }
 
+  function drillToHistory(event: HistoryEvent) {
+    setOpenSection(null);
+    onDrillDown?.(historyFilter(event));
+  }
+
   return (
     <main class="settings-screen">
       {/* One row per section, each opening its own Sheet (user decision
@@ -197,6 +209,7 @@ export function SettingsScreen({ onToast, onDrillDown }: SettingsScreenProps) {
       <div class="settings-group">
         <SettingsRow label="Categories" detail={String(categoryCount)} onClick={() => openNames("category")} />
         <SettingsRow label="Merchants" detail={String(merchantCount)} onClick={() => openNames("merchant")} />
+        <SettingsRow label="History" detail={history.length > 0 ? String(history.length) : ""} onClick={() => setOpenSection("history")} />
       </div>
 
       <div class="settings-group">
@@ -324,6 +337,13 @@ export function SettingsScreen({ onToast, onDrillDown }: SettingsScreenProps) {
           </div>
         )}
       </Sheet>
+
+      <HistorySheet
+        open={openSection === "history"}
+        events={history}
+        onClose={() => setOpenSection(null)}
+        onSelect={drillToHistory}
+      />
 
       <NamesSheet
         field={namesField}

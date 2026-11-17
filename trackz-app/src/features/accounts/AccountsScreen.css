@@ -19,7 +19,7 @@
   margin: var(--space-6) 0 var(--space-3);
 }
 
-/* The first title ("Lent out") sits at the top of the screen; the screen
+/* The first title ("Lent") sits at the top of the screen; the screen
    padding already spaces it. */
 .accounts-screen__section-title:first-child {
   margin-top: 0;
@@ -30,7 +30,7 @@
   font-size: var(--text-sm);
 }
 
-/* ---- Lent out / I owe counterparty rows ---- */
+/* ---- Lent / Borrowed counterparty rows ---- */
 
 .counterparty-list {
   display: flex;
