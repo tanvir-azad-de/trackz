@@ -6,7 +6,7 @@ import { parseTransactionsCsv } from "@/storage/csv";
 import {
   getAccountActivity,
   getAccountBalances,
-  getCategoryDeltasForMonth,
+  getMonthPace,
   getLiquidCashCents,
   getMonthlyExpenseSeries,
   getPayableBalances,
@@ -86,22 +86,18 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
     }
   });
 
-  it("computes same-days deltas with the exact independently computed cents", () => {
-    // Full month (the 30th) and a partial one (the 15th), including a
-    // category with spend in only 2 of the 6 baseline months (divisor 2,
-    // not 6), a new one, and a 15th whose window average is an exact .5
-    // (Math.round half-up, which the fixture was computed to match).
-    expect(want.deltas.length).toBeGreaterThan(0); // fixture sanity: an empty list would pass vacuously
-    for (const w of want.deltas) {
-      const delta = getCategoryDeltasForMonth(transactions, "2026-09", 6, w.asOfDate).find((d) => d.category === w.category)!;
-      expect({ at: w.asOfDate, category: delta.category, thisMonthCents: delta.thisMonthCents, baselineAvgCents: delta.baselineAvgCents, isNew: delta.isNew }).toEqual({
-        at: w.asOfDate,
-        category: w.category,
-        thisMonthCents: w.thisMonthCents,
-        baselineAvgCents: w.baselineAvgCents,
-        isNew: w.isNew,
-      });
-    }
+  it("computes This month so far with the exact independently computed cents", () => {
+    // Mid-month (the 15th) against 6 full months, with a top-3 category
+    // whose average is over only 2 months (divisor 2, not 6). Figures from
+    // a standalone python script, not this codebase.
+    const w = want.monthPace;
+    expect(w.categories.length).toBe(3); // fixture sanity
+    expect(getMonthPace(transactions, w.monthKey, w.asOfDate)).toEqual({
+      spentCents: w.spentCents,
+      usualCents: w.usualCents,
+      usualMonths: w.usualMonths,
+      categories: w.categories.map((c) => ({ category: c.category, spentCents: c.spentCents, usualCents: c.usualCents, months: c.months })),
+    });
   });
 
   it("computes per-account balances as of the full dataset", () => {

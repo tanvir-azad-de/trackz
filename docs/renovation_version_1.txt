@@ -12,14 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 473 tests passing (+16 from LENT / BORROWED + HISTORY below: 17 added, 1 deleted with clearFacets; +14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
+  Baseline: 467 tests passing (-6 from THIS MONTH SO FAR below: 4 added, 10 deleted with the same-days deltas; +16 from LENT / BORROWED + HISTORY below: 17 added, 1 deleted with clearFacets; +14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
   added, 9 deleted with the hero's helpers; +4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 33,589 bytes gzipped JS (+939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 33,520 bytes gzipped JS (-69 from THIS MONTH SO FAR, against 33,589; +939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -46,6 +46,34 @@ have been wrong about something in every phase so far (see AGENTS.md's
   entry, CSV import/export, merchant merge, categories, Drive sync
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
+
+  THIS MONTH SO FAR — 2026-11-17, NOT PUSHED. Replaces Home's "What
+  changed this month" feed (item 8 of the 2026-11-10 entry further down,
+  now SUPERSEDED). User report: "X so far vs Y usual by now" was not
+  informative. Measured cause: "usual by now" averaged days 1..N of past
+  months over the months with spend, which is a figure the user can't
+  recognise or check, and it hid when it rested on only 2 months (a real
+  category in the 2026-11-15 backup did). Grill decisions:
+    - Compare with the average FULL month, not same days.
+    - The section shows the total pace: "Spent X so far / usually Y a
+      month (N months)" with one bar and a %, then the 3 biggest
+      categories so far, each "X of usual Y" with a %. A category's
+      average is over the months it had spend, and the row says "based on
+      N months" when N < 6 and "new" when N = 0.
+    - Title "This month so far".
+  getMonthPace (insights/engine.ts) replaces getCategoryDeltasForMonth /
+  getMostSurprisingDeltas (deleted, with deltas.test.ts and the
+  same-days fixture test). Spent is summarizeMonth's figure, so it equals
+  the chart point. A category row drills to Activity as before (expense,
+  this month); the total row opens the category sheet. Real-data check:
+  Sept 2026 as of the 15th against an independent python computation,
+  exact cents, in expected-values.json engine.monthPace (the old deltas
+  key is now unread). Mutation-tested: 7 mutations of getMonthPace, all
+  caught. Playwright (390x844 @2x, clock 2026-10-15): the total, its
+  bar % and each category's figures matched getMonthPace to the cent; a
+  3-month and a 1-month category labelled; a category tap -> Activity,
+  month pill equal to the row; total tap opened the sheet; card bottom 744 above the tab bar at 760. At
+  2026-11-17 (nothing logged) it reads "Spent 0,00 € so far" with 0%.
 
   LENT / BORROWED + HISTORY — 2026-11-17, NOT PUSHED. Six user requests:
     1-2. Type labels: receivable "Lent out" -> "Lent", payable "I owe" ->
@@ -656,6 +684,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
        VITE_GOOGLE_CLIENT_ID it only changes on a new build. Not the
        hook's 1.0.x counter, which bumps the dead legacy app.
     8. Home "What changed this month", rebuilt after a grill session.
+       SUPERSEDED 2026-11-17 by THIS MONTH SO FAR (section 5).
        The user confirmed all four symptoms: bills spiking on payment
        day, early-month "down" noise, a wrong "usual", and new
        categories missing. Now:

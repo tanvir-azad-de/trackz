@@ -20,7 +20,14 @@ export interface ExpectedValues {
     dailyExpenseAvg: { today: string; expenseCents: number };
     topCategory: { category: string; amountCents: number };
     alsoInTop4: string[];
-    deltas: { asOfDate: string; category: string; thisMonthCents: number; baselineAvgCents: number; isNew: boolean }[];
+    monthPace: {
+      monthKey: string;
+      asOfDate: string;
+      spentCents: number;
+      usualCents: number;
+      usualMonths: number;
+      categories: { category: string; spentCents: number; usualCents: number; months: number }[];
+    };
     accountBalance: { account: string; balanceCents: number };
     monthlyExpense: { monthKey: string; expenseCents: number };
     receivables: { outstandingCents: Record<string, number>; settledToZero: string[]; totalCents: number };

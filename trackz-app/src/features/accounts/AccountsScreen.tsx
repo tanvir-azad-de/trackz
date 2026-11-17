@@ -8,7 +8,7 @@ import { Money } from "@/components/Money";
 import "./AccountsScreen.css";
 
 interface AccountsScreenProps {
-  /** Wired by app.tsx, same deep-link mechanism Home's InsightFeed uses (Phase 11). */
+  /** Wired by app.tsx, same deep-link mechanism Home's category rows use (Phase 11). */
   onDrillDown?: (filter: ActivityFilter) => void;
 }
 

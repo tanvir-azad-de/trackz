@@ -1,0 +1,107 @@
+/* Home's "This month so far" (MonthPaceCard.tsx). Flat card, 1px subtle
+   edge; colour only on the bar, which is spend. */
+.month-pace {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.month-pace__total,
+.month-pace__row {
+  display: block;
+  width: 100%;
+  padding: var(--space-4);
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+button.month-pace__total:active,
+button.month-pace__row:active {
+  background: var(--surface-2);
+}
+
+.month-pace__headline {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.month-pace__usual {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.month-pace__bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.month-pace__track {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.month-pace__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--negative);
+}
+
+/* Fixed width so the percents line up in a column under the bar's. */
+.month-pace__share {
+  width: 44px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.month-pace__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.month-pace__row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.month-pace__name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.month-pace__note {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.month-pace__figures {
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.month-pace__of {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
