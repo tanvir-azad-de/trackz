@@ -350,7 +350,7 @@ export function getBalanceSheet(
 
 /**
  * Who a Lent / Borrowed row is with. The category fallback is for old
- * rows that named the person there; new rows must name one in merchant
+ * rows that named the counterparty there; new rows must name one in merchant
  * (features/entry/draft.ts). Shared with features/entry/debtBalance.ts so
  * the entry check and the balances shown can never key people differently.
  */

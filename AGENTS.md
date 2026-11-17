@@ -71,8 +71,9 @@ it works.
   transaction — one category legitimately carries several types.
 - **`non_expense` / `non_income`** mean money moved but the amount is not
   wholly mine (a loan out, a shared bill, a refund). These are not spending.
-  On these rows and on `receivable`/`payable`, `merchant` names a *person*,
-  and feeds the Lent out / I owe screens.
+  On these rows `merchant` names a *person*. On `receivable`/`payable`
+  (UI: Lent / Borrowed) it names the counterparty — a person, a bank or a
+  company — is required, and keys the per-counterparty balance.
 
 ## Traps
 

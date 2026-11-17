@@ -35,8 +35,10 @@ export function tileLabel(tile: TileKey, categoryType: CategoryType): string {
     case "category":
       return "Category";
     case "merchant":
-      // On Lent / Borrowed the merchant field names a person (domain/transaction.ts).
-      return categoryType === "receivable" || categoryType === "payable" ? "Person" : "Merchant";
+      // "Merchant" on Lent / Borrowed too (user decision 2026-11-17): the
+      // name there can be a person, a company or a bank, and "Person"
+      // misnamed the last two.
+      return "Merchant";
     case "direction":
       return "Direction";
     case "notes":

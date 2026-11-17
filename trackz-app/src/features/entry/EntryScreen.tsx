@@ -213,7 +213,7 @@ function EntryBody({
       case "category":
         return named(draft.category, "Choose");
       case "merchant":
-        return named(draft.merchant, namesPerson(draft.categoryType) ? "Choose" : "None");
+        return named(draft.merchant, requiresMerchant(draft.categoryType) ? "Choose" : "None");
       case "direction":
         return { value: directionLabel(draft.direction), empty: false };
       case "notes":
@@ -352,8 +352,7 @@ function EntryBody({
     if (target === "notes") return "Note";
     // Not tileLabel: Transfer's "From" / "To" would read "New to".
     if (target === "account" || target === "destination") return "New account";
-    if (target === "category") return "New category";
-    return namesPerson(draft.categoryType) ? "New person" : "New merchant";
+    return target === "category" ? "New category" : "New merchant";
   }
 
   function pickerOptions(tile: Exclude<DockMode, "keypad" | "date">): PickerOption[] {
@@ -400,9 +399,10 @@ function EntryBody({
         return [...names(draft.category, categories.map((c) => c.name), (n) => setScope({ category: n })), addNew("category")];
       case "merchant":
         return [
-          // No "None" on Lent / Borrowed: the person is required there
-          // (draft.ts validateDraft), it is what the balance is kept by.
-          ...(namesPerson(draft.categoryType)
+          // No "None" on Lent / Borrowed: the merchant (a person, a company
+          // or a bank) is required there (draft.ts validateDraft), it is
+          // what the balance is kept by.
+          ...(requiresMerchant(draft.categoryType)
             ? []
             : [
                 {
@@ -419,8 +419,8 @@ function EntryBody({
   }
 }
 
-/** Lent / Borrowed, whose merchant field names a person (domain/transaction.ts). */
-function namesPerson(type: EntryDraft["categoryType"]): boolean {
+/** Lent / Borrowed, whose balance is kept per merchant, so the name is required. */
+function requiresMerchant(type: EntryDraft["categoryType"]): boolean {
   return type === "receivable" || type === "payable";
 }
 

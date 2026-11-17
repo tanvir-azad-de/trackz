@@ -36,9 +36,9 @@ describe("tileLabel / directionLabel", () => {
     expect(DIRECTIONS.map(directionLabel)).toEqual(["Cash in", "Cash out"]);
   });
 
-  it("calls the merchant tile Person on Lent / Borrowed only", () => {
-    expect(tileLabel("merchant", "receivable")).toBe("Person");
-    expect(tileLabel("merchant", "payable")).toBe("Person");
-    expect(tileLabel("merchant", "expense")).toBe("Merchant");
+  it("calls the merchant tile Merchant on Lent / Borrowed too, which can name a bank or a company", () => {
+    expect(tileLabel("merchant", "receivable")).toBe("Merchant");
+    expect(tileLabel("merchant", "payable")).toBe("Merchant");
   });
+
 });

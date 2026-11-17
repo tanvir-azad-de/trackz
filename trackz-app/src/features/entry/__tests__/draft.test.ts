@@ -75,10 +75,10 @@ describe("validateDraft", () => {
     expect(validateDraft(draft, accounts)).toContain("Destination account must differ from the source account.");
   });
 
-  it("requires a person on Lent / Borrowed, and only there", () => {
+  it("requires a merchant on Lent / Borrowed, and only there", () => {
     const base = { ...emptyDraft("2026-10-17", 1000), account: "ADVZ", category: "Groceries", merchant: "  " };
-    expect(validateDraft({ ...base, categoryType: "receivable" }, accounts)).toEqual(["Pick or type a person."]);
-    expect(validateDraft({ ...base, categoryType: "payable" }, accounts)).toEqual(["Pick or type a person."]);
+    expect(validateDraft({ ...base, categoryType: "receivable" }, accounts)).toEqual(["Pick or type a merchant."]);
+    expect(validateDraft({ ...base, categoryType: "payable" }, accounts)).toEqual(["Pick or type a merchant."]);
     expect(validateDraft({ ...base, categoryType: "expense" }, accounts)).toEqual([]);
   });
 

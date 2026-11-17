@@ -118,10 +118,11 @@ export function validateDraft(draft: EntryDraft, knownAccounts: readonly Account
   if (!isValidISODate(draft.date)) errors.push("Pick a valid date.");
   if (usesCategory(draft.categoryType) && !draft.category.trim()) errors.push("Pick or type a category.");
   if (!draft.account.trim()) errors.push("Pick or type an account.");
-  // Lent / Borrowed balances are kept per person (features/entry/debtBalance.ts),
-  // so a row with nobody on it would start a balance no repayment can reach.
+  // Lent / Borrowed balances are kept per merchant (features/entry/debtBalance.ts):
+  // a person, a company or a bank. A row with no name would start a
+  // balance no repayment can reach.
   if ((draft.categoryType === "receivable" || draft.categoryType === "payable") && !draft.merchant.trim()) {
-    errors.push("Pick or type a person.");
+    errors.push("Pick or type a merchant.");
   }
 
   if (draft.categoryType === "transfer") {

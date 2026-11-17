@@ -19,7 +19,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 33,613 bytes gzipped JS (+963 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 33,589 bytes gzipped JS (+939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -52,14 +52,16 @@ have been wrong about something in every phase so far (see AGENTS.md's
       "Borrowed" (categoryTypeLabel, Accounts headings, Home's balance
       row). Direction is "Cash in" / "Cash out" on both, by what happens
       to MY account; it is the stored cashflow, so the mapping did not
-      change. The merchant tile reads "Person" on these types, has no
-      "None" option, and validateDraft now requires a person: balances
-      are kept per person, so a nameless row could never be repaid.
-    3. A person's Lent / Borrowed balance may never go below zero
+      change. The merchant tile has no "None" option on these types,
+      and validateDraft requires one: balances are kept per merchant, so
+      a nameless row could never be repaid. It was labelled "Person"
+      first; user correction the same day: the counterparty can be a
+      bank or a company, so it reads "Merchant" like every other type.
+    3. A merchant's Lent / Borrowed balance may never go below zero
       (features/entry/debtBalance.ts, pure, tested). User decisions: the
-      FINAL total per person, not per date (a repayment dated before its
+      FINAL total per merchant, not per date (a repayment dated before its
       loan is allowed); Delete is checked too, so a loan can't be deleted
-      under its repayments. Edit also checks the person/type it moves
+      under its repayments. Edit also checks the merchant/type it moves
       AWAY from. Refused on Save tap with a toast ("Bob only owes you
       10,00 €."), not by disabling Save, so the limit can be named. A
       delete's Undo re-checks against fresh rows. Existing data measured

@@ -29,7 +29,8 @@ import type { ISODate } from "./dates";
  * 2. On these rows the `merchant` field names a COUNTERPARTY — a
  *    PERSON (a friend or flatmate), not a shop. Same for
  *    receivable/payable, which is where insights/engine.ts gets the
- *    names for Lent / Borrowed. Anything that rewrites merchant in
+ *    names for Lent / Borrowed — there it can also be a bank or a
+ *    company (user correction 2026-11-17), e.g. a bank loan. Anything that rewrites merchant in
  *    bulk is therefore touching people and partly-not-mine amounts, not
  *    just tidying shop spellings.
  */
