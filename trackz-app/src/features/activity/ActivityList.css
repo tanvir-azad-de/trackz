@@ -88,10 +88,3 @@
   border-top: 1px solid var(--border-subtle);
   padding-left: calc(var(--space-2) + 1em);
 }
-
-/* See ActivityList.tsx. With the screen's own 100px bottom padding, this
-   leaves more below the last month's start than a viewport minus the
-   ~110px stuck header, whatever that month's height. */
-.activity-collapsed__end-space {
-  height: calc(100dvh - 160px);
-}

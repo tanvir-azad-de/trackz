@@ -10,11 +10,11 @@ These are the parts only a phone can settle.
    Open a second day: both stay open.
 3. Tap a transaction inside an open day. The edit sheet opens. Delete
    it, then tap Undo on the toast over the sheet area. The row comes back.
-4. Momentum-scroll the whole days-only list to the bottom. No jank, and
-   the blank space after the last day is there but not jarring.
-5. Tap the oldest month pill. It scrolls there and that pill is
-   highlighted, not the one before it.
+4. Scroll the full list into an older month, then press the button. The
+   days-only view shows that month, highlighted, from the top.
+5. Tap other month pills, the oldest included. Each swaps the list to
+   that month with no flash of the previous one.
 6. With days-only on, close the installed PWA fully and relaunch. It
-   opens with days-only still on.
+   opens with days-only still on, on the newest month.
 7. Type in search with days-only on. The keyboard stays up and open
    days collapse.

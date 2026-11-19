@@ -12,14 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 471 tests passing (+4 from DAYS ONLY below; -6 from THIS MONTH SO FAR below: 4 added, 10 deleted with the same-days deltas; +16 from LENT / BORROWED + HISTORY below: 17 added, 1 deleted with clearFacets; +14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
+  Baseline: 474 tests passing (+7 from DAYS ONLY below; -6 from THIS MONTH SO FAR below: 4 added, 10 deleted with the same-days deltas; +16 from LENT / BORROWED + HISTORY below: 17 added, 1 deleted with clearFacets; +14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
   added, 9 deleted with the hero's helpers; +4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 34,104 bytes gzipped JS (+584 from DAYS ONLY, against a 33,520 rebuild of a89c7f6; -69 from THIS MONTH SO FAR, against 33,589; +939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 34,158 bytes gzipped JS (+638 from DAYS ONLY, against a 33,520 rebuild of a89c7f6; -69 from THIS MONTH SO FAR, against 33,589; +939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -49,8 +49,15 @@ have been wrong about something in every phase so far (see AGENTS.md's
 
   ACTIVITY DAYS ONLY — 2026-11-19, NOT PUSHED. A ListCollapse toggle
   right of Filter hides the transactions and shows one card with a row
-  per day (chevron, day title, grey total). Grill decisions, all the
-  user's:
+  per day (chevron, day title, grey total) for ONE month. Grill
+  decisions, all the user's:
+    - One month at a time (follow-up the same day): the month highlighted
+      when the button is pressed, then whichever pill is tapped. In this
+      view a pill swaps the month and scrolls to the top instead of
+      jumping. A search or filter that removes the month falls back to
+      the newest month with a pill (group.ts daysOnlyMonth). The month
+      is not persisted: a reload opens on the newest. This replaced the
+      first version's all-months list and its end spacer.
     - Any number of days can be expanded inline; all close when the
       search or filter changes. An expanded row opens the normal edit
       sheet. The toggle is remembered in localStorage
@@ -71,12 +78,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
     - Measured before choosing the figure: in the 2026-11-15 backup,
       category type and cashflow agree on every row type except Lent,
       so cash-flow differs from net-worth only on Lent days.
-    - Days-only renders every day row at once (no incremental paging).
-      An end spacer of about a screen lets the oldest month's first row
-      reach the header. Without it, Playwright found the oldest month's
-      pill jump left the month above highlighted (user chose the spacer
-      over "highlight the last month at the bottom").
-  Mutation-tested: 7, all caught. The first run of "0 keyed on
+    - Days-only renders the month's rows at once (31 at most, no paging).
+  Mutation-tested: 11, all caught. The first run of "0 keyed on
   transfer type instead of cashflow none" survived; a cashflow-"none"
   expense assertion now pins that the perspective keys on cashflow.
   Playwright (live dev, 390x844 @2x, dev seed), all passed:
@@ -88,9 +91,14 @@ have been wrong about something in every phase so far (see AGENTS.md's
       net-worth sum;
     - two days open at once, the search clears them, an expanded row is
       the top element at its centre and opens the edit sheet;
-    - pill jumps Jul / second-oldest / oldest all highlight the tapped
-      month; no horizontal scroll, search typed included;
-    - survives a tab switch and a reload; toggling off restores cards.
+    - pressing the button after a full-list jump keeps that month; pill
+      taps swap to it (newest-but-one, oldest), each scrolled to the top
+      with one month rendered, its day count matching storage and its
+      pill equal to the sum of its rows to the cent; a no-match search
+      shows the empty state and clearing it returns to the same month;
+      no horizontal scroll;
+    - survives a tab switch and a reload (on the newest month); toggling
+      off restores cards.
   Known: the search placeholder now truncates ("Search merchant,
   categor") because the field lost 52px to the button.
   iPhone checks open: docs/device-check-days-only.md.

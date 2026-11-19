@@ -105,3 +105,12 @@ export function takeVisibleDays(months: readonly MonthGroup[], rowBudget: number
 export function collapsedDays(months: readonly MonthGroup[]): DayGroup[] {
   return months.flatMap((m) => m.days.filter((d) => d.transactions.some((tx) => tx.categoryType !== "transfer")));
 }
+
+/**
+ * The one month days-only shows: the wanted one while it still has a
+ * pill, else the newest. A search or filter can remove the wanted month,
+ * and falling back beats an empty list behind a row of pills.
+ */
+export function daysOnlyMonth(wanted: string | null, available: readonly string[]): string | null {
+  return wanted !== null && available.includes(wanted) ? wanted : (available[0] ?? null);
+}

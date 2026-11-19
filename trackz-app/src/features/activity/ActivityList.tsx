@@ -117,9 +117,8 @@ export function ActivityList({ months, collapsed, resetKey, onOpenTransaction, h
   }, [days, collapsed, openDays, onActiveMonthChange]);
 
   if (collapsed) {
-    // Every day row at once, no incremental paging: one short row per
-    // day is a few hundred buttons at most, and a pill jump then never
-    // has to grow the list first. Expanded days add their rows on top.
+    // One month's day rows (ActivityScreen picks it), all at once: at
+    // most 31 short rows, so no incremental paging.
     return (
       <div class="activity-list">
         <div class="activity-day__card activity-collapsed">
@@ -154,14 +153,6 @@ export function ActivityList({ months, collapsed, resetKey, onOpenTransaction, h
             );
           })}
         </div>
-        {/* Day rows are short, so the oldest month can be under a screen
-            tall: its pill jump hit the page bottom with the month's first
-            row still below the header line, and the month above stayed
-            highlighted (Playwright, 2026-11-19). This space lets every
-            month's start scroll up to the line (user choice over
-            highlighting the last month at the bottom, which mislabels a
-            jump to the second-to-last month when both fit on screen). */}
-        <div class="activity-collapsed__end-space" aria-hidden="true" />
       </div>
     );
   }

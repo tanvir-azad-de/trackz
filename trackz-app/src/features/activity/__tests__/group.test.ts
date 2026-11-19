@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
 import { filterTransactions, emptyFilter } from "@/features/activity/filter";
-import { collapsedDays, groupByMonthAndDay } from "@/features/activity/group";
+import { collapsedDays, daysOnlyMonth, groupByMonthAndDay } from "@/features/activity/group";
 import type { Transaction } from "@/domain/transaction";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -189,3 +189,21 @@ describe("collapsedDays", () => {
     expect(days.map((d) => d.netCents)).toEqual([-300, 0]);
   });
 });
+
+describe("daysOnlyMonth", () => {
+  const pills = ["2026-11", "2026-10", "2026-09"];
+
+  it("keeps the wanted month while it has a pill", () => {
+    expect(daysOnlyMonth("2026-10", pills)).toBe("2026-10");
+  });
+
+  it("falls back to the newest month when nothing is wanted or the wanted month left", () => {
+    expect(daysOnlyMonth(null, pills)).toBe("2026-11");
+    expect(daysOnlyMonth("2026-03", pills)).toBe("2026-11");
+  });
+
+  it("is null with no pills at all", () => {
+    expect(daysOnlyMonth("2026-10", [])).toBeNull();
+  });
+});
+

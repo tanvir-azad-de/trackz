@@ -14,7 +14,7 @@ import {
   isFilterActive,
   type ActivityFilter,
 } from "@/features/activity/filter";
-import { collapsedDays, groupByMonthAndDay } from "@/features/activity/group";
+import { collapsedDays, daysOnlyMonth, groupByMonthAndDay } from "@/features/activity/group";
 import { ActivityList, type MonthJump } from "./ActivityList";
 import { MonthPills } from "./MonthPills";
 import { FilterSheet } from "./FilterSheet";
@@ -70,29 +70,48 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
   const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter]);
   const months = useMemo(() => groupByMonthAndDay(filtered), [filtered]);
   const [daysOnly, setDaysOnly] = useState(loadDaysOnly);
-  const shownDays = useMemo(() => (daysOnly ? collapsedDays(months) : null), [daysOnly, months]);
+  // Days-only shows ONE month (user decision 2026-11-19): the one
+  // highlighted when the button was pressed, then whichever pill is
+  // tapped. Not persisted: after a reload it is the newest month.
+  const [wantedMonth, setWantedMonth] = useState<string | null>(null);
+  const allCollapsed = useMemo(() => (daysOnly ? collapsedDays(months) : null), [daysOnly, months]);
   // MonthGroup.netCents is the sum of the month's day-card nets (group.ts
   // builds both from the same rows), so a pill follows the active filter
   // exactly like the cards below it. Days-only drops transfer-only days,
   // so a month of nothing but transfers loses its pill too: it would jump
   // to a card that isn't there. Its net is 0 either way.
   const pillItems = useMemo(() => {
-    const visible = shownDays ? new Set(shownDays.map((d) => d.monthKey)) : null;
+    const visible = allCollapsed ? new Set(allCollapsed.map((d) => d.monthKey)) : null;
     return months.filter((m) => !visible || visible.has(m.monthKey)).map((m) => ({ monthKey: m.monthKey, cents: m.netCents }));
-  }, [months, shownDays]);
-
-  function handleToggleDaysOnly() {
-    const next = !daysOnly;
-    setDaysOnly(next);
-    saveDaysOnly(next);
-  }
+  }, [months, allCollapsed]);
+  const shownMonth = allCollapsed ? daysOnlyMonth(wantedMonth, pillItems.map((p) => p.monthKey)) : null;
+  const shownDays = useMemo(
+    () => (allCollapsed ? allCollapsed.filter((d) => d.monthKey === shownMonth) : null),
+    [allCollapsed, shownMonth],
+  );
 
   const headerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [activeMonth, setActiveMonth] = useState<string | null>(null);
   const [jump, setJump] = useState<MonthJump | null>(null);
 
+  function handleToggleDaysOnly() {
+    const next = !daysOnly;
+    setDaysOnly(next);
+    saveDaysOnly(next);
+    if (next) setWantedMonth(activeMonth);
+    // Either way the list under the header is a different list now;
+    // staying at the old offset would land mid-way into it.
+    window.scrollTo({ top: 0 });
+  }
+
   function handlePickMonth(monthKey: string) {
+    if (daysOnly) {
+      // Switch the month rather than scroll to it: only one is rendered.
+      setWantedMonth(monthKey);
+      window.scrollTo({ top: 0 });
+      return;
+    }
     // Highlight now rather than waiting for the scroll to arrive. The
     // scroll tracker takes over from here and agrees once it lands.
     setActiveMonth(monthKey);
@@ -201,7 +220,13 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
         </div>
 
         {pillItems.length > 0 && (
-          <MonthPills items={pillItems} tone="net" active={activeMonth} today={today} onPick={handlePickMonth} />
+          <MonthPills
+            items={pillItems}
+            tone="net"
+            active={shownMonth ?? activeMonth}
+            today={today}
+            onPick={handlePickMonth}
+          />
         )}
       </div>
 
