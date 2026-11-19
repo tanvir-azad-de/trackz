@@ -1,5 +1,7 @@
 # Device check: Activity days-only toggle (2026-11-19)
 
+DEVICE-VERIFIED 2026-11-19 on production: all 7 passed.
+
 Run on a real iPhone against production after the next deploy.
 Playwright covered layout, arithmetic and tap targets at 390x844 @2x.
 These are the parts only a phone can settle.

@@ -47,7 +47,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
-  ACTIVITY DAYS ONLY — 2026-11-19, NOT PUSHED. A ListCollapse toggle
+  ACTIVITY DAYS ONLY — DONE AND DEPLOYED 2026-11-19 (96fa83c). A ListCollapse toggle
   right of Filter hides the transactions and shows one card with a row
   per day (chevron, day title, grey total) for ONE month. Grill
   decisions, all the user's:
@@ -101,7 +101,8 @@ have been wrong about something in every phase so far (see AGENTS.md's
       off restores cards.
   Known: the search placeholder now truncates ("Search merchant,
   categor") because the field lost 52px to the button.
-  iPhone checks open: docs/device-check-days-only.md.
+  iPhone: DEVICE-VERIFIED 2026-11-19 on production, all 7 items in
+  docs/device-check-days-only.md passed.
 
   THIS MONTH SO FAR — 2026-11-17, NOT PUSHED. Replaces Home's "What
   changed this month" feed (item 8 of the 2026-11-10 entry further down,
