@@ -7,11 +7,11 @@ import {
   getMonthlyExpenseSeries,
   type BalanceSheetRow,
 } from "@/insights/engine";
-import { getLocalToday, getMonthEndDate, getMonthStartDate, toMonthKey } from "@/domain/dates";
+import { getLocalToday, toMonthKey } from "@/domain/dates";
 import type { ActivityFilter } from "@/features/activity/filter";
-import { emptyFilter } from "@/features/activity/filter";
 import { BalanceCards } from "./BalanceCards";
 import { balanceRowFilter } from "./balanceRowFilter";
+import { categoryDrillFilter } from "./categoryDrillFilter";
 import { SpendChart } from "./SpendChart";
 import { CategorySheet } from "./CategorySheet";
 import { MonthPaceCard } from "./MonthPaceCard";
@@ -81,15 +81,7 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
    * the destination, so the type constraint now travels with the name.
    */
   function handleDrillDown(category: string, monthKey: string) {
-    if (!onDrillDown) return;
-    const filter: ActivityFilter = {
-      ...emptyFilter(),
-      categories: [category],
-      categoryTypes: ["expense"],
-      from: getMonthStartDate(monthKey),
-      to: getMonthEndDate(monthKey),
-    };
-    onDrillDown(filter);
+    onDrillDown?.(categoryDrillFilter(category, monthKey));
   }
 
   function handleSelectRow(row: BalanceSheetRow) {
@@ -114,9 +106,8 @@ export function HomeScreen({ onDrillDown }: HomeScreenProps) {
         transactions={transactions}
         series={data.spendSeries}
         today={data.today}
-        // The sheet's bars are expense-only (getTopCategoriesForMonth), so
-        // the drill-down carries categoryTypes: ["expense"] for the same
-        // reason This month so far does (handleDrillDown above).
+        // Same drill-down as This month so far: categoryDrillFilter takes
+        // the two types the sheet's net figure is made of.
         onSelectCategory={onDrillDown ? handleDrillDown : undefined}
       />
     </main>
