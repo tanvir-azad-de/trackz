@@ -121,3 +121,10 @@
   font-size: var(--text-sm);
   min-height: var(--touch-target-min);
 }
+
+/* Days-only toggle while on: the accent pair the active month pill uses. */
+.activity-screen__filter-button--on {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}

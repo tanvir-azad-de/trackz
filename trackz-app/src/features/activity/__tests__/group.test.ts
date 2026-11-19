@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseTransactionsCsv } from "@/storage/csv";
 import { filterTransactions, emptyFilter } from "@/features/activity/filter";
-import { groupByMonthAndDay } from "@/features/activity/group";
+import { collapsedDays, groupByMonthAndDay } from "@/features/activity/group";
 import type { Transaction } from "@/domain/transaction";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -116,6 +116,21 @@ describe("groupByMonthAndDay", () => {
     expect(october!.netCents).toBe(-2735);
   });
 
+  it("Lent and its repayment count as cash out and in (cash-flow, not net-worth)", () => {
+    const txs = [
+      makeTx({ id: "1", date: "2026-12-02", cashflow: "in", categoryType: "receivable", category: "", merchant: "Bob", amountCents: 10000 }),
+      makeTx({ id: "2", date: "2026-11-06", cashflow: "out", categoryType: "non_expense", merchant: "Alice", amountCents: 6000 }),
+      makeTx({ id: "3", date: "2026-11-05", cashflow: "out", categoryType: "receivable", category: "", merchant: "Bob", amountCents: 10000 }),
+      makeTx({ id: "4", date: "2026-11-03", cashflow: "out", categoryType: "expense", amountCents: 5000 }),
+      makeTx({ id: "5", date: "2026-11-01", cashflow: "in", categoryType: "income", amountCents: 200000 }),
+    ];
+    const [dec, nov] = groupByMonthAndDay(txs);
+    expect(dec!.days.map((d) => d.netCents)).toEqual([10000]);
+    expect(nov!.days.map((d) => d.netCents)).toEqual([-6000, -10000, -5000, 200000]);
+    expect(nov!.netCents).toBe(179000);
+    expect(nov!.outCents).toBe(21000);
+  });
+
   it.skipIf(!hasFixture)("every real month's pill net equals the sum of its day nets", () => {
     for (const month of groupByMonthAndDay(filterTransactions(transactions, emptyFilter()))) {
       expect(month.netCents).toBe(month.days.reduce((sum, d) => sum + d.netCents, 0));
@@ -146,5 +161,31 @@ describe("groupByMonthAndDay", () => {
         expect(dates[i - 1]! > dates[i]!).toBe(true);
       }
     }
+  });
+});
+
+describe("collapsedDays", () => {
+  const transfer = { cashflow: "none", categoryType: "transfer", category: "", destinationAccount: "REVO" } as const;
+
+  it("drops transfer-only days and keeps the rest in order across months", () => {
+    const months = groupByMonthAndDay([
+      makeTx({ id: "1", date: "2026-11-02" }),
+      makeTx({ id: "2", date: "2026-11-01", ...transfer }),
+      makeTx({ id: "3", date: "2026-11-01", ...transfer }),
+      makeTx({ id: "4", date: "2026-10-31" }),
+    ]);
+    expect(collapsedDays(months).map((d) => d.date)).toEqual(["2026-11-02", "2026-10-31"]);
+  });
+
+  it("keeps a day with a transfer plus spending, and a day netting to exactly 0", () => {
+    const months = groupByMonthAndDay([
+      makeTx({ id: "1", date: "2026-11-02", ...transfer }),
+      makeTx({ id: "2", date: "2026-11-02", amountCents: 300 }),
+      makeTx({ id: "3", date: "2026-11-01", cashflow: "in", categoryType: "income", amountCents: 2000 }),
+      makeTx({ id: "4", date: "2026-11-01", cashflow: "out", categoryType: "expense", amountCents: 2000 }),
+    ]);
+    const days = collapsedDays(months);
+    expect(days.map((d) => d.date)).toEqual(["2026-11-02", "2026-11-01"]);
+    expect(days.map((d) => d.netCents)).toEqual([-300, 0]);
   });
 });

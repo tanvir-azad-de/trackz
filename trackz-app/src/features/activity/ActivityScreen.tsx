@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type Dispatch, type StateUpdater } from "preact/hooks";
 import { useTransactions } from "@/storage/useTransactions";
-import { FunnelX, SlidersHorizontal, X } from "@/components/icons";
+import { FunnelX, ListCollapse, SlidersHorizontal, X } from "@/components/icons";
+import { loadDaysOnly, saveDaysOnly } from "@/storage/activityView";
 import { deriveAccounts, deriveCategories } from "@/storage/derive";
 import { getLocalToday } from "@/domain/dates";
 import { pickerAccounts, pickerCategories, pickerMerchants } from "@/features/entry/pickerOptions";
@@ -13,7 +14,7 @@ import {
   isFilterActive,
   type ActivityFilter,
 } from "@/features/activity/filter";
-import { groupByMonthAndDay } from "@/features/activity/group";
+import { collapsedDays, groupByMonthAndDay } from "@/features/activity/group";
 import { ActivityList, type MonthJump } from "./ActivityList";
 import { MonthPills } from "./MonthPills";
 import { FilterSheet } from "./FilterSheet";
@@ -68,10 +69,23 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
 
   const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter]);
   const months = useMemo(() => groupByMonthAndDay(filtered), [filtered]);
+  const [daysOnly, setDaysOnly] = useState(loadDaysOnly);
+  const shownDays = useMemo(() => (daysOnly ? collapsedDays(months) : null), [daysOnly, months]);
   // MonthGroup.netCents is the sum of the month's day-card nets (group.ts
   // builds both from the same rows), so a pill follows the active filter
-  // exactly like the cards below it.
-  const pillItems = useMemo(() => months.map((m) => ({ monthKey: m.monthKey, cents: m.netCents })), [months]);
+  // exactly like the cards below it. Days-only drops transfer-only days,
+  // so a month of nothing but transfers loses its pill too: it would jump
+  // to a card that isn't there. Its net is 0 either way.
+  const pillItems = useMemo(() => {
+    const visible = shownDays ? new Set(shownDays.map((d) => d.monthKey)) : null;
+    return months.filter((m) => !visible || visible.has(m.monthKey)).map((m) => ({ monthKey: m.monthKey, cents: m.netCents }));
+  }, [months, shownDays]);
+
+  function handleToggleDaysOnly() {
+    const next = !daysOnly;
+    setDaysOnly(next);
+    saveDaysOnly(next);
+  }
 
   const headerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -163,6 +177,15 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
             <SlidersHorizontal size="1em" />
             {filterIsActive && <span class="activity-screen__filter-badge" />}
           </button>
+          <button
+            type="button"
+            class={`activity-screen__filter-button${daysOnly ? " activity-screen__filter-button--on" : ""}`}
+            onClick={handleToggleDaysOnly}
+            aria-label="Show days only"
+            aria-pressed={daysOnly}
+          >
+            <ListCollapse size="1em" />
+          </button>
           {/* Resets everything, search text included (user request
               2026-11-17, reversing 2026-11-11's keep-the-search). */}
           {filterIsActive && (
@@ -177,13 +200,15 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
           )}
         </div>
 
-        {months.length > 0 && (
+        {pillItems.length > 0 && (
           <MonthPills items={pillItems} tone="net" active={activeMonth} today={today} onPick={handlePickMonth} />
         )}
       </div>
 
       {noTransactionsAtAll ? (
         <p class="activity-screen__empty">No transactions yet. Tap the + button to log your first one.</p>
+      ) : shownDays?.length === 0 && months.length > 0 ? (
+        <p class="activity-screen__empty">Only transfers match, and days only hides transfer days.</p>
       ) : months.length === 0 ? (
         <div class="activity-screen__empty">
           <p>No transactions match these filters.</p>
@@ -194,6 +219,7 @@ export function ActivityScreen({ filter, setFilter, onToast }: ActivityScreenPro
       ) : (
         <ActivityList
           months={months}
+          collapsed={shownDays}
           resetKey={resetKey}
           onOpenTransaction={setOpenTransaction}
           headerRef={headerRef}

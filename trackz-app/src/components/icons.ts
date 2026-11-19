@@ -23,6 +23,7 @@ export {
   House,
   Landmark,
   List,
+  ListCollapse,
   Plus,
   Settings,
   SlidersHorizontal,

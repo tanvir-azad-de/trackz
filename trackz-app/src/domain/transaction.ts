@@ -216,6 +216,7 @@ export interface Merchant {
 export type BalancePerspective =
   | { kind: "account"; name: string } // net effect on one account's balance
   | { kind: "net-worth" } // income +, expense/non_expense -, transfer net 0, receivable/payable per their own sign
+  | { kind: "cash-flow" } // cashflow "in" +, "out" -, "none" (transfer) 0 — what left or reached my accounts, Lent / Borrowed included
   | { kind: "receivable" } // "out" (lending money) = +, "in" (getting repaid) = -
   | { kind: "payable" }; // "in" (borrowing) = +, "out" (repaying) = -
 
@@ -254,6 +255,13 @@ export function getSignedAmountCents(tx: Transaction, perspective: BalancePerspe
           return 0;
       }
     }
+    case "cash-flow":
+      // Keyed on cashflow, NOT categoryType, which is the whole difference
+      // from net-worth: lending 100 to someone is -100 here (it left my
+      // accounts) and 0 there (I still own the claim). Activity's day and
+      // month totals use this (user decision 2026-11-19) so they equal the
+      // sum of the signed row amounts TransactionRow shows.
+      return tx.cashflow === "in" ? tx.amountCents : tx.cashflow === "out" ? -tx.amountCents : 0;
     case "receivable": {
       if (tx.categoryType !== "receivable") return 0;
       return tx.cashflow === "out" ? tx.amountCents : tx.cashflow === "in" ? -tx.amountCents : 0;

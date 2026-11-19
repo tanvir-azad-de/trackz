@@ -11,10 +11,12 @@ import { toMonthKey } from "@/domain/dates";
  * features/activity/filter.ts's filterTransactions, does no filtering or
  * fetching itself.
  *
- * Both levels' netCents use the net-worth perspective (@/domain/transaction
- * getSignedAmountCents), the same single source of truth every other KPI
- * in the app goes through — a transfer day/month nets to 0 rather than
- * inventing a second sign convention here.
+ * Both levels' netCents use the cash-flow perspective (@/domain/transaction
+ * getSignedAmountCents): money in +, money out -, transfers 0. Lent and
+ * Borrowed COUNT, unlike net-worth, where they are 0 (user decision
+ * 2026-11-19, with the days-only toggle). So a day's figure is the sum of
+ * the signed amounts its rows show, and it tracks Home's Liquid card,
+ * not its Net worth card.
  */
 
 export interface DayGroup {
@@ -32,8 +34,8 @@ export interface MonthGroup {
   days: DayGroup[];
 }
 
-function netWorthSigned(tx: Transaction): Cents {
-  return getSignedAmountCents(tx, { kind: "net-worth" });
+function cashFlowSigned(tx: Transaction): Cents {
+  return getSignedAmountCents(tx, { kind: "cash-flow" });
 }
 
 /** `transactions` must already be sorted date-descending (filterTransactions does this). */
@@ -55,7 +57,7 @@ export function groupByMonthAndDay(transactions: Transaction[]): MonthGroup[] {
     }
 
     currentDay.transactions.push(tx);
-    const signed = netWorthSigned(tx);
+    const signed = cashFlowSigned(tx);
     currentDay.netCents = addCents(currentDay.netCents, signed);
     currentMonth.netCents = addCents(currentMonth.netCents, signed);
     if (signed > 0) currentMonth.inCents = addCents(currentMonth.inCents, signed);
@@ -92,4 +94,14 @@ export function takeVisibleDays(months: readonly MonthGroup[], rowBudget: number
   // the last day.
   const total = months.reduce((n, m) => n + m.days.reduce((k, d) => k + d.transactions.length, 0), 0);
   return { days, hasMore: rowBudget < total };
+}
+
+/**
+ * The days-only view's rows: every day, flattened across months, minus
+ * days where EVERY row is a transfer (user decision 2026-11-19). Keyed on
+ * the rows, not on netCents === 0: a day with 20 in and 20 out also nets
+ * to 0 and still has spending on it, so it stays.
+ */
+export function collapsedDays(months: readonly MonthGroup[]): DayGroup[] {
+  return months.flatMap((m) => m.days.filter((d) => d.transactions.some((tx) => tx.categoryType !== "transfer")));
 }

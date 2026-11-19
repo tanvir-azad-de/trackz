@@ -54,6 +54,20 @@ describe("getSignedAmountCents — single source of truth for sign (replaces 4 o
     expect(getSignedAmountCents(tx({ categoryType: "transfer", cashflow: "none" }), { kind: "net-worth" })).toBe(0);
   });
 
+  it("cash-flow perspective: keyed on cashflow, so Lent / Borrowed count and transfers are 0", () => {
+    const cf = { kind: "cash-flow" } as const;
+    expect(getSignedAmountCents(tx({ categoryType: "income", cashflow: "in", amountCents: 1000 }), cf)).toBe(1000);
+    expect(getSignedAmountCents(tx({ categoryType: "expense", cashflow: "out", amountCents: 1000 }), cf)).toBe(-1000);
+    expect(getSignedAmountCents(tx({ categoryType: "transfer", cashflow: "none", amountCents: 1000 }), cf)).toBe(0);
+    expect(getSignedAmountCents(tx({ categoryType: "receivable", cashflow: "out", amountCents: 4000 }), cf)).toBe(-4000);
+    expect(getSignedAmountCents(tx({ categoryType: "receivable", cashflow: "in", amountCents: 4000 }), cf)).toBe(4000);
+    expect(getSignedAmountCents(tx({ categoryType: "payable", cashflow: "in", amountCents: 2500 }), cf)).toBe(2500);
+    expect(getSignedAmountCents(tx({ categoryType: "payable", cashflow: "out", amountCents: 2500 }), cf)).toBe(-2500);
+    // An expense logged as money in follows cashflow, not its type.
+    expect(getSignedAmountCents(tx({ categoryType: "expense", cashflow: "in", amountCents: 700 }), cf)).toBe(700);
+    expect(getSignedAmountCents(tx({ categoryType: "expense", cashflow: "none", amountCents: 700 }), cf)).toBe(0);
+  });
+
   it("receivable perspective: lending (out) is positive, repayment (in) is negative", () => {
     const lent = tx({ categoryType: "receivable", cashflow: "out", amountCents: 5000 });
     const repaid = tx({ categoryType: "receivable", cashflow: "in", amountCents: 5000 });

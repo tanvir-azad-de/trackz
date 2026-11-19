@@ -47,3 +47,51 @@
 .activity-list__sentinel {
   height: 1px;
 }
+
+/* Days-only view (2026-11-19): one card, a row per day. */
+.activity-collapsed__day + .activity-collapsed__day {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.activity-collapsed__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  padding: var(--space-3) 0;
+  min-height: var(--touch-target-min);
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.activity-collapsed__head:active {
+  background: var(--surface-2);
+}
+
+.activity-collapsed__chevron {
+  display: flex;
+  color: var(--text-tertiary);
+  font-size: var(--text-base);
+}
+
+.activity-collapsed__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+/* Indented under the chevron so the rows read as the day's children. */
+.activity-collapsed__rows {
+  border-top: 1px solid var(--border-subtle);
+  padding-left: calc(var(--space-2) + 1em);
+}
+
+/* See ActivityList.tsx. With the screen's own 100px bottom padding, this
+   leaves more below the last month's start than a viewport minus the
+   ~110px stuck header, whatever that month's height. */
+.activity-collapsed__end-space {
+  height: calc(100dvh - 160px);
+}
