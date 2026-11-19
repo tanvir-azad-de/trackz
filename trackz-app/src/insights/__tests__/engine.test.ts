@@ -59,8 +59,8 @@ describe.skipIf(!hasFixture)("insight engine against real September 2026 data", 
     expect(summary.expenseCents).toBe(want.september.expenseCents);
   });
 
-  it("leaves non_income/non_expense out of October's income and expense", () => {
-    // October has both, so this is the month that catches the old inflation.
+  it("nets non_income off October's expense and leaves non_expense out of both", () => {
+    // October has both, so it catches non_expense counted in and non_income not netted.
     const summary = summarizeMonth(transactions, want.october.monthKey);
     expect(summary.incomeCents).toBe(want.october.incomeCents);
     expect(summary.expenseCents).toBe(want.october.expenseCents);

@@ -20,14 +20,32 @@ export interface MonthSummary {
 }
 
 /**
- * Income and expense for a month, optionally only up to `asOfDate`.
+ * Whether a row counts toward spending, and by how much: expense rows add,
+ * non_income rows (a refund, a reimbursement, an item sold) subtract, so a
+ * 10 EUR purchase refunded 10 EUR nets to zero (user decision 2026-11-19).
+ * null means the row is not spending at all.
  *
- * Only categoryType "income" and "expense" count. non_income/non_expense
- * are money that moved but is not wholly mine (a loan out, a shared bill,
- * a refund), so adding them here inflated both tiles: a 600 € rent paid
- * for two flatmates is not 600 € of my spending. They used to be summed
- * in because the net-worth perspective (rightly) treats them as cash
- * movements; "what did I earn/spend" is a different question.
+ * non_expense stays out: a 600 € rent paid for two flatmates is not 600 €
+ * of my spending. Netting non_income but not non_expense is asymmetric on
+ * purpose; the user chose it after seeing that shared bills are logged
+ * as non_expense while the money back is non_income.
+ *
+ * Derived from getSignedAmountCents (expense is -amount, non_income
+ * +amount, under net-worth) rather than a sign of its own. Every spending
+ * figure on Home goes through here, so the chart point, the category
+ * sheet's rows and This month so far cannot drift apart.
+ */
+function spendingCents(tx: Transaction): Cents | null {
+  if (tx.categoryType !== "expense" && tx.categoryType !== "non_income") return null;
+  return -getSignedAmountCents(tx, { kind: "net-worth" });
+}
+
+/**
+ * Income and net expense for a month, optionally only up to `asOfDate`.
+ *
+ * Income is categoryType "income" only. Expense is spendingCents: expense
+ * minus non_income, so it can go negative in a month where refunds
+ * outweigh spending (chartGeometry clamps that point).
  */
 export function summarizeMonth(transactions: Transaction[], monthKey: string, asOfDate?: string): MonthSummary {
   let income = 0;
@@ -37,9 +55,10 @@ export function summarizeMonth(transactions: Transaction[], monthKey: string, as
     if (asOfDate && tx.date > asOfDate) continue;
     if (tx.categoryType === "income") {
       income = addCents(income, getSignedAmountCents(tx, { kind: "net-worth" }));
-    } else if (tx.categoryType === "expense") {
-      expense = addCents(expense, -getSignedAmountCents(tx, { kind: "net-worth" }));
+      continue;
     }
+    const spent = spendingCents(tx);
+    if (spent !== null) expense = addCents(expense, spent);
   }
   return { monthKey, incomeCents: income, expenseCents: expense };
 }
@@ -92,9 +111,9 @@ export interface CategoryPace {
 }
 
 export interface MonthPace {
-  /** The month's expense so far: summarizeMonth's figure, so it equals the chart point. */
+  /** The month's net expense so far: summarizeMonth's figure, so it equals the chart point. */
   spentCents: Cents;
-  /** Average full-month expense over the baseline months that had any expense. */
+  /** Average full-month net expense over the baseline months that had any spending row. */
   usualCents: Cents;
   usualMonths: number;
   /** The biggest categories so far, biggest first. */
@@ -130,11 +149,12 @@ export function getMonthPace(
   const categoryTotals = new Map<string, Cents>();
   const categoryMonths = new Map<string, Set<string>>();
   for (const tx of transactions) {
-    if (tx.categoryType !== "expense") continue;
+    const spent = spendingCents(tx);
+    if (spent === null) continue;
     const txMonth = toMonthKey(tx.date);
     if (!prior.has(txMonth)) continue;
-    monthTotals.set(txMonth, addCents(monthTotals.get(txMonth) ?? 0, tx.amountCents));
-    categoryTotals.set(tx.category, addCents(categoryTotals.get(tx.category) ?? 0, tx.amountCents));
+    monthTotals.set(txMonth, addCents(monthTotals.get(txMonth) ?? 0, spent));
+    categoryTotals.set(tx.category, addCents(categoryTotals.get(tx.category) ?? 0, spent));
     if (!categoryMonths.has(tx.category)) categoryMonths.set(tx.category, new Set());
     categoryMonths.get(tx.category)!.add(txMonth);
   }
@@ -146,7 +166,12 @@ export function getMonthPace(
     spentCents: summarizeMonth(transactions, monthKey, asOfDate).expenseCents,
     usualCents: average(addCents(...monthTotals.values()), usualMonths),
     usualMonths,
-    categories: getTopCategoriesForMonth(transactions, monthKey, topN, asOfDate).map(({ category, amountCents }) => {
+    // Only categories with net spend: a non_income category such as
+    // Refunds is negative, and "−10 € so far vs 0 € usual" is no pace.
+    categories: getTopCategoriesForMonth(transactions, monthKey, Infinity, asOfDate)
+      .filter((c) => c.amountCents > 0)
+      .slice(0, topN)
+      .map(({ category, amountCents }) => {
       const months = categoryMonths.get(category)?.size ?? 0;
       return { category, spentCents: amountCents, usualCents: average(categoryTotals.get(category) ?? 0, months), months };
     }),
@@ -154,18 +179,21 @@ export function getMonthPace(
 }
 
 /**
- * Per-category expense ranking for a month, biggest first: Home's
- * category sheet (2026-11-11). `asOfDate` caps the current month at today,
- * like summarizeMonth, so the categories add up to the chart point and
- * the Spent tile rather than counting a later-dated row.
+ * Per-category net spending for a month, biggest first: Home's category
+ * sheet (2026-11-11). Rows are spendingCents, so a non_income category
+ * (Refunds) is its own negative row at the bottom and one shared by both
+ * types nets inside itself; either way the list adds up to summarizeMonth's
+ * expense. `asOfDate` caps the current month at today, like summarizeMonth,
+ * rather than counting a later-dated row.
  */
 export function getTopCategoriesForMonth(transactions: Transaction[], monthKey: string, limit = 5, asOfDate?: string) {
   const totals = new Map<string, Cents>();
   for (const tx of transactions) {
-    if (tx.categoryType !== "expense") continue;
+    const spent = spendingCents(tx);
+    if (spent === null) continue;
     if (toMonthKey(tx.date) !== monthKey) continue;
     if (asOfDate && tx.date > asOfDate) continue;
-    totals.set(tx.category, addCents(totals.get(tx.category) ?? 0, tx.amountCents));
+    totals.set(tx.category, addCents(totals.get(tx.category) ?? 0, spent));
   }
   return [...totals.entries()]
     .map(([category, amountCents]) => ({ category, amountCents }))
@@ -339,7 +367,7 @@ function getCounterpartyBalances(
  * replacing Phase 14's running-total line for this month only).
  *
  * Each month goes through summarizeMonth, so the sign convention and the
- * expense-only rule are that function's, not a second copy here. (The
+ * net-expense rule (spendingCents) are that function's, not a second copy here. (The
  * previous body summed raw tx.amountCents. For expense rows that is the
  * same number, since net-worth signs an expense as -amountCents, checked
  * by mutation. The reuse buys one definition, not a fix.) `asOfDate` caps the current month at today: without it a later-dated

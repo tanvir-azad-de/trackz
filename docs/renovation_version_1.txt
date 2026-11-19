@@ -3,7 +3,7 @@ Written: 2026-10-31
 Status: APPROVED — in progress
 
 ===============================================================================
-5. WHERE THIS STANDS  (last updated 2026-11-17, commit 29c0820 + this change)
+5. WHERE THIS STANDS  (last updated 2026-11-19, commit 5f9f0ac + this change)
 ===============================================================================
 
 Numbered 5 because sections 0-4 below are the ORIGINAL 2026-10-31 plan and
@@ -12,14 +12,14 @@ same change as any work, and trust it over anything in sections 0-4, which
 have been wrong about something in every phase so far (see AGENTS.md's
 "Measure before you trust a document").
 
-  Baseline: 474 tests passing (+7 from DAYS ONLY below; -6 from THIS MONTH SO FAR below: 4 added, 10 deleted with the same-days deltas; +16 from LENT / BORROWED + HISTORY below: 17 added, 1 deleted with clearFacets; +14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
+  Baseline: 479 tests passing (+5 from NET SPENDING below; +7 from DAYS ONLY below; -6 from THIS MONTH SO FAR below: 4 added, 10 deleted with the same-days deltas; +16 from LENT / BORROWED + HISTORY below: 17 added, 1 deleted with clearFacets; +14 from the entry screen below: 22 added, 8 deleted with amountInput.ts; +10 from import-reaches-other-devices below; +9 from category-scoped merchants below; +1 from alphabetical dropdowns below; +8 from the keyboard scroll guard below; -8 from the dead-code deletion; -51 from removing Tidy up Merchants; -20 from removing rename below; -1 from the Home balance cards below: 8
   added, 9 deleted with the hero's helpers; +4 from the Merchants sheet below; +1 from the delete toast below; +1 from the edit toast below; +1 from the save-toast change below; +10 from credit-card account types below;
   +5 from the category sheet; +7 from the
   6-month chart + Activity tweaks below; +5 from the Phase 14 chart; +12 from the
   hero rework below; +18 from
   round 2; 437 before the form + settings rework deleted the keypad's 15
   tests and added 9), tsc -b clean, typecheck:api clean, production
-  build 34,158 bytes gzipped JS (+638 from DAYS ONLY, against a 33,520 rebuild of a89c7f6; -69 from THIS MONTH SO FAR, against 33,589; +939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
+  build 34,211 bytes gzipped JS (+54 from NET SPENDING, against a 34,157 rebuild of 5f9f0ac; +638 from DAYS ONLY, against a 33,520 rebuild of a89c7f6; -69 from THIS MONTH SO FAR, against 33,589; +939 from LENT / BORROWED + HISTORY, against a 32,650 rebuild of 29c0820; +1,663 from the entry screen, against a 30,990 rebuild of 6d5eb20; -219 from removing Replace Drive copy; +244 from import-reaches-other-devices, against a 31,067 rebuild of 2629f6d; +197 from category-scoped merchants, against a 30,870 rebuild of f15ba8b; -72 from alphabetical dropdowns, against a 30,941 rebuild of ba9f0fd; -33 from removing the entry error list below; +318 from the two bug fixes below, against a 30,657 rebuild of ff08b7d; -2,195 from removing Tidy up Merchants; -580 from removing rename; -68 from the rename-sheet hint; -90 from the Debts tab relabel; -23,096 from removing the Accounts
   balance sections, against a 56,685 rebuild of 14f42fe — uPlot no longer
   ships, Sparkline.tsx has no app importer left; +125 from tappable rows; +480 from the Home balance cards; +221 from the Merchants sheet, against a 55,860 rebuild of 6d62b6a; +10 from the delete toast; -5 from the edit toast; +16 from the save toast, against a 55,841 rebuild of 504bd97; +63 from credit-card account types; +31 from pinning the sheet pills; +20 from the sheet OK button; +17 from the fixed sheet height; +565 from the category sheet + pill
   restyle; +707 from the 6-month chart + Activity
@@ -47,6 +47,39 @@ have been wrong about something in every phase so far (see AGENTS.md's
   (verified live against real Google on two devices), PWA install,
   iOS hardening, and a real-device pass on the last three phases.
 
+  NET SPENDING — 2026-11-19, NOT PUSHED. Home's "Spending, last 6
+  months", its category sheet and This month so far now show expense
+  MINUS non_income (user decision: a 10 EUR purchase refunded 10 EUR is
+  0 spent). This SUPERSEDES summarizeMonth's "only income and expense
+  count" rule from Phase 14 onward, for expense only: income is still
+  income-only, and non_expense still stays out of spending.
+    - One definition, engine.ts spendingCents: expense +amount,
+      non_income -amount, derived from getSignedAmountCents net-worth.
+      summarizeMonth, getTopCategoriesForMonth and getMonthPace (spent,
+      usual, per-category) all go through it.
+    - Measured before choosing: non_income rows in the 2026-10-31
+      snapshot sit almost entirely under categories of their own (refund /
+      reimbursement style), not the category of the purchase they offset.
+      So a refund cannot net inside its category. The user chose (option
+      A) to show each non_income category as its own NEGATIVE row at the
+      bottom of the category sheet with an empty bar, so the rows still
+      add up to the pill and the chart point. A category used by both
+      types nets inside itself.
+    - All non_income counts, reimbursements and sold items included (user
+      decision, after being told shared bills are non_expense, so their
+      reimbursements now reduce spending they were never in).
+    - This month so far lists only categories with positive net spend;
+      a negative Refunds row is not a pace.
+    - A month can net negative; chartGeometry already clamps the point.
+  Real-data expected values recomputed by a standalone python script and
+  matched to the cent (October, the 6-month series month, the pace usual;
+  the others had no non_income in range and did not move).
+  Mutation-tested: dropping non_income from spendingCents fails 9 tests;
+  dropping the pace's positive filter fails 1.
+  Playwright (live dev, 390x844 @2x, dev seed): every month's sheet pill
+  equals the sum of its rows to the cent; negative non_income rows
+  render at the bottom with an empty bar.
+
   ACTIVITY DAYS ONLY — DONE AND DEPLOYED 2026-11-19 (96fa83c). A ListCollapse toggle
   right of Filter hides the transactions and shows one card with a row
   per day (chevron, day title, grey total) for ONE month. Grill
@@ -70,7 +103,7 @@ have been wrong about something in every phase so far (see AGENTS.md's
       SUPERSEDES the net-worth day nets in ACTIVITY LIST REDESIGN below.
       A day's total now equals the sum of the signed amounts its rows
       show, and it tracks Home's Liquid card, not Net worth. Neither ever
-      matched Home's Spent, which is expense-only.
+      matched Home's Spent, which is net expense (NET SPENDING below).
     - Days where every row is a transfer are hidden in days-only
       (group.ts collapsedDays). It keys on the rows, not on a 0 total: a
       day with equal in and out still shows 0,00. A month of only

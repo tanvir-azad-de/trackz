@@ -10,7 +10,7 @@ function tx(date: string, category: string, amountCents: number, categoryType: C
     date,
     account: "CMRZ",
     destinationAccount: "",
-    cashflow: categoryType === "income" ? "in" : "out",
+    cashflow: categoryType === "income" || categoryType === "non_income" ? "in" : "out",
     category,
     categoryType,
     merchant: "",
@@ -69,5 +69,22 @@ describe("getMonthPace", () => {
     expect(pace.categories.map((c) => c.category)).toEqual(["A", "B", "C"]);
     expect(pace.spentCents).toBe(1000);
     expect(pace).toMatchObject({ usualCents: 0, usualMonths: 0 });
+  });
+
+  it("nets non_income into spent and usual, and leaves a negative category out of the list", () => {
+    const txs = [
+      tx("2026-10-03", "Shopping", 8000),
+      tx("2026-10-09", "Refunds", 2000, "non_income"),
+      tx("2026-11-02", "Shopping", 5000),
+      tx("2026-11-04", "Shopping", 1000, "non_income"),
+      tx("2026-11-06", "Refunds", 1500, "non_income"),
+    ];
+    const pace = getMonthPace(txs, "2026-11", "2026-11-15");
+    expect(pace).toEqual({
+      spentCents: 2500, // 5000 - 1000 - 1500
+      usualCents: 6000, // October: 8000 - 2000
+      usualMonths: 1,
+      categories: [{ category: "Shopping", spentCents: 4000, usualCents: 8000, months: 1 }],
+    });
   });
 });

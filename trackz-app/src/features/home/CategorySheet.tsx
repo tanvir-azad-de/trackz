@@ -21,9 +21,10 @@ interface CategorySheetProps {
 
 /**
  * Opened by tapping Home's 6-month chart (user decisions 2026-11-11): one
- * pinned OK that only closes it, month pills showing each month's EXPENSE total (the chart point's
- * figure, so the bars below add up to it), and every category of the
- * picked month ranked with its share. One bar colour, --negative, because
+ * pinned OK that only closes it, month pills showing each month's NET expense total (the chart point's
+ * figure, so the rows below add up to it), and every category of the
+ * picked month ranked with its share. non_income categories (Refunds)
+ * are negative rows at the bottom with an empty bar (2026-11-19). One bar colour, --negative, because
  * colour carries meaning here and every bar means the same thing. Always
  * opens on the current month.
  */

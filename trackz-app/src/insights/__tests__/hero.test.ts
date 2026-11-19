@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getBalanceSheet, getLiquidCashCents, getMonthlyExpenseSeries, summarizeMonth } from "@/insights/engine";
+import {
+  getBalanceSheet,
+  getLiquidCashCents,
+  getMonthlyExpenseSeries,
+  getTopCategoriesForMonth,
+  summarizeMonth,
+} from "@/insights/engine";
 import type { Cashflow, CategoryType, Transaction } from "@/domain/transaction";
 
 /**
@@ -7,7 +13,14 @@ import type { Cashflow, CategoryType, Transaction } from "@/domain/transaction";
  * checks with exact cents are in engine.test.ts.
  */
 let seq = 0;
-function row(date: string, categoryType: CategoryType, cashflow: Cashflow, amountCents: number, account = "ADVZ"): Transaction {
+function row(
+  date: string,
+  categoryType: CategoryType,
+  cashflow: Cashflow,
+  amountCents: number,
+  account = "ADVZ",
+  category = "C",
+): Transaction {
   seq++;
   return {
     id: `t${seq}`,
@@ -15,7 +28,7 @@ function row(date: string, categoryType: CategoryType, cashflow: Cashflow, amoun
     account,
     destinationAccount: "",
     cashflow,
-    category: "C",
+    category,
     categoryType,
     merchant: "",
     amountCents,
@@ -27,14 +40,27 @@ function row(date: string, categoryType: CategoryType, cashflow: Cashflow, amoun
 }
 
 describe("summarizeMonth", () => {
-  it("counts only income and expense, not non_income/non_expense", () => {
+  it("nets non_income off expense, keeps it out of income, and leaves non_expense out of both", () => {
     const txs = [
       row("2026-10-03", "income", "in", 200000),
-      row("2026-10-04", "non_income", "in", 30000),
+      row("2026-10-04", "non_income", "in", 3000),
       row("2026-10-05", "expense", "out", 5000),
       row("2026-10-06", "non_expense", "out", 60000),
     ];
-    expect(summarizeMonth(txs, "2026-10")).toEqual({ monthKey: "2026-10", incomeCents: 200000, expenseCents: 5000 });
+    expect(summarizeMonth(txs, "2026-10")).toEqual({ monthKey: "2026-10", incomeCents: 200000, expenseCents: 2000 });
+  });
+
+  it("nets a refunded purchase to zero (the user's example, 2026-11-19)", () => {
+    const txs = [
+      row("2026-10-05", "expense", "out", 1000, "ADVZ", "Shopping"),
+      row("2026-10-09", "non_income", "in", 1000, "ADVZ", "Refunds"),
+    ];
+    expect(summarizeMonth(txs, "2026-10").expenseCents).toBe(0);
+  });
+
+  it("goes negative when refunds outweigh the month's spend", () => {
+    const txs = [row("2026-10-05", "expense", "out", 1000), row("2026-10-09", "non_income", "in", 4000)];
+    expect(summarizeMonth(txs, "2026-10").expenseCents).toBe(-3000);
   });
 
   it("stops at asOfDate", () => {
@@ -73,6 +99,35 @@ describe("getMonthlyExpenseSeries", () => {
   it("ends at summarizeMonth's expense for the same today", () => {
     const series = getMonthlyExpenseSeries(txs, "2026-11", 6, "2026-11-04");
     expect(series[5]!.expenseCents).toBe(summarizeMonth(txs, "2026-11", "2026-11-04").expenseCents);
+  });
+});
+
+describe("getTopCategoriesForMonth with non_income", () => {
+  const txs = [
+    row("2026-10-02", "expense", "out", 70000, "ADVZ", "Rent"),
+    row("2026-10-03", "expense", "out", 20000, "ADVZ", "Groceries"),
+    row("2026-10-04", "expense", "out", 10000, "ADVZ", "Shopping"),
+    // Same category as an expense: nets inside Shopping.
+    row("2026-10-06", "non_income", "in", 2500, "ADVZ", "Shopping"),
+    row("2026-10-07", "non_income", "in", 4000, "ADVZ", "Sold Items"),
+    row("2026-10-08", "non_income", "in", 1000, "ADVZ", "Refunds"),
+    row("2026-10-09", "non_expense", "out", 9999, "ADVZ", "WiFi"),
+  ];
+
+  it("lists non_income categories as negative rows, a shared category netted", () => {
+    expect(getTopCategoriesForMonth(txs, "2026-10", Infinity)).toEqual([
+      { category: "Rent", amountCents: 70000 },
+      { category: "Groceries", amountCents: 20000 },
+      { category: "Shopping", amountCents: 7500 },
+      { category: "Refunds", amountCents: -1000 },
+      { category: "Sold Items", amountCents: -4000 },
+    ]);
+  });
+
+  it("adds up to the month's net expense, the chart point", () => {
+    const sum = getTopCategoriesForMonth(txs, "2026-10", Infinity).reduce((a, c) => a + c.amountCents, 0);
+    expect(sum).toBe(92500);
+    expect(summarizeMonth(txs, "2026-10").expenseCents).toBe(92500);
   });
 });
 
